@@ -1,0 +1,156 @@
+<template id="partners-page">
+
+  <div class="space-y-6">
+
+    <!-- =============================================================== -->
+    <!-- Page Header -->
+    <!-- =============================================================== -->
+
+    <div class="flex items-center justify-between">
+
+      <div>
+
+        <h2 class="text-2xl font-bold text-slate-800">
+
+          Partners
+
+        </h2>
+
+        <p class="text-sm text-slate-500">
+
+          Manage all registered partners.
+
+        </p>
+
+      </div>
+
+      <button
+        id="btn-partner-add"
+        class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition">
+
+        <i class="fa-solid fa-plus mr-2"></i>
+
+        Add Partner
+
+      </button>
+
+    </div>
+
+
+
+    <!-- =============================================================== -->
+    <!-- Toolbar -->
+    <!-- =============================================================== -->
+
+    <div
+      class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+
+      <div class="flex flex-wrap gap-3 items-center">
+
+        <div class="flex-1">
+
+          <input
+            id="inp-partner-search"
+            type="text"
+            placeholder="Search partner..."
+            class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+
+        </div>
+
+        <button
+          id="btn-partner-refresh"
+          class="px-4 py-2 rounded-lg border border-slate-300 hover:bg-slate-100">
+
+          <i class="fa-solid fa-rotate-right"></i>
+
+        </button>
+
+      </div>
+
+    </div>
+
+
+
+    <!-- =============================================================== -->
+    <!-- Table -->
+    <!-- =============================================================== -->
+
+    <div
+      class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+
+      <table
+        id="tbl-partners"
+        class="min-w-full text-sm">
+
+        <thead class="bg-slate-100">
+
+          <tr>
+
+            <th class="px-4 py-3 text-left">
+              ID
+            </th>
+
+            <th class="px-4 py-3 text-left">
+              Partner
+            </th>
+
+            <th class="px-4 py-3 text-left">
+              Type
+            </th>
+
+            <th class="px-4 py-3 text-left">
+              Phone
+            </th>
+
+            <th class="px-4 py-3 text-left">
+              Address
+            </th>
+
+            <th class="px-4 py-3 text-center">
+              Status
+            </th>
+
+            <th class="px-4 py-3 text-center">
+              Action
+            </th>
+
+          </tr>
+
+        </thead>
+
+        <tbody id="tbl-partners-body">
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+
+
+    <!-- =============================================================== -->
+    <!-- Pagination -->
+    <!-- =============================================================== -->
+
+    <div
+      class="flex items-center justify-between">
+
+      <div
+        id="lbl-partner-info"
+        class="text-sm text-slate-500">
+
+        0 Partner
+
+      </div>
+
+      <div
+        id="partner-pagination"
+        class="flex gap-2">
+
+      </div>
+
+    </div>
+
+  </div>
+
+</template>

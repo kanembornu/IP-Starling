@@ -1,0 +1,928 @@
+<script>
+
+/**
+ * =============================================================================
+ * FILE        : 975.View.Render.html
+ * VERSION     : 2.0.0
+ * DESCRIPTION : Render Engine
+ * =============================================================================
+ */
+
+const Render = (() => {
+
+  //===========================================================================
+  // Private
+  //===========================================================================
+
+  const PAGE_MAP = Object.freeze({
+
+    dashboard  : "dashboard-page",
+
+    products   : "products-page",
+
+    partners   : "partners-page",
+
+    pickups    : "pickups-page",
+
+    returns    : "returns-page",
+
+    purchasing : "purchasing-page",
+
+    expenses   : "expenses-page"
+
+  });
+
+
+
+  //===========================================================================
+  // Template
+  //===========================================================================
+
+  function getTemplate(id) {
+
+    return DOM.$(id);
+
+  }
+
+
+
+  function clone(id) {
+
+    const template = getTemplate(id);
+
+    if (!template) {
+
+      console.warn("Template not found :", id);
+
+      return null;
+
+    }
+
+    return template.content.cloneNode(true);
+
+  }
+
+
+
+  //===========================================================================
+  // Layout
+  //===========================================================================
+
+  function layout() {
+
+    const root = DOM.$("app");
+
+    if (!root) {
+
+      return;
+
+    }
+
+    DOM.replace(
+
+      root,
+
+      clone("layout-template")
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Sidebar
+  //===========================================================================
+
+  function sidebar(activePage = "dashboard") {
+
+    const container = DOM.$(
+
+      "sidebar-container"
+
+    );
+
+    if (!container) {
+
+      return;
+
+    }
+
+    DOM.replace(
+
+      container,
+
+      clone("sidebar-template")
+
+    );
+
+
+
+    DOM.$$$(".menu-item")
+
+      .forEach(button => {
+
+        const page =
+
+          button.dataset.page;
+
+
+
+        if (page === activePage) {
+
+          DOM.addClass(
+
+            button,
+
+            "bg-blue-600",
+
+            "text-white"
+
+          );
+
+        } else {
+
+          DOM.removeClass(
+
+            button,
+
+            "bg-blue-600",
+
+            "text-white"
+
+          );
+
+        }
+
+      });
+
+  }
+
+
+
+  //===========================================================================
+  // Topbar
+  //===========================================================================
+
+  function topbar(page = "dashboard") {
+
+    const container = DOM.$(
+
+      "topbar-container"
+
+    );
+
+    if (!container) {
+
+      return;
+
+    }
+
+    DOM.replace(
+
+      container,
+
+      clone("topbar-template")
+
+    );
+
+
+
+    const title =
+
+      DOM.$("page-title");
+
+
+
+    const subtitle =
+
+      DOM.$("page-subtitle");
+
+
+
+    if (title) {
+
+      title.textContent =
+
+        Format.title(page);
+
+    }
+
+
+
+    if (subtitle) {
+
+      subtitle.textContent =
+
+        "IP-Starling Inventory Management";
+
+    }
+
+  }
+
+
+
+  //===========================================================================
+  // Page
+  //===========================================================================
+
+  function page(pageName) {
+
+    const templateId =
+
+      PAGE_MAP[pageName];
+
+
+
+    if (!templateId) {
+
+      console.warn(
+
+        "Unknown page",
+
+        pageName
+
+      );
+
+      return;
+
+    }
+
+
+
+    const container =
+
+      DOM.$("content-container");
+
+
+
+    if (!container) {
+
+      return;
+
+    }
+
+
+
+    DOM.replace(
+
+      container,
+
+      clone(templateId)
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Dashboard
+  //===========================================================================
+
+  function dashboard(data) {
+
+  if (!data) {
+
+    return;
+
+  }
+
+  // Guard
+  if (!DOM.$("dashboard-kpi")) {
+
+    return;
+
+  }
+
+  renderDashboardKPI(
+    data.summary
+  );
+
+  renderDashboardStatistics(
+    data.statistics
+  );
+
+  renderDashboardActivities(
+    data.recentActivities
+  );
+
+  }
+
+
+
+  //===========================================================================
+  // Dashboard KPI
+  //===========================================================================
+
+  function renderDashboardKPI(summary) {
+
+    const cards = [
+
+      UI.kpi(
+
+        "Products",
+
+        summary.products,
+
+        "fa-box"
+
+      ),
+
+      UI.kpi(
+
+        "Partners",
+
+        summary.partners,
+
+        "fa-users"
+
+      ),
+
+      UI.kpi(
+
+        "Purchasing",
+
+        summary.purchasings,
+
+        "fa-cart-shopping"
+
+      ),
+
+      UI.kpi(
+
+        "Expenses",
+
+        summary.expenses,
+
+        "fa-wallet"
+
+      )
+
+    ];
+
+
+
+    kpi(
+
+      "dashboard-kpi",
+
+      cards
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Dashboard Statistics
+  //===========================================================================
+
+  function renderDashboardStatistics(stats) {
+
+    const html = `
+
+      <div class="space-y-4">
+
+        <div class="flex justify-between">
+
+          <span>Purchasing</span>
+
+          <strong>
+
+            ${stats.purchasing.total}
+
+          </strong>
+
+        </div>
+
+        <div class="flex justify-between">
+
+          <span>Expense</span>
+
+          <strong>
+
+            ${stats.expense.total}
+
+          </strong>
+
+        </div>
+
+      </div>
+
+    `;
+
+
+
+    statistics(
+
+      "dashboard-statistics",
+
+      html
+
+    );
+
+  }
+
+  //===========================================================================
+  // Dashboard Activities
+  //===========================================================================
+
+  function renderDashboardActivities(activities = []) {
+
+    const container = DOM.$(
+
+      "dashboard-activities"
+
+    );
+
+    if (!container) {
+
+      return;
+
+    }
+
+    if (!activities.length) {
+
+      DOM.html(
+
+        container,
+
+        UI.emptyState("No recent activities.")
+
+      );
+
+      return;
+
+    }
+
+    const html = activities
+
+      .map(item => `
+
+        <div class="flex items-center justify-between p-4">
+
+          <div>
+
+            <div class="font-medium text-slate-800">
+
+              ${item.module}
+
+            </div>
+
+            <div class="text-sm text-slate-500">
+
+              ${item.id}
+
+            </div>
+
+          </div>
+
+          <div class="text-xs text-slate-400">
+
+            ${Format.datetime(item.createdAt)}
+
+          </div>
+
+        </div>
+
+      `)
+
+      .join("");
+
+
+
+    DOM.html(
+
+      container,
+
+      html
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Products
+  //===========================================================================
+
+  function products(data = []) {
+
+    console.log(
+
+      "Render Products",
+
+      data
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Partners
+  //===========================================================================
+
+  function partners(data = []) {
+
+    console.log(
+
+      "Render Partners",
+
+      data
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Pickups
+  //===========================================================================
+
+  function pickups(data = []) {
+
+    console.log(
+
+      "Render Pickups",
+
+      data
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Returns
+  //===========================================================================
+
+  function returns(data = []) {
+
+    console.log(
+
+      "Render Returns",
+
+      data
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Purchasing
+  //===========================================================================
+
+  function purchasing(data = []) {
+
+    console.log(
+
+      "Render Purchasing",
+
+      data
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Expenses
+  //===========================================================================
+
+  function expenses(data = []) {
+
+    console.log(
+
+      "Render Expenses",
+
+      data
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Generic KPI
+  //===========================================================================
+
+  function kpi(containerId, cards = []) {
+
+    const container = DOM.$(
+
+      containerId
+
+    );
+
+    if (!container) {
+
+      return;
+
+    }
+
+    DOM.html(
+
+      container,
+
+      cards.join("")
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Generic Table
+  //===========================================================================
+
+  function table(
+
+    containerId,
+
+    headers = [],
+
+    rows = []
+
+  ) {
+
+    const container = DOM.$(
+
+      containerId
+
+    );
+
+    if (!container) {
+
+      return;
+
+    }
+
+    if (!rows.length) {
+
+      DOM.html(
+
+        container,
+
+        UI.emptyState()
+
+      );
+
+      return;
+
+    }
+
+    const thead = headers
+
+      .map(text =>
+
+        `<th class="px-4 py-3 text-left">${text}</th>`
+
+      )
+
+      .join("");
+
+
+
+    DOM.html(
+
+      container,
+
+      `
+
+      <div class="overflow-x-auto">
+
+        <table class="min-w-full">
+
+          <thead>
+
+            <tr>
+
+              ${thead}
+
+            </tr>
+
+          </thead>
+
+          <tbody>
+
+            ${rows.join("")}
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+      `
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Generic Statistics
+  //===========================================================================
+
+  function statistics(
+
+    containerId,
+
+    html
+
+  ) {
+
+    const container = DOM.$(
+
+      containerId
+
+    );
+
+    if (!container) {
+
+      return;
+
+    }
+
+    DOM.html(
+
+      container,
+
+      html
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Generic Pagination
+  //===========================================================================
+
+  function pagination(
+
+    containerId,
+
+    html
+
+  ) {
+
+    const container = DOM.$(
+
+      containerId
+
+    );
+
+    if (!container) {
+
+      return;
+
+    }
+
+    DOM.html(
+
+      container,
+
+      html
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Generic Loading
+  //===========================================================================
+
+  function loading(
+
+    containerId,
+
+    message = "Loading..."
+
+  ) {
+
+    const container = DOM.$(
+
+      containerId
+
+    );
+
+    if (!container) {
+
+      return;
+
+    }
+
+    DOM.html(
+
+      container,
+
+      UI.loading(message)
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Generic Empty
+  //===========================================================================
+
+  function empty(
+
+    containerId,
+
+    message = "No data available."
+
+  ) {
+
+    const container = DOM.$(
+
+      containerId
+
+    );
+
+    if (!container) {
+
+      return;
+
+    }
+
+    DOM.html(
+
+      container,
+
+      UI.emptyState(message)
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Public API
+  //===========================================================================
+
+  return Object.freeze({
+
+    layout,
+
+    sidebar,
+
+    topbar,
+
+    page,
+
+
+
+    dashboard,
+
+    products,
+
+    partners,
+
+    pickups,
+
+    returns,
+
+    purchasing,
+
+    expenses,
+
+
+
+    table,
+
+    kpi,
+
+    statistics,
+
+    pagination,
+
+    loading,
+
+    empty
+
+  });
+
+})();
+
+</script> 

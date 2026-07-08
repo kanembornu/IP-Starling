@@ -1,0 +1,140 @@
+<template id="sidebar-template">
+
+  <div class="flex flex-col h-full">
+
+    <!-- Logo -->
+    <div class="h-16 flex items-center gap-3 px-6 border-b border-slate-200">
+
+      <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center">
+
+        <i class="fa-solid fa-mug-hot text-lg"></i>
+
+      </div>
+
+      <div>
+
+        <h1 class="font-bold text-slate-800">
+          IP-Starling
+        </h1>
+
+        <p class="text-xs text-slate-500">
+          Inventory & Purchasing
+        </p>
+
+      </div>
+
+    </div>
+
+
+
+    <!-- Menu -->
+
+    <nav class="flex-1 overflow-auto py-4">
+
+      <button
+        class="menu-item w-full flex items-center gap-3 px-6 py-3 text-slate-600 hover:bg-slate-100"
+        data-page="dashboard">
+
+        <i class="fa-solid fa-chart-line w-5"></i>
+
+        <span>Dashboard</span>
+
+      </button>
+
+
+
+      <button
+        class="menu-item w-full flex items-center gap-3 px-6 py-3 text-slate-600 hover:bg-slate-100"
+        data-page="products">
+
+        <i class="fa-solid fa-box w-5"></i>
+
+        <span>Products</span>
+
+      </button>
+
+
+
+      <button
+        class="menu-item w-full flex items-center gap-3 px-6 py-3 text-slate-600 hover:bg-slate-100"
+        data-page="partners">
+
+        <i class="fa-solid fa-users w-5"></i>
+
+        <span>Partners</span>
+
+      </button>
+
+
+
+      <button
+        class="menu-item w-full flex items-center gap-3 px-6 py-3 text-slate-600 hover:bg-slate-100"
+        data-page="pickups">
+
+        <i class="fa-solid fa-truck w-5"></i>
+
+        <span>Pickups</span>
+
+      </button>
+
+
+
+      <button
+        class="menu-item w-full flex items-center gap-3 px-6 py-3 text-slate-600 hover:bg-slate-100"
+        data-page="returns">
+
+        <i class="fa-solid fa-rotate-left w-5"></i>
+
+        <span>Returns</span>
+
+      </button>
+
+
+
+      <button
+        class="menu-item w-full flex items-center gap-3 px-6 py-3 text-slate-600 hover:bg-slate-100"
+        data-page="purchasing">
+
+        <i class="fa-solid fa-cart-shopping w-5"></i>
+
+        <span>Purchasing</span>
+
+      </button>
+
+
+
+      <button
+        class="menu-item w-full flex items-center gap-3 px-6 py-3 text-slate-600 hover:bg-slate-100"
+        data-page="expenses">
+
+        <i class="fa-solid fa-wallet w-5"></i>
+
+        <span>Expenses</span>
+
+      </button>
+
+    </nav>
+
+
+
+    <!-- Footer -->
+
+    <div class="border-t border-slate-200 p-5">
+
+      <div class="text-xs text-slate-500">
+
+        Version
+
+      </div>
+
+      <div class="font-semibold text-slate-700">
+
+        v0.1.0
+
+      </div>
+
+    </div>
+
+  </div>
+
+</template>

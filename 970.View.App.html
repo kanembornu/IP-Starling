@@ -1,0 +1,984 @@
+<script>
+
+/**
+ * =============================================================================
+ * FILE        : 970.View.App.html
+ * VERSION     : 2.0.0
+ * DESCRIPTION : Application Controller
+ * =============================================================================
+ */
+
+const App = (() => {
+
+  //===========================================================================
+  // State
+  //===========================================================================
+
+  const state = {
+
+    page: window.APP?.initialPage || "dashboard",
+
+    dashboard: null,
+
+    products: [],
+
+    partners: [],
+
+    pickups: [],
+
+    returns: [],
+
+    purchasing: [],
+
+    expenses: []
+
+  };
+
+
+
+  //===========================================================================
+  // Initialize
+  //===========================================================================
+
+  async function init() {
+
+    console.log("APP INIT");
+
+
+
+    Render.layout();
+
+
+
+    Render.sidebar(
+
+      state.page
+
+    );
+
+
+
+    Render.topbar(
+
+      state.page
+
+    );
+
+
+
+    Render.page(
+
+      state.page
+
+    );
+
+
+
+    Events.init();
+
+
+
+    await refresh();
+
+  }
+
+
+
+  //===========================================================================
+  // Navigation
+  //===========================================================================
+
+  async function navigate(page) {
+
+    if (
+
+      state.page === page
+
+    ) {
+
+      return;
+
+    }
+
+
+
+    state.page = page;
+
+
+
+    Render.sidebar(
+
+      page
+
+    );
+
+
+
+    Render.topbar(
+
+      page
+
+    );
+
+
+
+    Render.page(
+
+      page
+
+    );
+
+
+
+
+
+
+    await refresh();
+
+  }
+
+
+
+  //===========================================================================
+  // Current Page
+  //===========================================================================
+
+  function currentPage() {
+
+    return state.page;
+
+  }
+
+
+
+  //===========================================================================
+  // Refresh
+  //===========================================================================
+
+  async function refresh() {
+
+    switch (state.page) {
+
+      case "dashboard":
+
+        await loadDashboard();
+
+        break;
+
+
+
+      case "products":
+
+        await loadProducts();
+
+        break;
+
+
+
+      case "partners":
+
+        await loadPartners();
+
+        break;
+
+
+
+      case "pickups":
+
+        await loadPickups();
+
+        break;
+
+
+
+      case "returns":
+
+        await loadReturns();
+
+        break;
+
+
+
+      case "purchasing":
+
+        await loadPurchasing();
+
+        break;
+
+
+
+      case "expenses":
+
+        await loadExpenses();
+
+        break;
+
+    }
+
+  }
+
+
+
+  //===========================================================================
+  // Dashboard
+  //===========================================================================
+
+  async function loadDashboard() {
+
+    Render.loading(
+
+      "dashboard-kpi"
+
+    );
+
+
+
+    const res =
+
+      await Api.Dashboard.get();
+
+
+
+    if (
+
+      !res ||
+
+      !res.success
+
+    ) {
+
+      UI.toast(
+
+        res?.message ||
+
+        "Dashboard failed."
+
+      );
+
+      return;
+
+    }
+
+    console.log("RES =", res);
+
+    console.log("DATA =", res.data);
+
+    console.log("SUMMARY =", res.data?.summary);
+
+    state.dashboard = res.data;
+
+
+
+    Render.dashboard(
+
+      state.dashboard
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Products
+  //===========================================================================
+
+  async function loadProducts() {
+
+    const res =
+
+      await Api.Product.list();
+
+
+
+    if (
+
+      !res ||
+
+      !res.success
+
+    ) {
+
+      UI.toast(
+
+        res?.message ||
+
+        "Load products failed."
+
+      );
+
+      return;
+
+    }
+
+
+
+    state.products =
+
+      Utils.deepClone(
+
+        res.data
+
+      );
+
+
+
+    Render.products(
+
+      state.products
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Partners
+  //===========================================================================
+
+  async function loadPartners() {
+
+    const res =
+
+      await Api.Partner.list();
+
+
+
+    if (
+
+      !res ||
+
+      !res.success
+
+    ) {
+
+      UI.toast(
+
+        res?.message ||
+
+        "Load partners failed."
+
+      );
+
+      return;
+
+    }
+
+
+
+    state.partners =
+
+      Utils.deepClone(
+
+        res.data
+
+      );
+
+
+
+    Render.partners(
+
+      state.partners
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Pickups
+  //===========================================================================
+
+  async function loadPickups() {
+
+    const res =
+
+      await Api.Pickup.list();
+
+
+
+    if (
+
+      !res ||
+
+      !res.success
+
+    ) {
+
+      UI.toast(
+
+        res?.message ||
+
+        "Load pickups failed."
+
+      );
+
+      return;
+
+    }
+
+
+
+    state.pickups =
+
+      Utils.deepClone(
+
+        res.data
+
+      );
+
+
+
+    Render.pickups(
+
+      state.pickups
+
+    );
+
+  }
+
+    //===========================================================================
+  // Returns
+  //===========================================================================
+
+  async function loadReturns() {
+
+    const res =
+
+      await Api.Return.list();
+
+
+
+    if (
+
+      !res ||
+
+      !res.success
+
+    ) {
+
+      UI.toast(
+
+        res?.message ||
+
+        "Load returns failed."
+
+      );
+
+      return;
+
+    }
+
+
+
+    state.returns =
+
+      Utils.deepClone(
+
+        res.data
+
+      );
+
+
+
+    Render.returns(
+
+      state.returns
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Purchasing
+  //===========================================================================
+
+  async function loadPurchasing() {
+
+    const res =
+
+      await Api.Purchasing.list();
+
+
+
+    if (
+
+      !res ||
+
+      !res.success
+
+    ) {
+
+      UI.toast(
+
+        res?.message ||
+
+        "Load purchasing failed."
+
+      );
+
+      return;
+
+    }
+
+
+
+    state.purchasing =
+
+      Utils.deepClone(
+
+        res.data
+
+      );
+
+
+
+    Render.purchasing(
+
+      state.purchasing
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Expenses
+  //===========================================================================
+
+  async function loadExpenses() {
+
+    const res =
+
+      await Api.Expense.list();
+
+
+
+    if (
+
+      !res ||
+
+      !res.success
+
+    ) {
+
+      UI.toast(
+
+        res?.message ||
+
+        "Load expenses failed."
+
+      );
+
+      return;
+
+    }
+
+
+
+    state.expenses =
+
+      Utils.deepClone(
+
+        res.data
+
+      );
+
+
+
+    Render.expenses(
+
+      state.expenses
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Search
+  //===========================================================================
+
+  function search(module, keyword) {
+
+    console.log(
+
+      "Search",
+
+      module,
+
+      keyword
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Product Action
+  //===========================================================================
+
+  function editProduct(id) {
+
+    console.log(
+
+      "Edit Product",
+
+      id
+
+    );
+
+  }
+
+
+
+  function deleteProduct(id) {
+
+    console.log(
+
+      "Delete Product",
+
+      id
+
+    );
+
+  }
+
+
+
+  function restoreProduct(id) {
+
+    console.log(
+
+      "Restore Product",
+
+      id
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Partner Action
+  //===========================================================================
+
+  function editPartner(id) {
+
+    console.log(
+
+      "Edit Partner",
+
+      id
+
+    );
+
+  }
+
+
+
+  function deletePartner(id) {
+
+    console.log(
+
+      "Delete Partner",
+
+      id
+
+    );
+
+  }
+
+
+
+  function restorePartner(id) {
+
+    console.log(
+
+      "Restore Partner",
+
+      id
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Pickup Action
+  //===========================================================================
+
+  function editPickup(id) {
+
+    console.log(
+
+      "Edit Pickup",
+
+      id
+
+    );
+
+  }
+
+
+
+  function deletePickup(id) {
+
+    console.log(
+
+      "Delete Pickup",
+
+      id
+
+    );
+
+  }
+
+
+
+  function restorePickup(id) {
+
+    console.log(
+
+      "Restore Pickup",
+
+      id
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Return Action
+  //===========================================================================
+
+  function editReturn(id) {
+
+    console.log(
+
+      "Edit Return",
+
+      id
+
+    );
+
+  }
+
+
+
+  function deleteReturn(id) {
+
+    console.log(
+
+      "Delete Return",
+
+      id
+
+    );
+
+  }
+
+
+
+  function restoreReturn(id) {
+
+    console.log(
+
+      "Restore Return",
+
+      id
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Purchasing Action
+  //===========================================================================
+
+  function editPurchasing(id) {
+
+    console.log(
+
+      "Edit Purchasing",
+
+      id
+
+    );
+
+  }
+
+
+
+  function deletePurchasing(id) {
+
+    console.log(
+
+      "Delete Purchasing",
+
+      id
+
+    );
+
+  }
+
+
+
+  function restorePurchasing(id) {
+
+    console.log(
+
+      "Restore Purchasing",
+
+      id
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Expense Action
+  //===========================================================================
+
+  function editExpense(id) {
+
+    console.log(
+
+      "Edit Expense",
+
+      id
+
+    );
+
+  }
+
+
+
+  function deleteExpense(id) {
+
+    console.log(
+
+      "Delete Expense",
+
+      id
+
+    );
+
+  }
+
+
+
+  function restoreExpense(id) {
+
+    console.log(
+
+      "Restore Expense",
+
+      id
+
+    );
+
+  }
+
+
+
+  //===========================================================================
+  // Public API
+  //===========================================================================
+
+  return Object.freeze({
+
+    init,
+
+    navigate,
+
+    refresh,
+
+
+
+    currentPage,
+
+    search,
+
+
+
+    editProduct,
+
+    deleteProduct,
+
+    restoreProduct,
+
+
+
+    editPartner,
+
+    deletePartner,
+
+    restorePartner,
+
+
+
+    editPickup,
+
+    deletePickup,
+
+    restorePickup,
+
+
+
+    editReturn,
+
+    deleteReturn,
+
+    restoreReturn,
+
+
+
+    editPurchasing,
+
+    deletePurchasing,
+
+    restorePurchasing,
+
+
+
+    editExpense,
+
+    deleteExpense,
+
+    restoreExpense
+
+  });
+
+})();
+
+
+
+//=============================================================================
+// Bootstrap
+//=============================================================================
+
+window.addEventListener(
+
+  "load",
+
+  App.init
+
+);
+
+</script>

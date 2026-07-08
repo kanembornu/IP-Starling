@@ -1,0 +1,365 @@
+<script>
+
+/**
+ * =============================================================================
+ * FILE        : 965.View.API
+ * VERSION     : 2.0.0
+ * DESCRIPTION : API Wrapper
+ * =============================================================================
+ */
+
+const Api = (() => {
+
+  //===========================================================================
+  // Generic Runner
+  //===========================================================================
+
+  function run(fn, ...args) {
+
+  console.log("CALL :", fn, args);
+
+  return new Promise((resolve, reject) => {
+
+    google.script.run
+
+      .withSuccessHandler(result => {
+
+        console.log("SUCCESS :", fn, result);
+
+        resolve(result);
+
+      })
+
+      .withFailureHandler(error => {
+
+        console.error("FAILED :", fn, error);
+
+        reject(error);
+
+      })
+
+      [fn](...args);
+
+  });
+
+}
+
+
+
+  //===========================================================================
+  // Dashboard
+  //===========================================================================
+
+  const Dashboard = Object.freeze({
+
+    get() {
+
+      return run("getDashboard");
+
+    }
+
+  });
+
+
+
+  //===========================================================================
+  // Product
+  //===========================================================================
+
+  const Product = Object.freeze({
+
+    list() {
+
+      return run("getProducts");
+
+    },
+
+    get(id) {
+
+      return run("getProduct", id);
+
+    },
+
+    create(data) {
+
+      return run("createProduct", data);
+
+    },
+
+    update(id, data) {
+
+      return run("updateProduct", id, data);
+
+    },
+
+    remove(id) {
+
+      return run("deleteProduct", id);
+
+    },
+
+    restore(id) {
+
+      return run("restoreProduct", id);
+
+    }
+
+  });
+
+
+
+  //===========================================================================
+  // Partner
+  //===========================================================================
+
+  const Partner = Object.freeze({
+
+    list() {
+
+      return run("getPartners");
+
+    },
+
+    get(id) {
+
+      return run("getPartner", id);
+
+    },
+
+    create(data) {
+
+      return run("createPartner", data);
+
+    },
+
+    update(id, data) {
+
+      return run("updatePartner", id, data);
+
+    },
+
+    remove(id) {
+
+      return run("deletePartner", id);
+
+    },
+
+    restore(id) {
+
+      return run("restorePartner", id);
+
+    }
+
+  });
+
+
+
+  //===========================================================================
+  // Pickup
+  //===========================================================================
+
+  const Pickup = Object.freeze({
+
+    list() {
+
+      return run("getPickups");
+
+    },
+
+    get(id) {
+
+      return run("getPickup", id);
+
+    },
+
+    create(data) {
+
+      return run("createPickup", data);
+
+    },
+
+    update(id, data) {
+
+      return run("updatePickup", id, data);
+
+    },
+
+    remove(id) {
+
+      return run("deletePickup", id);
+
+    },
+
+    restore(id) {
+
+      return run("restorePickup", id);
+
+    }
+
+  });
+
+
+
+  //===========================================================================
+  // Return
+  //===========================================================================
+
+  const Return = Object.freeze({
+
+    list() {
+
+      return run("getReturns");
+
+    },
+
+    get(id) {
+
+      return run("getReturn", id);
+
+    },
+
+    create(data) {
+
+      return run("createReturn", data);
+
+    },
+
+    update(id, data) {
+
+      return run("updateReturn", id, data);
+
+    },
+
+    remove(id) {
+
+      return run("deleteReturn", id);
+
+    },
+
+    restore(id) {
+
+      return run("restoreReturn", id);
+
+    }
+
+  });
+
+
+
+  //===========================================================================
+  // Purchasing
+  //===========================================================================
+
+  const Purchasing = Object.freeze({
+
+    list() {
+
+      return run("getPurchasing");
+
+    },
+
+    get(id) {
+
+      return run("getPurchasingById", id);
+
+    },
+
+    create(data) {
+
+      return run("createPurchasing", data);
+
+    },
+
+    update(id, data) {
+
+      return run("updatePurchasing", id, data);
+
+    },
+
+    remove(id) {
+
+      return run("deletePurchasing", id);
+
+    },
+
+    restore(id) {
+
+      return run("restorePurchasing", id);
+
+    }
+
+  });
+
+
+
+  //===========================================================================
+  // Expense
+  //===========================================================================
+
+  const Expense = Object.freeze({
+
+    list() {
+
+      return run("getExpenses");
+
+    },
+
+    get(id) {
+
+      return run("getExpense", id);
+
+    },
+
+    create(data) {
+
+      return run("createExpense", data);
+
+    },
+
+    update(id, data) {
+
+      return run("updateExpense", id, data);
+
+    },
+
+    remove(id) {
+
+      return run("deleteExpense", id);
+
+    },
+
+    restore(id) {
+
+      return run("restoreExpense", id);
+
+    }
+
+  });
+
+
+
+  //===========================================================================
+  // Public API
+  //===========================================================================
+
+  return Object.freeze({
+
+    Dashboard,
+
+    Product,
+
+    Partner,
+
+    Pickup,
+
+    Return,
+
+    Purchasing,
+
+    Expense
+
+  });
+
+})();
+
+</script>
