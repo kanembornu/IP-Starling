@@ -1,9 +1,227 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <base target="_top">
-  </head>
-  <body>
-    
-  </body>
-</html>
+<script>
+  /**
+   * =============================================================================
+   * FILE        : 971.View.Dashboard.Presenter.html
+   * VERSION     : 1.0.0
+   * DESCRIPTION : Dashboard Presenter
+   * =============================================================================
+   *
+   * Presenter bertugas mengubah Dashboard Data menjadi Components.
+   *
+   * App
+   *   ↓
+   * DashboardPresenter
+   *   ↓
+   * Render
+   *
+   * Presenter TIDAK:
+   * - memanggil API
+   * - menyimpan state
+   * - mengakses Spreadsheet
+   *
+   * =============================================================================
+   */
+
+  const DashboardPresenter = (() => {
+    //===========================================================================
+    // Public Render
+    //===========================================================================
+
+    function render(data) {
+      if (!data) {
+        Render.empty("dashboard-kpi", "Dashboard data unavailable.");
+
+        return;
+      }
+
+      renderKPI(data.summary || {});
+
+      renderStatistics(data.statistics || {});
+
+      renderActivities(data.recentActivities || []);
+
+      renderCharts(data);
+    }
+
+    //===========================================================================
+    // KPI
+    //===========================================================================
+
+    function renderKPI(summary) {
+      const cards = [
+        Components.kpi(
+          "Products",
+
+          summary.products || 0,
+
+          "fa-box",
+        ),
+
+        Components.kpi(
+          "Partners",
+
+          summary.partners || 0,
+
+          "fa-users",
+        ),
+
+        Components.kpi(
+          "Purchasing",
+
+          summary.purchasings || 0,
+
+          "fa-cart-shopping",
+        ),
+
+        Components.kpi(
+          "Expenses",
+
+          summary.expenses || 0,
+
+          "fa-wallet",
+        ),
+      ];
+
+      Render.kpi(
+        "dashboard-kpi",
+
+        cards,
+      );
+    }
+
+    //===========================================================================
+    // Statistics
+    //===========================================================================
+
+    function renderStatistics(statistics) {
+      const purchasing = statistics.purchasing || {};
+
+      const expense = statistics.expense || {};
+
+      const html = `
+
+      <div class="space-y-4">
+
+        <div class="flex justify-between">
+
+          <span>Purchasing</span>
+
+          <strong>
+
+            ${purchasing.total || 0}
+
+          </strong>
+
+        </div>
+
+        <div class="flex justify-between">
+
+          <span>Expense</span>
+
+          <strong>
+
+            ${expense.total || 0}
+
+          </strong>
+
+        </div>
+
+      </div>
+
+    `;
+
+      Render.statistics(
+        "dashboard-statistics",
+
+        html,
+      );
+    }
+
+    //===========================================================================
+    // Activities
+    //===========================================================================
+
+    function renderActivities(activities = []) {
+      const container = DOM.$("dashboard-activities");
+
+      if (!container) {
+        return;
+      }
+
+      if (!activities.length) {
+        Render.empty(
+          "dashboard-activities",
+
+          "No recent activities.",
+        );
+
+        return;
+      }
+
+      const html = activities
+
+        .map(
+          (item) => `
+
+        <div class="flex items-center justify-between p-4">
+
+          <div>
+
+            <div class="font-medium text-slate-800">
+
+              ${item.module}
+
+            </div>
+
+            <div class="text-sm text-slate-500">
+
+              ${item.id}
+
+            </div>
+
+          </div>
+
+          <div class="text-xs text-slate-400">
+
+            ${Format.datetime(item.createdAt)}
+
+          </div>
+
+        </div>
+
+      `,
+        )
+
+        .join("");
+
+      DOM.html(
+        container,
+
+        html,
+      );
+    }
+
+    //===========================================================================
+    // Charts
+    //===========================================================================
+
+    function renderCharts(data) {
+      console.log(
+        "Dashboard Charts",
+
+        data,
+      );
+
+      // Sprint 2
+      // ChartPresenter.render(data);
+    }
+
+    //===========================================================================
+    // Public API
+    //===========================================================================
+
+    return Object.freeze({
+      render,
+    });
+  })();
+</script>

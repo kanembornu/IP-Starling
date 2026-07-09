@@ -24,7 +24,7 @@
 
   "eslint.validate": ["javascript", "html"],
 
-  "cSpell.language": "en",
+  "cSpell.language": "en, id",
 
   "cSpell.allowCompoundWords": true,
 

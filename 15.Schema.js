@@ -6,8 +6,6 @@
  * =============================================================================
  */
 
-
-
 /**
  * =============================================================================
  * SCHEMA BUILDER
@@ -15,9 +13,7 @@
  */
 
 function createSchema(options) {
-
   const schema = {
-
     NAME: options.NAME,
 
     TABLE: options.TABLE,
@@ -31,7 +27,6 @@ function createSchema(options) {
     FIELDS: Object.freeze(options.FIELDS),
 
     SYSTEM: Object.freeze({
-
       PRIMARY_KEY: SYSTEM_COLUMNS.PRIMARY_KEY,
 
       IS_ACTIVE: SYSTEM_COLUMNS.IS_ACTIVE,
@@ -44,8 +39,7 @@ function createSchema(options) {
 
       UPDATED_AT: AUDIT_COLUMNS.UPDATED_AT,
 
-      UPDATED_BY: AUDIT_COLUMNS.UPDATED_BY
-
+      UPDATED_BY: AUDIT_COLUMNS.UPDATED_BY,
     }),
 
     DEFAULT: Object.freeze(options.DEFAULT),
@@ -57,24 +51,18 @@ function createSchema(options) {
     SEARCHABLE: Object.freeze(options.SEARCHABLE),
 
     UI: Object.freeze({
+      TITLE: options.Components.TITLE,
 
-      TITLE: options.UI.TITLE,
+      ICON: options.Components.ICON,
 
-      ICON: options.UI.ICON,
+      COLOR: options.Components.COLOR,
 
-      COLOR: options.UI.COLOR,
-
-      SEARCH_PLACEHOLDER: options.UI.SEARCH_PLACEHOLDER
-
-    })
-
+      SEARCH_PLACEHOLDER: options.Components.SEARCH_PLACEHOLDER,
+    }),
   };
 
   return Object.freeze(schema);
-
 }
-
-
 
 /**
  * =============================================================================
@@ -83,7 +71,6 @@ function createSchema(options) {
  */
 
 const PRODUCT_FIELDS = Object.freeze({
-
   ID: SYSTEM_COLUMNS.PRIMARY_KEY,
 
   NAME: "Nama",
@@ -92,13 +79,10 @@ const PRODUCT_FIELDS = Object.freeze({
 
   UNIT: "Satuan",
 
-  PRICE: "Harga"
-
+  PRICE: "Harga",
 });
 
-
 const PRODUCT_SCHEMA = createSchema({
-
   NAME: "Product",
 
   TABLE: SHEET_NAMES.PRODUCTS,
@@ -112,84 +96,59 @@ const PRODUCT_SCHEMA = createSchema({
   FIELDS: PRODUCT_FIELDS,
 
   DEFAULT: {
-
     [SYSTEM_COLUMNS.IS_DELETED]: false,
 
-    [SYSTEM_COLUMNS.IS_ACTIVE]: true
-
+    [SYSTEM_COLUMNS.IS_ACTIVE]: true,
   },
 
   VALIDATION: {
-
     [PRODUCT_FIELDS.NAME]: {
-
       required: true,
 
-      maxLength: 100
-
+      maxLength: 100,
     },
 
     [PRODUCT_FIELDS.CATEGORY]: {
-
       required: true,
 
-      maxLength: 50
-
+      maxLength: 50,
     },
 
     [PRODUCT_FIELDS.UNIT]: {
-
       required: true,
 
-      maxLength: 20
-
+      maxLength: 20,
     },
 
     [PRODUCT_FIELDS.PRICE]: {
-
       required: true,
 
       numeric: true,
 
-      min: 0
-
-    }
-
+      min: 0,
+    },
   },
 
   READONLY: {
-
     [SYSTEM_COLUMNS.PRIMARY_KEY]: true,
 
     [AUDIT_COLUMNS.CREATED_AT]: true,
 
-    [AUDIT_COLUMNS.CREATED_BY]: true
-
+    [AUDIT_COLUMNS.CREATED_BY]: true,
   },
 
-  SEARCHABLE: [
-
-    PRODUCT_FIELDS.NAME,
-
-    PRODUCT_FIELDS.CATEGORY
-
-  ],
+  SEARCHABLE: [PRODUCT_FIELDS.NAME, PRODUCT_FIELDS.CATEGORY],
 
   UI: {
-
     TITLE: "Produk",
 
     ICON: "package",
 
     COLOR: "blue",
 
-    SEARCH_PLACEHOLDER: "Cari produk..."
-
-  }
-
+    SEARCH_PLACEHOLDER: "Cari produk...",
+  },
 });
-
-
 
 /**
  * =============================================================================
@@ -198,7 +157,6 @@ const PRODUCT_SCHEMA = createSchema({
  */
 
 const PARTNER_FIELDS = Object.freeze({
-
   ID: SYSTEM_COLUMNS.PRIMARY_KEY,
 
   NAME: "Nama",
@@ -207,13 +165,10 @@ const PARTNER_FIELDS = Object.freeze({
 
   PHONE: "Telepon",
 
-  TYPE: "Jenis"
-
+  TYPE: "Jenis",
 });
 
-
 const PARTNER_SCHEMA = createSchema({
-
   NAME: "Partner",
 
   TABLE: SHEET_NAMES.PARTNERS,
@@ -227,84 +182,57 @@ const PARTNER_SCHEMA = createSchema({
   FIELDS: PARTNER_FIELDS,
 
   DEFAULT: {
-
     [SYSTEM_COLUMNS.IS_DELETED]: false,
 
-    [SYSTEM_COLUMNS.IS_ACTIVE]: true
-
+    [SYSTEM_COLUMNS.IS_ACTIVE]: true,
   },
 
   VALIDATION: {
-
     [PARTNER_FIELDS.NAME]: {
-
       required: true,
 
-      maxLength: 100
-
+      maxLength: 100,
     },
 
     [PARTNER_FIELDS.ADDRESS]: {
-
       required: false,
 
-      maxLength: 255
-
+      maxLength: 255,
     },
 
     [PARTNER_FIELDS.PHONE]: {
-
       required: false,
 
-      maxLength: 30
-
+      maxLength: 30,
     },
 
     [PARTNER_FIELDS.TYPE]: {
-
       required: true,
 
-      maxLength: 30
-
-    }
-
+      maxLength: 30,
+    },
   },
 
   READONLY: {
-
     [SYSTEM_COLUMNS.PRIMARY_KEY]: true,
 
     [AUDIT_COLUMNS.CREATED_AT]: true,
 
-    [AUDIT_COLUMNS.CREATED_BY]: true
-
+    [AUDIT_COLUMNS.CREATED_BY]: true,
   },
 
-  SEARCHABLE: [
-
-    PARTNER_FIELDS.NAME,
-
-    PARTNER_FIELDS.PHONE,
-
-    PARTNER_FIELDS.TYPE
-
-  ],
+  SEARCHABLE: [PARTNER_FIELDS.NAME, PARTNER_FIELDS.PHONE, PARTNER_FIELDS.TYPE],
 
   UI: {
-
     TITLE: "Mitra",
 
     ICON: "users",
 
     COLOR: "emerald",
 
-    SEARCH_PLACEHOLDER: "Cari mitra..."
-
-  }
-
+    SEARCH_PLACEHOLDER: "Cari mitra...",
+  },
 });
-
-
 
 /**
  * =============================================================================
@@ -313,7 +241,6 @@ const PARTNER_SCHEMA = createSchema({
  */
 
 const PICKUP_FIELDS = Object.freeze({
-
   ID: SYSTEM_COLUMNS.PRIMARY_KEY,
 
   DATE: "Tanggal",
@@ -322,13 +249,10 @@ const PICKUP_FIELDS = Object.freeze({
 
   PRODUCT_ID: "ProductID",
 
-  QTY: "Qty"
-
+  QTY: "Qty",
 });
 
-
 const PICKUP_SCHEMA = createSchema({
-
   NAME: "Pickup",
 
   TABLE: SHEET_NAMES.PICKUPS,
@@ -342,75 +266,52 @@ const PICKUP_SCHEMA = createSchema({
   FIELDS: PICKUP_FIELDS,
 
   DEFAULT: {
-
     [SYSTEM_COLUMNS.IS_DELETED]: false,
 
-    [SYSTEM_COLUMNS.IS_ACTIVE]: true
-
+    [SYSTEM_COLUMNS.IS_ACTIVE]: true,
   },
 
   VALIDATION: {
-
     [PICKUP_FIELDS.DATE]: {
-
-      required: true
-
+      required: true,
     },
 
     [PICKUP_FIELDS.PARTNER_ID]: {
-
-      required: true
-
+      required: true,
     },
 
     [PICKUP_FIELDS.PRODUCT_ID]: {
-
-      required: true
-
+      required: true,
     },
 
     [PICKUP_FIELDS.QTY]: {
-
       required: true,
 
       numeric: true,
 
-      min: 1
-
-    }
-
+      min: 1,
+    },
   },
 
   READONLY: {
-
     [SYSTEM_COLUMNS.PRIMARY_KEY]: true,
 
     [AUDIT_COLUMNS.CREATED_AT]: true,
 
-    [AUDIT_COLUMNS.CREATED_BY]: true
-
+    [AUDIT_COLUMNS.CREATED_BY]: true,
   },
 
-  SEARCHABLE: [
-
-    PICKUP_FIELDS.PARTNER_ID,
-
-    PICKUP_FIELDS.PRODUCT_ID
-
-  ],
+  SEARCHABLE: [PICKUP_FIELDS.PARTNER_ID, PICKUP_FIELDS.PRODUCT_ID],
 
   UI: {
-
     TITLE: "Pickup Product",
 
     ICON: "truck",
 
     COLOR: "cyan",
 
-    SEARCH_PLACEHOLDER: "Cari pickup..."
-
-  }
-
+    SEARCH_PLACEHOLDER: "Cari pickup...",
+  },
 });
 
 /**
@@ -420,7 +321,6 @@ const PICKUP_SCHEMA = createSchema({
  */
 
 const RETURN_FIELDS = Object.freeze({
-
   ID: SYSTEM_COLUMNS.PRIMARY_KEY,
 
   PICKUP_ID: "PickupID",
@@ -429,13 +329,10 @@ const RETURN_FIELDS = Object.freeze({
 
   QTY: "Qty",
 
-  NOTE: "Keterangan"
-
+  NOTE: "Keterangan",
 });
 
-
 const RETURN_SCHEMA = createSchema({
-
   NAME: "Return",
 
   TABLE: SHEET_NAMES.RETURNS,
@@ -449,80 +346,55 @@ const RETURN_SCHEMA = createSchema({
   FIELDS: RETURN_FIELDS,
 
   DEFAULT: {
-
     [SYSTEM_COLUMNS.IS_DELETED]: false,
 
-    [SYSTEM_COLUMNS.IS_ACTIVE]: true
-
+    [SYSTEM_COLUMNS.IS_ACTIVE]: true,
   },
 
   VALIDATION: {
-
     [RETURN_FIELDS.PICKUP_ID]: {
-
-      required: true
-
+      required: true,
     },
 
     [RETURN_FIELDS.DATE]: {
-
-      required: true
-
+      required: true,
     },
 
     [RETURN_FIELDS.QTY]: {
-
       required: true,
 
       numeric: true,
 
-      min: 1
-
+      min: 1,
     },
 
     [RETURN_FIELDS.NOTE]: {
-
       required: false,
 
-      maxLength: 255
-
-    }
-
+      maxLength: 255,
+    },
   },
 
   READONLY: {
-
     [SYSTEM_COLUMNS.PRIMARY_KEY]: true,
 
     [AUDIT_COLUMNS.CREATED_AT]: true,
 
-    [AUDIT_COLUMNS.CREATED_BY]: true
-
+    [AUDIT_COLUMNS.CREATED_BY]: true,
   },
 
-  SEARCHABLE: [
-
-    RETURN_FIELDS.PICKUP_ID,
-
-    RETURN_FIELDS.NOTE
-
-  ],
+  SEARCHABLE: [RETURN_FIELDS.PICKUP_ID, RETURN_FIELDS.NOTE],
 
   UI: {
-
     TITLE: "Retur Product",
 
     ICON: "rotate-ccw",
 
     COLOR: "amber",
 
-    SEARCH_PLACEHOLDER: "Cari retur..."
-
-  }
-
+    SEARCH_PLACEHOLDER: "Cari retur...",
+  },
 });
-
-
 
 /**
  * =============================================================================
@@ -531,7 +403,6 @@ const RETURN_SCHEMA = createSchema({
  */
 
 const PURCHASE_FIELDS = Object.freeze({
-
   ID: SYSTEM_COLUMNS.PRIMARY_KEY,
 
   DATE: "Tanggal",
@@ -544,13 +415,10 @@ const PURCHASE_FIELDS = Object.freeze({
 
   PRICE: "Harga",
 
-  TOTAL: "Total"
-
+  TOTAL: "Total",
 });
 
-
 const PURCHASE_SCHEMA = createSchema({
-
   NAME: "Purchase",
 
   TABLE: SHEET_NAMES.PURCHASES,
@@ -564,98 +432,69 @@ const PURCHASE_SCHEMA = createSchema({
   FIELDS: PURCHASE_FIELDS,
 
   DEFAULT: {
-
     [SYSTEM_COLUMNS.IS_DELETED]: false,
 
-    [SYSTEM_COLUMNS.IS_ACTIVE]: true
-
+    [SYSTEM_COLUMNS.IS_ACTIVE]: true,
   },
 
   VALIDATION: {
-
     [PURCHASE_FIELDS.DATE]: {
-
-      required: true
-
+      required: true,
     },
 
     [PURCHASE_FIELDS.SUPPLIER_ID]: {
-
-      required: true
-
+      required: true,
     },
 
     [PURCHASE_FIELDS.PRODUCT_ID]: {
-
-      required: true
-
+      required: true,
     },
 
     [PURCHASE_FIELDS.QTY]: {
-
       required: true,
 
       numeric: true,
 
-      min: 1
-
+      min: 1,
     },
 
     [PURCHASE_FIELDS.PRICE]: {
-
       required: true,
 
       numeric: true,
 
-      min: 0
-
+      min: 0,
     },
 
     [PURCHASE_FIELDS.TOTAL]: {
-
       required: true,
 
       numeric: true,
 
-      min: 0
-
-    }
-
+      min: 0,
+    },
   },
 
   READONLY: {
-
     [SYSTEM_COLUMNS.PRIMARY_KEY]: true,
 
     [AUDIT_COLUMNS.CREATED_AT]: true,
 
-    [AUDIT_COLUMNS.CREATED_BY]: true
-
+    [AUDIT_COLUMNS.CREATED_BY]: true,
   },
 
-  SEARCHABLE: [
-
-    PURCHASE_FIELDS.SUPPLIER_ID,
-
-    PURCHASE_FIELDS.PRODUCT_ID
-
-  ],
+  SEARCHABLE: [PURCHASE_FIELDS.SUPPLIER_ID, PURCHASE_FIELDS.PRODUCT_ID],
 
   UI: {
-
     TITLE: "Purchasing",
 
     ICON: "shopping-cart",
 
     COLOR: "violet",
 
-    SEARCH_PLACEHOLDER: "Cari purchasing..."
-
-  }
-
+    SEARCH_PLACEHOLDER: "Cari purchasing...",
+  },
 });
-
-
 
 /**
  * =============================================================================
@@ -664,7 +503,6 @@ const PURCHASE_SCHEMA = createSchema({
  */
 
 const EXPENSE_FIELDS = Object.freeze({
-
   ID: SYSTEM_COLUMNS.PRIMARY_KEY,
 
   DATE: "Tanggal",
@@ -673,13 +511,10 @@ const EXPENSE_FIELDS = Object.freeze({
 
   DESCRIPTION: "Keterangan",
 
-  AMOUNT: "Nominal"
-
+  AMOUNT: "Nominal",
 });
 
-
 const EXPENSE_SCHEMA = createSchema({
-
   NAME: "Expense",
 
   TABLE: SHEET_NAMES.EXPENSES,
@@ -693,82 +528,57 @@ const EXPENSE_SCHEMA = createSchema({
   FIELDS: EXPENSE_FIELDS,
 
   DEFAULT: {
-
     [SYSTEM_COLUMNS.IS_DELETED]: false,
 
-    [SYSTEM_COLUMNS.IS_ACTIVE]: true
-
+    [SYSTEM_COLUMNS.IS_ACTIVE]: true,
   },
 
   VALIDATION: {
-
     [EXPENSE_FIELDS.DATE]: {
-
-      required: true
-
+      required: true,
     },
 
     [EXPENSE_FIELDS.CATEGORY]: {
-
       required: true,
 
-      maxLength: 100
-
+      maxLength: 100,
     },
 
     [EXPENSE_FIELDS.DESCRIPTION]: {
-
       required: true,
 
-      maxLength: 255
-
+      maxLength: 255,
     },
 
     [EXPENSE_FIELDS.AMOUNT]: {
-
       required: true,
 
       numeric: true,
 
-      min: 0
-
-    }
-
+      min: 0,
+    },
   },
 
   READONLY: {
-
     [SYSTEM_COLUMNS.PRIMARY_KEY]: true,
 
     [AUDIT_COLUMNS.CREATED_AT]: true,
 
-    [AUDIT_COLUMNS.CREATED_BY]: true
-
+    [AUDIT_COLUMNS.CREATED_BY]: true,
   },
 
-  SEARCHABLE: [
-
-    EXPENSE_FIELDS.CATEGORY,
-
-    EXPENSE_FIELDS.DESCRIPTION
-
-  ],
+  SEARCHABLE: [EXPENSE_FIELDS.CATEGORY, EXPENSE_FIELDS.DESCRIPTION],
 
   UI: {
-
     TITLE: "Expense",
 
     ICON: "wallet",
 
     COLOR: "red",
 
-    SEARCH_PLACEHOLDER: "Cari expense..."
-
-  }
-
+    SEARCH_PLACEHOLDER: "Cari expense...",
+  },
 });
-
-
 
 /**
  * =============================================================================
@@ -777,7 +587,6 @@ const EXPENSE_SCHEMA = createSchema({
  */
 
 const SCHEMA = Object.freeze({
-
   PRODUCT: PRODUCT_SCHEMA,
 
   PARTNER: PARTNER_SCHEMA,
@@ -788,6 +597,5 @@ const SCHEMA = Object.freeze({
 
   PURCHASE: PURCHASE_SCHEMA,
 
-  EXPENSE: EXPENSE_SCHEMA
-
+  EXPENSE: EXPENSE_SCHEMA,
 });

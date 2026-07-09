@@ -1,387 +1,246 @@
 <script>
+  /**
+   * =============================================================================
+   * FILE        : 975.View.Render.html
+   * VERSION     : 2.0.0
+   * DESCRIPTION : Render Engine
+   * =============================================================================
+   */
 
-/**
- * =============================================================================
- * FILE        : 975.View.Render.html
- * VERSION     : 2.0.0
- * DESCRIPTION : Render Engine
- * =============================================================================
- */
+  const Render = (() => {
+    //===========================================================================
+    // Private
+    //===========================================================================
 
-const Render = (() => {
+    const PAGE_MAP = Object.freeze({
+      dashboard: "dashboard-page",
 
-  //===========================================================================
-  // Private
-  //===========================================================================
+      products: "products-page",
 
-  const PAGE_MAP = Object.freeze({
+      partners: "partners-page",
 
-    dashboard  : "dashboard-page",
+      pickups: "pickups-page",
 
-    products   : "products-page",
+      returns: "returns-page",
 
-    partners   : "partners-page",
+      purchasing: "purchasing-page",
 
-    pickups    : "pickups-page",
+      expenses: "expenses-page",
+    });
 
-    returns    : "returns-page",
+    //===========================================================================
+    // Template
+    //===========================================================================
 
-    purchasing : "purchasing-page",
-
-    expenses   : "expenses-page"
-
-  });
-
-
-
-  //===========================================================================
-  // Template
-  //===========================================================================
-
-  function getTemplate(id) {
-
-    return DOM.$(id);
-
-  }
-
-
-
-  function clone(id) {
-
-    const template = getTemplate(id);
-
-    if (!template) {
-
-      console.warn("Template not found :", id);
-
-      return null;
-
+    function getTemplate(id) {
+      return DOM.$(id);
     }
 
-    return template.content.cloneNode(true);
+    function clone(id) {
+      const template = getTemplate(id);
 
-  }
+      if (!template) {
+        console.warn("Template not found :", id);
 
+        return null;
+      }
 
-
-  //===========================================================================
-  // Layout
-  //===========================================================================
-
-  function layout() {
-
-    const root = DOM.$("app");
-
-    if (!root) {
-
-      return;
-
+      return template.content.cloneNode(true);
     }
 
-    DOM.replace(
+    //===========================================================================
+    // Layout
+    //===========================================================================
 
-      root,
+    function layout() {
+      const root = DOM.$("app");
 
-      clone("layout-template")
+      if (!root) {
+        return;
+      }
 
-    );
+      DOM.replace(
+        root,
 
-  }
-
-
-
-  //===========================================================================
-  // Sidebar
-  //===========================================================================
-
-  function sidebar(activePage = "dashboard") {
-
-    const container = DOM.$(
-
-      "sidebar-container"
-
-    );
-
-    if (!container) {
-
-      return;
-
+        clone("layout-template"),
+      );
     }
 
-    DOM.replace(
+    //===========================================================================
+    // Sidebar
+    //===========================================================================
 
-      container,
+    function sidebar(activePage = "dashboard") {
+      const container = DOM.$("sidebar-container");
 
-      clone("sidebar-template")
+      if (!container) {
+        return;
+      }
 
-    );
+      DOM.replace(
+        container,
 
-
-
-    DOM.$$$(".menu-item")
-
-      .forEach(button => {
-
-        const page =
-
-          button.dataset.page;
-
-
-
-        if (page === activePage) {
-
-          DOM.addClass(
-
-            button,
-
-            "bg-blue-600",
-
-            "text-white"
-
-          );
-
-        } else {
-
-          DOM.removeClass(
-
-            button,
-
-            "bg-blue-600",
-
-            "text-white"
-
-          );
-
-        }
-
-      });
-
-  }
-
-
-
-  //===========================================================================
-  // Topbar
-  //===========================================================================
-
-  function topbar(page = "dashboard") {
-
-    const container = DOM.$(
-
-      "topbar-container"
-
-    );
-
-    if (!container) {
-
-      return;
-
-    }
-
-    DOM.replace(
-
-      container,
-
-      clone("topbar-template")
-
-    );
-
-
-
-    const title =
-
-      DOM.$("page-title");
-
-
-
-    const subtitle =
-
-      DOM.$("page-subtitle");
-
-
-
-    if (title) {
-
-      title.textContent =
-
-        Format.title(page);
-
-    }
-
-
-
-    if (subtitle) {
-
-      subtitle.textContent =
-
-        "IP-Starling Inventory Management";
-
-    }
-
-  }
-
-
-
-  //===========================================================================
-  // Page
-  //===========================================================================
-
-  function page(pageName) {
-
-    const templateId =
-
-      PAGE_MAP[pageName];
-
-
-
-    if (!templateId) {
-
-      console.warn(
-
-        "Unknown page",
-
-        pageName
-
+        clone("sidebar-template"),
       );
 
-      return;
+      DOM.$$$(".menu-item")
 
+        .forEach((button) => {
+          const page = button.dataset.page;
+
+          if (page === activePage) {
+            DOM.addClass(
+              button,
+
+              "bg-blue-600",
+
+              "text-white",
+            );
+          } else {
+            DOM.removeClass(
+              button,
+
+              "bg-blue-600",
+
+              "text-white",
+            );
+          }
+        });
     }
 
+    //===========================================================================
+    // Topbar
+    //===========================================================================
 
+    function topbar(page = "dashboard") {
+      const container = DOM.$("topbar-container");
 
-    const container =
+      if (!container) {
+        return;
+      }
 
-      DOM.$("content-container");
+      DOM.replace(
+        container,
 
+        clone("topbar-template"),
+      );
 
+      const title = DOM.$("page-title");
 
-    if (!container) {
+      const subtitle = DOM.$("page-subtitle");
 
-      return;
+      if (title) {
+        title.textContent = Format.title(page);
+      }
 
+      if (subtitle) {
+        subtitle.textContent = "IP-Starling Inventory Management";
+      }
     }
 
+    //===========================================================================
+    // Page
+    //===========================================================================
 
+    function page(pageName) {
+      const templateId = PAGE_MAP[pageName];
 
-    DOM.replace(
+      if (!templateId) {
+        console.warn(
+          "Unknown page",
 
-      container,
+          pageName,
+        );
 
-      clone(templateId)
+        return;
+      }
 
-    );
+      const container = DOM.$("content-container");
 
-  }
+      if (!container) {
+        return;
+      }
 
+      DOM.replace(
+        container,
 
+        clone(templateId),
+      );
+    }
 
-  //===========================================================================
-  // Dashboard
-  //===========================================================================
+    //===========================================================================
+    // Dashboard
+    //===========================================================================
 
-  function dashboard(data) {
+    function dashboard(data) {
+      if (!data) {
+        return;
+      }
 
-  if (!data) {
+      // Guard
+      if (!DOM.$("dashboard-kpi")) {
+        return;
+      }
 
-    return;
+      renderDashboardKPI(data.summary);
 
-  }
+      renderDashboardStatistics(data.statistics);
 
-  // Guard
-  if (!DOM.$("dashboard-kpi")) {
+      renderDashboardActivities(data.recentActivities);
+    }
 
-    return;
+    //===========================================================================
+    // Dashboard KPI
+    //===========================================================================
 
-  }
+    function renderDashboardKPI(summary) {
+      const cards = [
+        Components.kpi(
+          "Products",
 
-  renderDashboardKPI(
-    data.summary
-  );
+          summary.products,
 
-  renderDashboardStatistics(
-    data.statistics
-  );
+          "fa-box",
+        ),
 
-  renderDashboardActivities(
-    data.recentActivities
-  );
+        Components.kpi(
+          "Partners",
 
-  }
+          summary.partners,
 
+          "fa-users",
+        ),
 
+        Components.kpi(
+          "Purchasing",
 
-  //===========================================================================
-  // Dashboard KPI
-  //===========================================================================
+          summary.purchasings,
 
-  function renderDashboardKPI(summary) {
+          "fa-cart-shopping",
+        ),
 
-    const cards = [
+        Components.kpi(
+          "Expenses",
 
-      UI.kpi(
+          summary.expenses,
 
-        "Products",
+          "fa-wallet",
+        ),
+      ];
 
-        summary.products,
+      kpi(
+        "dashboard-kpi",
 
-        "fa-box"
+        cards,
+      );
+    }
 
-      ),
+    //===========================================================================
+    // Dashboard Statistics
+    //===========================================================================
 
-      UI.kpi(
-
-        "Partners",
-
-        summary.partners,
-
-        "fa-users"
-
-      ),
-
-      UI.kpi(
-
-        "Purchasing",
-
-        summary.purchasings,
-
-        "fa-cart-shopping"
-
-      ),
-
-      UI.kpi(
-
-        "Expenses",
-
-        summary.expenses,
-
-        "fa-wallet"
-
-      )
-
-    ];
-
-
-
-    kpi(
-
-      "dashboard-kpi",
-
-      cards
-
-    );
-
-  }
-
-
-
-  //===========================================================================
-  // Dashboard Statistics
-  //===========================================================================
-
-  function renderDashboardStatistics(stats) {
-
-    const html = `
+    function renderDashboardStatistics(stats) {
+      const html = `
 
       <div class="space-y-4">
 
@@ -413,53 +272,38 @@ const Render = (() => {
 
     `;
 
+      statistics(
+        "dashboard-statistics",
 
-
-    statistics(
-
-      "dashboard-statistics",
-
-      html
-
-    );
-
-  }
-
-  //===========================================================================
-  // Dashboard Activities
-  //===========================================================================
-
-  function renderDashboardActivities(activities = []) {
-
-    const container = DOM.$(
-
-      "dashboard-activities"
-
-    );
-
-    if (!container) {
-
-      return;
-
-    }
-
-    if (!activities.length) {
-
-      DOM.html(
-
-        container,
-
-        UI.emptyState("No recent activities.")
-
+        html,
       );
-
-      return;
-
     }
 
-    const html = activities
+    //===========================================================================
+    // Dashboard Activities
+    //===========================================================================
 
-      .map(item => `
+    function renderDashboardActivities(activities = []) {
+      const container = DOM.$("dashboard-activities");
+
+      if (!container) {
+        return;
+      }
+
+      if (!activities.length) {
+        DOM.html(
+          container,
+
+          Components.emptyState("No recent activities."),
+        );
+
+        return;
+      }
+
+      const html = activities
+
+        .map(
+          (item) => `
 
         <div class="flex items-center justify-between p-4">
 
@@ -487,219 +331,145 @@ const Render = (() => {
 
         </div>
 
-      `)
+      `,
+        )
 
-      .join("");
-
-
-
-    DOM.html(
-
-      container,
-
-      html
-
-    );
-
-  }
-
-
-
-  //===========================================================================
-  // Products
-  //===========================================================================
-
-  function products(data = []) {
-
-    console.log(
-
-      "Render Products",
-
-      data
-
-    );
-
-  }
-
-
-
-  //===========================================================================
-  // Partners
-  //===========================================================================
-
-  function partners(data = []) {
-
-    console.log(
-
-      "Render Partners",
-
-      data
-
-    );
-
-  }
-
-
-
-  //===========================================================================
-  // Pickups
-  //===========================================================================
-
-  function pickups(data = []) {
-
-    console.log(
-
-      "Render Pickups",
-
-      data
-
-    );
-
-  }
-
-
-
-  //===========================================================================
-  // Returns
-  //===========================================================================
-
-  function returns(data = []) {
-
-    console.log(
-
-      "Render Returns",
-
-      data
-
-    );
-
-  }
-
-
-
-  //===========================================================================
-  // Purchasing
-  //===========================================================================
-
-  function purchasing(data = []) {
-
-    console.log(
-
-      "Render Purchasing",
-
-      data
-
-    );
-
-  }
-
-
-
-  //===========================================================================
-  // Expenses
-  //===========================================================================
-
-  function expenses(data = []) {
-
-    console.log(
-
-      "Render Expenses",
-
-      data
-
-    );
-
-  }
-
-
-
-  //===========================================================================
-  // Generic KPI
-  //===========================================================================
-
-  function kpi(containerId, cards = []) {
-
-    const container = DOM.$(
-
-      containerId
-
-    );
-
-    if (!container) {
-
-      return;
-
-    }
-
-    DOM.html(
-
-      container,
-
-      cards.join("")
-
-    );
-
-  }
-
-
-
-  //===========================================================================
-  // Generic Table
-  //===========================================================================
-
-  function table(
-
-    containerId,
-
-    headers = [],
-
-    rows = []
-
-  ) {
-
-    const container = DOM.$(
-
-      containerId
-
-    );
-
-    if (!container) {
-
-      return;
-
-    }
-
-    if (!rows.length) {
+        .join("");
 
       DOM.html(
-
         container,
 
-        UI.emptyState()
-
+        html,
       );
-
-      return;
-
     }
 
-    const thead = headers
+    //===========================================================================
+    // Products
+    //===========================================================================
 
-      .map(text =>
+    function products(data = []) {
+      console.log(
+        "Render Products",
 
-        `<th class="px-4 py-3 text-left">${text}</th>`
+        data,
+      );
+    }
 
-      )
+    //===========================================================================
+    // Partners
+    //===========================================================================
 
-      .join("");
+    function partners(data = []) {
+      console.log(
+        "Render Partners",
 
+        data,
+      );
+    }
 
+    //===========================================================================
+    // Pickups
+    //===========================================================================
 
-    DOM.html(
+    function pickups(data = []) {
+      console.log(
+        "Render Pickups",
 
-      container,
+        data,
+      );
+    }
 
-      `
+    //===========================================================================
+    // Returns
+    //===========================================================================
+
+    function returns(data = []) {
+      console.log(
+        "Render Returns",
+
+        data,
+      );
+    }
+
+    //===========================================================================
+    // Purchasing
+    //===========================================================================
+
+    function purchasing(data = []) {
+      console.log(
+        "Render Purchasing",
+
+        data,
+      );
+    }
+
+    //===========================================================================
+    // Expenses
+    //===========================================================================
+
+    function expenses(data = []) {
+      console.log(
+        "Render Expenses",
+
+        data,
+      );
+    }
+
+    //===========================================================================
+    // Generic KPI
+    //===========================================================================
+
+    function kpi(containerId, cards = []) {
+      const container = DOM.$(containerId);
+
+      if (!container) {
+        return;
+      }
+
+      DOM.html(
+        container,
+
+        cards.join(""),
+      );
+    }
+
+    //===========================================================================
+    // Generic Table
+    //===========================================================================
+
+    function table(
+      containerId,
+
+      headers = [],
+
+      rows = [],
+    ) {
+      const container = DOM.$(containerId);
+
+      if (!container) {
+        return;
+      }
+
+      if (!rows.length) {
+        DOM.html(
+          container,
+
+          Components.emptyState(),
+        );
+
+        return;
+      }
+
+      const thead = headers
+
+        .map((text) => `<th class="px-4 py-3 text-left">${text}</th>`)
+
+        .join("");
+
+      DOM.html(
+        container,
+
+        `
 
       <div class="overflow-x-auto">
 
@@ -725,204 +495,136 @@ const Render = (() => {
 
       </div>
 
-      `
-
-    );
-
-  }
-
-
-
-  //===========================================================================
-  // Generic Statistics
-  //===========================================================================
-
-  function statistics(
-
-    containerId,
-
-    html
-
-  ) {
-
-    const container = DOM.$(
-
-      containerId
-
-    );
-
-    if (!container) {
-
-      return;
-
+      `,
+      );
     }
 
-    DOM.html(
+    //===========================================================================
+    // Generic Statistics
+    //===========================================================================
 
-      container,
+    function statistics(
+      containerId,
 
-      html
+      html,
+    ) {
+      const container = DOM.$(containerId);
 
-    );
+      if (!container) {
+        return;
+      }
 
-  }
+      DOM.html(
+        container,
 
-
-
-  //===========================================================================
-  // Generic Pagination
-  //===========================================================================
-
-  function pagination(
-
-    containerId,
-
-    html
-
-  ) {
-
-    const container = DOM.$(
-
-      containerId
-
-    );
-
-    if (!container) {
-
-      return;
-
+        html,
+      );
     }
 
-    DOM.html(
+    //===========================================================================
+    // Generic Pagination
+    //===========================================================================
 
-      container,
+    function pagination(
+      containerId,
 
-      html
+      html,
+    ) {
+      const container = DOM.$(containerId);
 
-    );
+      if (!container) {
+        return;
+      }
 
-  }
+      DOM.html(
+        container,
 
-
-
-  //===========================================================================
-  // Generic Loading
-  //===========================================================================
-
-  function loading(
-
-    containerId,
-
-    message = "Loading..."
-
-  ) {
-
-    const container = DOM.$(
-
-      containerId
-
-    );
-
-    if (!container) {
-
-      return;
-
+        html,
+      );
     }
 
-    DOM.html(
+    //===========================================================================
+    // Generic Loading
+    //===========================================================================
 
-      container,
+    function loading(
+      containerId,
 
-      UI.loading(message)
+      message = "Loading...",
+    ) {
+      const container = DOM.$(containerId);
 
-    );
+      if (!container) {
+        return;
+      }
 
-  }
+      DOM.html(
+        container,
 
-
-
-  //===========================================================================
-  // Generic Empty
-  //===========================================================================
-
-  function empty(
-
-    containerId,
-
-    message = "No data available."
-
-  ) {
-
-    const container = DOM.$(
-
-      containerId
-
-    );
-
-    if (!container) {
-
-      return;
-
+        Components.loading(message),
+      );
     }
 
-    DOM.html(
+    //===========================================================================
+    // Generic Empty
+    //===========================================================================
 
-      container,
+    function empty(
+      containerId,
 
-      UI.emptyState(message)
+      message = "No data available.",
+    ) {
+      const container = DOM.$(containerId);
 
-    );
+      if (!container) {
+        return;
+      }
 
-  }
+      DOM.html(
+        container,
 
+        Components.emptyState(message),
+      );
+    }
 
+    //===========================================================================
+    // Public API
+    //===========================================================================
 
-  //===========================================================================
-  // Public API
-  //===========================================================================
+    return Object.freeze({
+      layout,
 
-  return Object.freeze({
+      sidebar,
 
-    layout,
+      topbar,
 
-    sidebar,
+      page,
 
-    topbar,
+      dashboard,
 
-    page,
+      products,
 
+      partners,
 
+      pickups,
 
-    dashboard,
+      returns,
 
-    products,
+      purchasing,
 
-    partners,
+      expenses,
 
-    pickups,
+      table,
 
-    returns,
+      kpi,
 
-    purchasing,
+      statistics,
 
-    expenses,
+      pagination,
 
+      loading,
 
-
-    table,
-
-    kpi,
-
-    statistics,
-
-    pagination,
-
-    loading,
-
-    empty
-
-  });
-
-})();
-
-</script> 
+      empty,
+    });
+  })();
+</script>

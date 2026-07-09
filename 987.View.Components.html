@@ -1,0 +1,868 @@
+<script>
+  /**
+   * =============================================================================
+   * FILE        : 987.View.Components.html
+   * VERSION     : 2.0.0
+   * DESCRIPTION : Component Library
+   * =============================================================================
+   *
+   * Components menghasilkan HTML.
+   *
+   * Components TIDAK BOLEH:
+   * - Manipulasi DOM
+   * - Memanggil Render
+   * - Memanggil API
+   * - Menyimpan State
+   *
+   * Semua function harus PURE FUNCTION.
+   *
+   * Presenter
+   *      ↓
+   * Components
+   *      ↓
+   * HTML String
+   *      ↓
+   * Render
+   *      ↓
+   * DOM
+   *
+   * =============================================================================
+   */
+
+  const Components = (() => {
+    //===========================================================================
+    // Primitive
+    //===========================================================================
+
+    function icon(name, classes = "") {
+      return `
+      <i class="fa-solid ${name} ${classes}"></i>
+    `;
+    }
+
+    function spinner(size = "text-3xl") {
+      return `
+      <i
+        class="fa-solid
+               fa-spinner
+               fa-spin
+               ${size}">
+      </i>
+    `;
+    }
+
+    function divider() {
+      return `
+      <hr class="border-slate-200">
+    `;
+    }
+
+    function badge(text, active = true) {
+      const color = active
+        ? "bg-green-100 text-green-700"
+        : "bg-slate-200 text-slate-600";
+
+      return `
+      <span
+        class="
+          inline-flex
+          items-center
+          px-3
+          py-1
+          rounded-full
+          text-xs
+          font-medium
+          ${color}
+        ">
+        ${text}
+      </span>
+    `;
+    }
+
+    function avatar(text = "?", color = "bg-blue-600") {
+      return `
+      <div
+        class="
+          w-10
+          h-10
+          rounded-full
+          ${color}
+          text-white
+          flex
+          items-center
+          justify-center
+          font-semibold
+        ">
+
+        ${text}
+
+      </div>
+    `;
+    }
+
+    //===========================================================================
+    // Buttons
+    //===========================================================================
+
+    function button({
+      label = "",
+
+      icon = "",
+
+      color = "blue",
+
+      type = "button",
+
+      id = "",
+
+      classes = "",
+    } = {}) {
+      const palette = {
+        blue: "bg-blue-600 hover:bg-blue-700 text-white",
+
+        red: "bg-red-600 hover:bg-red-700 text-white",
+
+        green: "bg-green-600 hover:bg-green-700 text-white",
+
+        gray: "bg-slate-200 hover:bg-slate-300 text-slate-700",
+      };
+
+      return `
+      <button
+
+        type="${type}"
+
+        ${id ? `id="${id}"` : ""}
+
+        class="
+          inline-flex
+          items-center
+          gap-2
+          px-4
+          py-2
+          rounded-lg
+          transition
+          ${palette[color]}
+          ${classes}
+        ">
+
+        ${icon ? Components.icon(icon) : ""}
+
+        <span>
+
+          ${label}
+
+        </span>
+
+      </button>
+    `;
+    }
+
+    function iconButton({
+      icon = "fa-pen",
+
+      color = "blue",
+
+      title = "",
+
+      id = "",
+
+      data = "",
+    } = {}) {
+      const palette = {
+        blue: "bg-blue-100 hover:bg-blue-200 text-blue-600",
+
+        red: "bg-red-100 hover:bg-red-200 text-red-600",
+
+        green: "bg-green-100 hover:bg-green-200 text-green-600",
+
+        gray: "bg-slate-100 hover:bg-slate-200 text-slate-700",
+      };
+
+      return `
+      <button
+
+        ${id ? `id="${id}"` : ""}
+
+        ${data}
+
+        title="${title}"
+
+        class="
+          w-9
+          h-9
+          rounded-lg
+          flex
+          items-center
+          justify-center
+          transition
+          ${palette[color]}
+        ">
+
+        ${Components.icon(icon)}
+
+      </button>
+    `;
+    }
+
+    //===========================================================================
+    // Layout
+    //===========================================================================
+
+    function section({
+      title = "",
+
+      subtitle = "",
+
+      body = "",
+
+      actions = "",
+    } = {}) {
+      return `
+      <section
+        class="
+          bg-white
+          rounded-xl
+          border
+          border-slate-200
+          shadow-sm
+        ">
+
+        <div
+          class="
+            flex
+            items-center
+            justify-between
+            p-5
+            border-b
+            border-slate-200
+          ">
+
+          <div>
+
+            <h3
+              class="
+                text-lg
+                font-semibold
+                text-slate-800
+              ">
+
+              ${title}
+
+            </h3>
+
+            ${
+              subtitle
+                ? `
+                <p
+                  class="
+                    mt-1
+                    text-sm
+                    text-slate-500
+                  ">
+
+                  ${subtitle}
+
+                </p>
+              `
+                : ""
+            }
+
+          </div>
+
+          ${actions}
+
+        </div>
+
+        <div class="p-5">
+
+          ${body}
+
+        </div>
+
+      </section>
+    `;
+    }
+
+    function panel(body = "") {
+      return `
+      <div
+        class="
+          bg-white
+          rounded-xl
+          border
+          border-slate-200
+          shadow-sm
+          p-5
+        ">
+
+        ${body}
+
+      </div>
+    `;
+    }
+
+    function toolbar(
+      left = "",
+
+      right = "",
+    ) {
+      return `
+      <div
+        class="
+          flex
+          items-center
+          justify-between
+          gap-4
+          mb-6
+        ">
+
+        <div
+          class="
+            flex
+            items-center
+            gap-3
+          ">
+
+          ${left}
+
+        </div>
+
+        <div
+          class="
+            flex
+            items-center
+            gap-3
+          ">
+
+          ${right}
+
+        </div>
+
+      </div>
+    `;
+    }
+
+    //===========================================================================
+    // Display
+    //===========================================================================
+
+    function card({
+      title = "",
+
+      subtitle = "",
+
+      body = "",
+
+      footer = "",
+
+      classes = "",
+    } = {}) {
+      return `
+      <div
+        class="
+          bg-white
+          rounded-xl
+          border
+          border-slate-200
+          shadow-sm
+          ${classes}
+        ">
+
+        ${
+          title || subtitle
+            ? `
+            <div
+              class="
+                p-5
+                border-b
+                border-slate-200
+              ">
+
+              <h3
+                class="
+                  font-semibold
+                  text-slate-800
+                ">
+
+                ${title}
+
+              </h3>
+
+              ${
+                subtitle
+                  ? `
+                  <p
+                    class="
+                      mt-1
+                      text-sm
+                      text-slate-500
+                    ">
+
+                    ${subtitle}
+
+                  </p>
+                `
+                  : ""
+              }
+
+            </div>
+          `
+            : ""
+        }
+
+        <div class="p-5">
+
+          ${body}
+
+        </div>
+
+        ${
+          footer
+            ? `
+            <div
+              class="
+                px-5
+                py-4
+                border-t
+                border-slate-200
+              ">
+
+              ${footer}
+
+            </div>
+          `
+            : ""
+        }
+
+      </div>
+    `;
+    }
+
+    function stat({
+      title = "",
+
+      value = 0,
+
+      icon = "fa-chart-column",
+
+      color = "blue",
+    } = {}) {
+      const palette = {
+        blue: "bg-blue-100 text-blue-600",
+
+        green: "bg-green-100 text-green-600",
+
+        red: "bg-red-100 text-red-600",
+
+        amber: "bg-amber-100 text-amber-600",
+
+        slate: "bg-slate-100 text-slate-600",
+      };
+
+      return `
+      <div
+        class="
+          bg-white
+          rounded-xl
+          border
+          border-slate-200
+          shadow-sm
+          p-6
+        ">
+
+        <div
+          class="
+            flex
+            items-center
+            justify-between
+          ">
+
+          <div>
+
+            <div
+              class="
+                text-sm
+                text-slate-500
+              ">
+
+              ${title}
+
+            </div>
+
+            <div
+              class="
+                mt-2
+                text-3xl
+                font-bold
+                text-slate-800
+              ">
+
+              ${value}
+
+            </div>
+
+          </div>
+
+          <div
+            class="
+              w-14
+              h-14
+              rounded-xl
+              flex
+              items-center
+              justify-center
+              ${palette[color]}
+            ">
+
+            ${Components.icon(icon, "text-xl")}
+
+          </div>
+
+        </div>
+
+      </div>
+    `;
+    }
+
+    //===========================================================================
+    // Table
+    //===========================================================================
+
+    function table({
+      headers = [],
+
+      body = "",
+
+      classes = "",
+    } = {}) {
+      const head = headers
+
+        .map(
+          (header) => `
+        <th
+          class="
+            px-4
+            py-3
+            text-left
+            text-sm
+            font-semibold
+            text-slate-700
+            whitespace-nowrap
+          ">
+
+          ${header}
+
+        </th>
+      `,
+        )
+
+        .join("");
+
+      return `
+      <div
+        class="
+          overflow-x-auto
+          ${classes}
+        ">
+
+        <table
+          class="
+            min-w-full
+            divide-y
+            divide-slate-200
+          ">
+
+          <thead
+            class="
+              bg-slate-50
+            ">
+
+            <tr>
+
+              ${head}
+
+            </tr>
+
+          </thead>
+
+          <tbody
+            class="
+              divide-y
+              divide-slate-100
+              bg-white
+            ">
+
+            ${body}
+
+          </tbody>
+
+        </table>
+
+      </div>
+    `;
+    }
+
+    function tableRow(cells = []) {
+      return `
+      <tr
+        class="
+          hover:bg-slate-50
+          transition-colors
+        ">
+
+        ${cells.join("")}
+
+      </tr>
+    `;
+    }
+
+    function tableCell(
+      value = "",
+
+      classes = "",
+    ) {
+      return `
+      <td
+        class="
+          px-4
+          py-3
+          text-sm
+          text-slate-700
+          ${classes}
+        ">
+
+        ${value}
+
+      </td>
+    `;
+    }
+
+    //===========================================================================
+    // Feedback
+    //===========================================================================
+
+    function loading(message = "Loading...") {
+      return `
+      <div
+        class="
+          flex
+          flex-col
+          items-center
+          justify-center
+          py-16
+          text-center
+        ">
+
+        ${spinner("text-4xl text-blue-600")}
+
+        <div
+          class="
+            mt-4
+            text-slate-500
+          ">
+
+          ${message}
+
+        </div>
+
+      </div>
+    `;
+    }
+
+    function empty(message = "No data available.") {
+      return `
+      <div
+        class="
+          flex
+          flex-col
+          items-center
+          justify-center
+          py-16
+          text-center
+        ">
+
+        <i
+          class="
+            fa-regular
+            fa-folder-open
+            text-5xl
+            text-slate-300
+          ">
+
+        </i>
+
+        <h3
+          class="
+            mt-4
+            text-lg
+            font-semibold
+            text-slate-700
+          ">
+
+          Empty
+
+        </h3>
+
+        <p
+          class="
+            mt-2
+            text-slate-500
+          ">
+
+          ${message}
+
+        </p>
+
+      </div>
+    `;
+    }
+
+    function alert({
+      title = "Alert",
+
+      message = "",
+
+      color = "amber",
+    } = {}) {
+      const palette = {
+        blue: "bg-blue-50 border-blue-200 text-blue-700",
+
+        green: "bg-green-50 border-green-200 text-green-700",
+
+        amber: "bg-amber-50 border-amber-200 text-amber-700",
+
+        red: "bg-red-50 border-red-200 text-red-700",
+      };
+
+      return `
+      <div
+        class="
+          rounded-lg
+          border
+          p-4
+          ${palette[color]}
+        ">
+
+        <div
+          class="
+            font-semibold
+          ">
+
+          ${title}
+
+        </div>
+
+        <div
+          class="
+            mt-1
+            text-sm
+          ">
+
+          ${message}
+
+        </div>
+
+      </div>
+    `;
+    }
+
+    function confirm(message) {
+      return window.confirm(message);
+    }
+
+    //===========================================================================
+    // Toast
+    //===========================================================================
+
+    function toast(
+      message = "",
+
+      type = "info",
+    ) {
+      const palette = {
+        info: "bg-blue-600",
+
+        success: "bg-green-600",
+
+        warning: "bg-amber-500",
+
+        error: "bg-red-600",
+      };
+
+      return `
+      <div
+        class="
+          fixed
+          bottom-6
+          right-6
+          z-50
+          px-5
+          py-3
+          rounded-lg
+          shadow-lg
+          text-white
+          ${palette[type] || palette.info}
+        ">
+
+        ${message}
+
+      </div>
+    `;
+    }
+
+    //===========================================================================
+    // Public API
+    //===========================================================================
+
+    return Object.freeze({
+      // Primitive
+
+      icon,
+
+      spinner,
+
+      divider,
+
+      badge,
+
+      avatar,
+
+      button,
+
+      iconButton,
+
+      // Layout
+
+      section,
+
+      panel,
+
+      toolbar,
+
+      // Display
+
+      card,
+
+      stat,
+
+      table,
+
+      tableRow,
+
+      tableCell,
+
+      // Feedback
+
+      loading,
+
+      empty,
+
+      alert,
+
+      confirm,
+
+      toast,
+    });
+  })();
+</script>

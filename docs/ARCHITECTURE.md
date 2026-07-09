@@ -175,7 +175,7 @@ Render never renders business data.
 
 ## Presenter
 
-Responsible for transforming data into UI.
+Responsible for transforming data into Components.
 
 Example
 
