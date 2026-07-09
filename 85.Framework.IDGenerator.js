@@ -22,7 +22,6 @@
  */
 
 const IDGenerator = (() => {
-
   const properties = PropertiesService.getScriptProperties();
 
   /**
@@ -31,17 +30,13 @@ const IDGenerator = (() => {
    * --------------------------------------------------------------------------
    */
   function dateCode(date = new Date()) {
-
     return Utilities.formatDate(
-
       date,
 
       APP_CONFIG.TIMEZONE,
 
-      "yyMMdd"
-
+      "yyMMdd",
     );
-
   }
 
   /**
@@ -50,9 +45,7 @@ const IDGenerator = (() => {
    * --------------------------------------------------------------------------
    */
   function counterKey(prefix) {
-
     return `SEQ_${prefix}_${dateCode()}`;
-
   }
 
   /**
@@ -61,39 +54,27 @@ const IDGenerator = (() => {
    * --------------------------------------------------------------------------
    */
   function nextSequence(prefix) {
-
     const lock = LockService.getScriptLock();
 
     lock.waitLock(30000);
 
     try {
-
       const key = counterKey(prefix);
 
-      let value = Number(
-
-        properties.getProperty(key) || 0
-
-      );
+      let value = Number(properties.getProperty(key) || 0);
 
       value++;
 
       properties.setProperty(
-
         key,
 
-        String(value)
-
+        String(value),
       );
 
       return value;
-
     } finally {
-
       lock.releaseLock();
-
     }
-
   }
 
   /**
@@ -102,21 +83,11 @@ const IDGenerator = (() => {
    * --------------------------------------------------------------------------
    */
   function generate(schema) {
-
     const prefix = schema.ID_PREFIX;
 
     const seq = nextSequence(prefix);
 
-    return [
-
-      prefix,
-
-      dateCode(),
-
-      String(seq).padStart(5, "0")
-
-    ].join("");
-
+    return [prefix, dateCode(), String(seq).padStart(5, "0")].join("");
   }
 
   /**
@@ -125,17 +96,7 @@ const IDGenerator = (() => {
    * --------------------------------------------------------------------------
    */
   function current(prefix) {
-
-    return Number(
-
-      properties.getProperty(
-
-        counterKey(prefix)
-
-      ) || 0
-
-    );
-
+    return Number(properties.getProperty(counterKey(prefix)) || 0);
   }
 
   /**
@@ -145,13 +106,7 @@ const IDGenerator = (() => {
    * --------------------------------------------------------------------------
    */
   function reset(prefix) {
-
-    properties.deleteProperty(
-
-      counterKey(prefix)
-
-    );
-
+    properties.deleteProperty(counterKey(prefix));
   }
 
   /**
@@ -160,13 +115,10 @@ const IDGenerator = (() => {
    * --------------------------------------------------------------------------
    */
   return Object.freeze({
-
     generate,
 
     current,
 
-    reset
-
+    reset,
   });
-
 })();

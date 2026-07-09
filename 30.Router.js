@@ -12,18 +12,13 @@
  */
 
 const Router = (() => {
-
   /**
    * --------------------------------------------------------------------------
    * Include HTML Partial
    * --------------------------------------------------------------------------
    */
   function include(filename) {
-
-    return HtmlService
-      .createHtmlOutputFromFile(filename)
-      .getContent();
-
+    return HtmlService.createHtmlOutputFromFile(filename).getContent();
   }
 
   /**
@@ -32,15 +27,11 @@ const Router = (() => {
    * --------------------------------------------------------------------------
    */
   function pageTitle(title = "") {
-
     if (!title) {
-
       return APP_CONFIG.NAME;
-
     }
 
     return `${APP_CONFIG.NAME} | ${title}`;
-
   }
 
   /**
@@ -49,25 +40,16 @@ const Router = (() => {
    * --------------------------------------------------------------------------
    */
   function render(viewName, data = {}) {
+    const template = HtmlService.createTemplateFromFile(viewName);
 
-    const template =
-      HtmlService.createTemplateFromFile(viewName);
-
-    Object.keys(data).forEach(key => {
-
+    Object.keys(data).forEach((key) => {
       template[key] = data[key];
-
     });
 
     return template
       .evaluate()
-      .setTitle(
-        pageTitle(data.title)
-      )
-      .setXFrameOptionsMode(
-        HtmlService.XFrameOptionsMode.ALLOWALL
-      );
-
+      .setTitle(pageTitle(data.title))
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
 
   /**
@@ -76,12 +58,7 @@ const Router = (() => {
    * --------------------------------------------------------------------------
    */
   function notFound() {
-
-    return HtmlService
-      .createHtmlOutput(
-        "<h2>404 - Page Not Found</h2>"
-      );
-
+    return HtmlService.createHtmlOutput("<h2>404 - Page Not Found</h2>");
   }
 
   /**
@@ -90,12 +67,7 @@ const Router = (() => {
    * --------------------------------------------------------------------------
    */
   function error(message) {
-
-    return HtmlService
-      .createHtmlOutput(
-        `<h3>${message}</h3>`
-      );
-
+    return HtmlService.createHtmlOutput(`<h3>${message}</h3>`);
   }
 
   /**
@@ -104,7 +76,6 @@ const Router = (() => {
    * --------------------------------------------------------------------------
    */
   return Object.freeze({
-
     include,
 
     pageTitle,
@@ -113,8 +84,6 @@ const Router = (() => {
 
     notFound,
 
-    error
-
+    error,
   });
-
 })();

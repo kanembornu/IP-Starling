@@ -1,31 +1,16 @@
 <template id="dashboard-page">
-
   <div class="space-y-6">
-
     <!-- =============================================================== -->
     <!-- Welcome -->
     <!-- =============================================================== -->
 
     <section
-      class="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl text-white p-8 shadow">
+      class="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl text-white p-8 shadow"
+    >
+      <h1 class="text-3xl font-bold">Welcome to IP-Starling</h1>
 
-      <h1
-        class="text-3xl font-bold">
-
-        Welcome to IP-Starling
-
-      </h1>
-
-      <p
-        class="mt-2 text-blue-100">
-
-        Inventory & Purchasing Management System
-
-      </p>
-
+      <p class="mt-2 text-blue-100">Inventory & Purchasing Management System</p>
     </section>
-
-
 
     <!-- =============================================================== -->
     <!-- KPI -->
@@ -33,136 +18,71 @@
 
     <section
       id="dashboard-kpi"
-      class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-
-    </section>
-
-
+      class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6"
+    ></section>
 
     <!-- =============================================================== -->
     <!-- Charts -->
     <!-- =============================================================== -->
 
-    <section
-      class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-
+    <section class="grid grid-cols-1 xl:grid-cols-3 gap-6">
       <!-- Main Chart -->
 
       <div
-        class="xl:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm">
-
+        class="xl:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm"
+      >
         <div
-          class="flex items-center justify-between p-5 border-b border-slate-200">
-
-          <h3
-            class="font-semibold text-slate-800">
-
-            Transaction Overview
-
-          </h3>
-
+          class="flex items-center justify-between p-5 border-b border-slate-200"
+        >
+          <h3 class="font-semibold text-slate-800">Transaction Overview</h3>
         </div>
 
         <div class="p-5">
-
           <canvas id="chart-overview"></canvas>
-
         </div>
-
       </div>
-
-
 
       <!-- Distribution -->
 
-      <div
-        class="bg-white rounded-xl border border-slate-200 shadow-sm">
-
-        <div
-          class="p-5 border-b border-slate-200">
-
-          <h3
-            class="font-semibold text-slate-800">
-
-            Distribution
-
-          </h3>
-
+      <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div class="p-5 border-b border-slate-200">
+          <h3 class="font-semibold text-slate-800">Distribution</h3>
         </div>
 
         <div class="p-5">
-
           <canvas id="chart-distribution"></canvas>
-
         </div>
-
       </div>
-
     </section>
-
-
 
     <!-- =============================================================== -->
     <!-- Bottom -->
     <!-- =============================================================== -->
 
-    <section
-      class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-
+    <section class="grid grid-cols-1 xl:grid-cols-3 gap-6">
       <!-- Recent Activity -->
 
       <div
-        class="xl:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm">
-
+        class="xl:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm"
+      >
         <div
-          class="flex items-center justify-between p-5 border-b border-slate-200">
-
-          <h3
-            class="font-semibold text-slate-800">
-
-            Recent Activities
-
-          </h3>
-
+          class="flex items-center justify-between p-5 border-b border-slate-200"
+        >
+          <h3 class="font-semibold text-slate-800">Recent Activities</h3>
         </div>
 
-        <div
-          id="dashboard-activities"
-          class="divide-y divide-slate-100">
-
-        </div>
-
+        <div id="dashboard-activities" class="divide-y divide-slate-100"></div>
       </div>
-
-
 
       <!-- Quick Statistics -->
 
-      <div
-        class="bg-white rounded-xl border border-slate-200 shadow-sm">
-
-        <div
-          class="p-5 border-b border-slate-200">
-
-          <h3
-            class="font-semibold text-slate-800">
-
-            Quick Statistics
-
-          </h3>
-
+      <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div class="p-5 border-b border-slate-200">
+          <h3 class="font-semibold text-slate-800">Quick Statistics</h3>
         </div>
 
-        <div
-          id="dashboard-statistics"
-          class="p-5 space-y-4">
-
-        </div>
-
+        <div id="dashboard-statistics" class="p-5 space-y-4"></div>
       </div>
-
     </section>
-
   </div>
-
 </template>

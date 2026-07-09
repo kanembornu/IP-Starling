@@ -15,29 +15,21 @@
  */
 
 const RepositoryWriter = (() => {
-
   /**
    * --------------------------------------------------------------------------
    * Insert One Record
    * --------------------------------------------------------------------------
    */
   function insert(schema, object) {
-
     const sh = RepositoryBase.sheet(schema);
 
     const row = RepositoryBase.toRow(schema, object);
 
-    sh.getRange(
-      sh.getLastRow() + 1,
-      1,
-      1,
-      row.length
-    ).setValues([row]);
+    sh.getRange(sh.getLastRow() + 1, 1, 1, row.length).setValues([row]);
 
     RepositoryCache.clear(schema);
 
     return true;
-
   }
 
   /**
@@ -46,30 +38,21 @@ const RepositoryWriter = (() => {
    * --------------------------------------------------------------------------
    */
   function insertMany(schema, objects) {
-
     if (!Array.isArray(objects) || objects.length === 0) {
-
       return false;
-
     }
 
     const sh = RepositoryBase.sheet(schema);
 
-    const rows = objects.map(item =>
-      RepositoryBase.toRow(schema, item)
-    );
+    const rows = objects.map((item) => RepositoryBase.toRow(schema, item));
 
-    sh.getRange(
-      sh.getLastRow() + 1,
-      1,
-      rows.length,
-      rows[0].length
-    ).setValues(rows);
+    sh.getRange(sh.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(
+      rows,
+    );
 
     RepositoryCache.clear(schema);
 
     return true;
-
   }
 
   /**
@@ -78,13 +61,10 @@ const RepositoryWriter = (() => {
    * --------------------------------------------------------------------------
    */
   function update(schema, id, changes) {
-
     const rowNumber = RepositoryBase.findRowIndex(schema, id);
 
     if (!rowNumber) {
-
       return false;
-
     }
 
     const sh = RepositoryBase.sheet(schema);
@@ -92,34 +72,25 @@ const RepositoryWriter = (() => {
     const columnCount = RepositoryBase.headers(schema).length;
 
     // Ambil seluruh row sekali
-    const row = sh
-      .getRange(rowNumber, 1, 1, columnCount)
-      .getValues()[0];
+    const row = sh.getRange(rowNumber, 1, 1, columnCount).getValues()[0];
 
     const map = RepositoryBase.headerMap(schema);
 
     // Ubah hanya field yang dikirim
-    Object.keys(changes).forEach(column => {
-
+    Object.keys(changes).forEach((column) => {
       if (map[column] === undefined) {
-
         return;
-
       }
 
       row[map[column]] = changes[column];
-
     });
 
     // Tulis kembali sekali saja
-    sh
-      .getRange(rowNumber, 1, 1, columnCount)
-      .setValues([row]);
+    sh.getRange(rowNumber, 1, 1, columnCount).setValues([row]);
 
     RepositoryCache.clear(schema);
 
     return true;
-
   }
 
   /**
@@ -128,13 +99,9 @@ const RepositoryWriter = (() => {
    * --------------------------------------------------------------------------
    */
   function softDelete(schema, id) {
-
     return update(schema, id, {
-
-      [schema.SYSTEM.IS_DELETED]: true
-
+      [schema.SYSTEM.IS_DELETED]: true,
     });
-
   }
 
   /**
@@ -143,13 +110,9 @@ const RepositoryWriter = (() => {
    * --------------------------------------------------------------------------
    */
   function restore(schema, id) {
-
     return update(schema, id, {
-
-      [schema.SYSTEM.IS_DELETED]: false
-
+      [schema.SYSTEM.IS_DELETED]: false,
     });
-
   }
 
   /**
@@ -158,30 +121,21 @@ const RepositoryWriter = (() => {
    * --------------------------------------------------------------------------
    */
   function replace(schema, id, object) {
-
     const rowNumber = RepositoryBase.findRowIndex(schema, id);
 
     if (!rowNumber) {
-
       return false;
-
     }
 
     const sh = RepositoryBase.sheet(schema);
 
     const row = RepositoryBase.toRow(schema, object);
 
-    sh.getRange(
-      rowNumber,
-      1,
-      1,
-      row.length
-    ).setValues([row]);
+    sh.getRange(rowNumber, 1, 1, row.length).setValues([row]);
 
     RepositoryCache.clear(schema);
 
     return true;
-
   }
 
   /**
@@ -190,7 +144,6 @@ const RepositoryWriter = (() => {
    * --------------------------------------------------------------------------
    */
   return Object.freeze({
-
     insert,
 
     insertMany,
@@ -201,8 +154,6 @@ const RepositoryWriter = (() => {
 
     restore,
 
-    replace
-
+    replace,
   });
-
 })();

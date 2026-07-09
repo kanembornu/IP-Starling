@@ -20,17 +20,13 @@
  */
 
 const EntityService = (() => {
-
   /**
    * ---------------------------------------------------------------------------
    * Factory
    * ---------------------------------------------------------------------------
    */
   function create(schema, hooks = {}) {
-
     const base = BaseService.create(schema, hooks);
-
-
 
     /**
      * -------------------------------------------------------------------------
@@ -38,16 +34,10 @@ const EntityService = (() => {
      * -------------------------------------------------------------------------
      */
     function findActive() {
-
       return base.find({
-
-        [schema.SYSTEM.IS_ACTIVE]: true
-
+        [schema.SYSTEM.IS_ACTIVE]: true,
       });
-
     }
-
-
 
     /**
      * -------------------------------------------------------------------------
@@ -55,16 +45,10 @@ const EntityService = (() => {
      * -------------------------------------------------------------------------
      */
     function findInactive() {
-
       return base.find({
-
-        [schema.SYSTEM.IS_ACTIVE]: false
-
+        [schema.SYSTEM.IS_ACTIVE]: false,
       });
-
     }
-
-
 
     /**
      * -------------------------------------------------------------------------
@@ -72,16 +56,10 @@ const EntityService = (() => {
      * -------------------------------------------------------------------------
      */
     function toggleActive(id, status = true) {
-
       return base.update(id, {
-
-        [schema.SYSTEM.IS_ACTIVE]: status
-
+        [schema.SYSTEM.IS_ACTIVE]: status,
       });
-
     }
-
-
 
     /**
      * -------------------------------------------------------------------------
@@ -89,52 +67,36 @@ const EntityService = (() => {
      * -------------------------------------------------------------------------
      */
     function search(keyword = "") {
-
-      keyword = String(keyword || "").trim().toLowerCase();
+      keyword = String(keyword || "")
+        .trim()
+        .toLowerCase();
 
       const response = base.findAll();
 
       if (!response.success) {
-
         return response;
-
       }
 
       if (keyword === "") {
-
         return response;
-
       }
 
       const fields = schema.SEARCHABLE || [];
 
-      const result = response.data.filter(row => {
-
-        return fields.some(field => {
-
-          const value = String(
-
-            row[field] || ""
-
-          ).toLowerCase();
+      const result = response.data.filter((row) => {
+        return fields.some((field) => {
+          const value = String(row[field] || "").toLowerCase();
 
           return value.indexOf(keyword) > -1;
-
         });
-
       });
 
       return Response.success(
-
         result,
 
-        `${result.length} data ditemukan.`
-
+        `${result.length} data ditemukan.`,
       );
-
     }
-
-
 
     /**
      * -------------------------------------------------------------------------
@@ -142,34 +104,24 @@ const EntityService = (() => {
      * -------------------------------------------------------------------------
      */
     function dropdown() {
-
       const response = findActive();
 
       if (!response.success) {
-
         return response;
-
       }
 
-      const list = response.data.map(row => ({
-
+      const list = response.data.map((row) => ({
         value: row[schema.PRIMARY_KEY],
 
-        label: row[schema.DISPLAY_FIELD]
-
+        label: row[schema.DISPLAY_FIELD],
       }));
 
       return Response.success(
-
         list,
 
-        `${list.length} data ditemukan.`
-
+        `${list.length} data ditemukan.`,
       );
-
     }
-
-
 
     /**
      * -------------------------------------------------------------------------
@@ -177,42 +129,30 @@ const EntityService = (() => {
      * -------------------------------------------------------------------------
      */
     function statistics() {
-
       const response = base.findAll();
 
       if (!response.success) {
-
         return response;
-
       }
 
       const data = response.data;
 
-      const active = data.filter(item =>
-
-        item[schema.SYSTEM.IS_ACTIVE] === true
-
+      const active = data.filter(
+        (item) => item[schema.SYSTEM.IS_ACTIVE] === true,
       ).length;
 
-      const inactive = data.filter(item =>
-
-        item[schema.SYSTEM.IS_ACTIVE] === false
-
+      const inactive = data.filter(
+        (item) => item[schema.SYSTEM.IS_ACTIVE] === false,
       ).length;
 
       return Response.success({
-
         total: data.length,
 
         active,
 
-        inactive
-
+        inactive,
       });
-
     }
-
-
 
     /**
      * -------------------------------------------------------------------------
@@ -220,7 +160,6 @@ const EntityService = (() => {
      * -------------------------------------------------------------------------
      */
     return Object.freeze({
-
       ...base,
 
       findActive,
@@ -233,13 +172,9 @@ const EntityService = (() => {
 
       dropdown,
 
-      statistics
-
+      statistics,
     });
-
   }
-
-
 
   /**
    * ---------------------------------------------------------------------------
@@ -247,9 +182,6 @@ const EntityService = (() => {
    * ---------------------------------------------------------------------------
    */
   return Object.freeze({
-
-    create
-
+    create,
   });
-
 })();

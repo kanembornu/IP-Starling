@@ -1,164 +1,94 @@
 <template id="purchasing-page">
-
   <div class="space-y-6">
-
     <!-- =============================================================== -->
     <!-- Page Header -->
     <!-- =============================================================== -->
 
     <div class="flex items-center justify-between">
-
       <div>
+        <h2 class="text-2xl font-bold text-slate-800">Purchasing</h2>
 
-        <h2 class="text-2xl font-bold text-slate-800">
-
-          Purchasing
-
-        </h2>
-
-        <p class="text-sm text-slate-500">
-
-          Manage purchasing transactions.
-
-        </p>
-
+        <p class="text-sm text-slate-500">Manage purchasing transactions.</p>
       </div>
 
       <button
         id="btn-purchasing-add"
-        class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition">
-
+        class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition"
+      >
         <i class="fa-solid fa-plus mr-2"></i>
 
         Add Purchasing
-
       </button>
-
     </div>
-
-
 
     <!-- =============================================================== -->
     <!-- Toolbar -->
     <!-- =============================================================== -->
 
-    <div
-      class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
       <div class="flex flex-wrap gap-3 items-center">
-
         <div class="flex-1">
-
           <input
             id="inp-purchasing-search"
             type="text"
             placeholder="Search purchasing..."
-            class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none">
-
+            class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          />
         </div>
 
         <button
           id="btn-purchasing-refresh"
-          class="px-4 py-2 rounded-lg border border-slate-300 hover:bg-slate-100">
-
+          class="px-4 py-2 rounded-lg border border-slate-300 hover:bg-slate-100"
+        >
           <i class="fa-solid fa-rotate-right"></i>
-
         </button>
-
       </div>
-
     </div>
-
-
 
     <!-- =============================================================== -->
     <!-- Table -->
     <!-- =============================================================== -->
 
     <div
-      class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-
-      <table
-        id="tbl-purchasing"
-        class="min-w-full text-sm">
-
+      class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
+    >
+      <table id="tbl-purchasing" class="min-w-full text-sm">
         <thead class="bg-slate-100">
-
           <tr>
+            <th class="px-4 py-3 text-left">ID</th>
 
-            <th class="px-4 py-3 text-left">
-              ID
-            </th>
+            <th class="px-4 py-3 text-left">Date</th>
 
-            <th class="px-4 py-3 text-left">
-              Date
-            </th>
+            <th class="px-4 py-3 text-left">Supplier</th>
 
-            <th class="px-4 py-3 text-left">
-              Supplier
-            </th>
+            <th class="px-4 py-3 text-left">Product</th>
 
-            <th class="px-4 py-3 text-left">
-              Product
-            </th>
+            <th class="px-4 py-3 text-right">Qty</th>
 
-            <th class="px-4 py-3 text-right">
-              Qty
-            </th>
+            <th class="px-4 py-3 text-right">Price</th>
 
-            <th class="px-4 py-3 text-right">
-              Price
-            </th>
+            <th class="px-4 py-3 text-right">Total</th>
 
-            <th class="px-4 py-3 text-right">
-              Total
-            </th>
+            <th class="px-4 py-3 text-center">Status</th>
 
-            <th class="px-4 py-3 text-center">
-              Status
-            </th>
-
-            <th class="px-4 py-3 text-center">
-              Action
-            </th>
-
+            <th class="px-4 py-3 text-center">Action</th>
           </tr>
-
         </thead>
 
-        <tbody id="tbl-purchasing-body">
-
-        </tbody>
-
+        <tbody id="tbl-purchasing-body"></tbody>
       </table>
-
     </div>
-
-
 
     <!-- =============================================================== -->
     <!-- Pagination -->
     <!-- =============================================================== -->
 
-    <div
-      class="flex items-center justify-between">
-
-      <div
-        id="lbl-purchasing-info"
-        class="text-sm text-slate-500">
-
+    <div class="flex items-center justify-between">
+      <div id="lbl-purchasing-info" class="text-sm text-slate-500">
         0 Purchasing
-
       </div>
 
-      <div
-        id="purchasing-pagination"
-        class="flex gap-2">
-
-      </div>
-
+      <div id="purchasing-pagination" class="flex gap-2"></div>
     </div>
-
   </div>
-
 </template>

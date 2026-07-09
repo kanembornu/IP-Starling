@@ -126,25 +126,29 @@
     //===========================================================================
 
     async function loadDashboard() {
-      Render.loading("dashboard-kpi");
+      Render.mount(
+        "dashboard-kpi",
+
+        Components.loading({
+          message: "Loading dashboard...",
+        }),
+      );
 
       const res = await Api.Dashboard.get();
 
       if (!res || !res.success) {
-        Components.toast(res?.message || "Dashboard failed.");
+        Render.mount(
+          "dashboard-kpi",
+
+          Components.empty(res?.message || "Dashboard failed."),
+        );
 
         return;
       }
 
-      console.log("RES =", res);
+      state.dashboard = Utils.deepClone(res.data);
 
-      console.log("DATA =", res.data);
-
-      console.log("SUMMARY =", res.data?.summary);
-
-      state.dashboard = res.data;
-
-      Render.dashboard(state.dashboard);
+      DashboardPresenter.render(state.dashboard);
     }
 
     //===========================================================================

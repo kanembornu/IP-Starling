@@ -12,22 +12,17 @@
  */
 
 const RepositoryQuery = (() => {
-
   /**
    * --------------------------------------------------------------------------
    * Where
    * --------------------------------------------------------------------------
    */
   function where(data, predicate) {
-
     if (!Array.isArray(data)) {
-
       return [];
-
     }
 
     return data.filter(predicate);
-
   }
 
   /**
@@ -36,41 +31,27 @@ const RepositoryQuery = (() => {
    * --------------------------------------------------------------------------
    */
   function search(data, keyword, fields) {
-
     if (!Array.isArray(data)) {
-
       return [];
-
     }
 
     if (!keyword) {
-
       return data;
-
     }
 
     const q = String(keyword).toLowerCase();
 
-    return data.filter(item => {
-
-      return fields.some(field => {
-
+    return data.filter((item) => {
+      return fields.some((field) => {
         const value = item[field];
 
         if (value === null || value === undefined) {
-
           return false;
-
         }
 
-        return String(value)
-          .toLowerCase()
-          .includes(q);
-
+        return String(value).toLowerCase().includes(q);
       });
-
     });
-
   }
 
   /**
@@ -79,43 +60,29 @@ const RepositoryQuery = (() => {
    * --------------------------------------------------------------------------
    */
   function orderBy(data, field, direction = "asc") {
-
     if (!Array.isArray(data)) {
-
       return [];
-
     }
 
     const sorted = [...data];
 
     sorted.sort((a, b) => {
-
       const left = a[field];
 
       const right = b[field];
 
       if (left === right) {
-
         return 0;
-
       }
 
       if (left > right) {
-
-        return direction === "desc"
-          ? -1
-          : 1;
-
+        return direction === "desc" ? -1 : 1;
       }
 
-      return direction === "desc"
-        ? 1
-        : -1;
-
+      return direction === "desc" ? 1 : -1;
     });
 
     return sorted;
-
   }
 
   /**
@@ -124,15 +91,11 @@ const RepositoryQuery = (() => {
    * --------------------------------------------------------------------------
    */
   function limit(data, size) {
-
     if (!Array.isArray(data)) {
-
       return [];
-
     }
 
     return data.slice(0, size);
-
   }
 
   /**
@@ -141,11 +104,8 @@ const RepositoryQuery = (() => {
    * --------------------------------------------------------------------------
    */
   function paginate(data, page = 1, perPage = PAGINATION_CONFIG.DEFAULT_LIMIT) {
-
     if (!Array.isArray(data)) {
-
       return {
-
         data: [],
 
         page,
@@ -154,10 +114,8 @@ const RepositoryQuery = (() => {
 
         total: 0,
 
-        totalPages: 0
-
+        totalPages: 0,
       };
-
     }
 
     const total = data.length;
@@ -167,7 +125,6 @@ const RepositoryQuery = (() => {
     const start = (page - 1) * perPage;
 
     return {
-
       data: data.slice(start, start + perPage),
 
       page,
@@ -176,10 +133,8 @@ const RepositoryQuery = (() => {
 
       total,
 
-      totalPages
-
+      totalPages,
     };
-
   }
 
   /**
@@ -188,19 +143,13 @@ const RepositoryQuery = (() => {
    * --------------------------------------------------------------------------
    */
   function select(data, fields) {
-
     if (!Array.isArray(data)) {
-
       return [];
-
     }
 
-    return data.map(item => {
-
+    return data.map((item) => {
       return Utils.pick(item, fields);
-
     });
-
   }
 
   /**
@@ -209,7 +158,6 @@ const RepositoryQuery = (() => {
    * --------------------------------------------------------------------------
    */
   return Object.freeze({
-
     where,
 
     search,
@@ -220,8 +168,6 @@ const RepositoryQuery = (() => {
 
     paginate,
 
-    select
-
+    select,
   });
-
 })();

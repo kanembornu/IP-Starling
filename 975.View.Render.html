@@ -2,14 +2,39 @@
   /**
    * =============================================================================
    * FILE        : 975.View.Render.html
-   * VERSION     : 2.0.0
+   * VERSION     : 3.0.0
    * DESCRIPTION : Render Engine
+   * =============================================================================
+   *
+   * RESPONSIBILITY
+   * -----------------------------------------------------------------------------
+   * Render hanya bertugas memasang HTML ke DOM.
+   *
+   * Render TIDAK BOLEH:
+   * - membuat HTML
+   * - mengetahui Dashboard
+   * - mengetahui Product
+   * - mengetahui Partner
+   * - mengetahui Business Logic
+   *
+   * Flow:
+   *
+   * App
+   *   ↓
+   * Presenter
+   *   ↓
+   * Components
+   *   ↓
+   * Render
+   *   ↓
+   * DOM
+   *
    * =============================================================================
    */
 
   const Render = (() => {
     //===========================================================================
-    // Private
+    // Constants
     //===========================================================================
 
     const PAGE_MAP = Object.freeze({
@@ -32,20 +57,24 @@
     // Template
     //===========================================================================
 
-    function getTemplate(id) {
+    function template(id) {
       return DOM.$(id);
     }
 
     function clone(id) {
-      const template = getTemplate(id);
+      const node = template(id);
 
-      if (!template) {
-        console.warn("Template not found :", id);
+      if (!node) {
+        console.warn(
+          "Template not found:",
+
+          id,
+        );
 
         return null;
       }
 
-      return template.content.cloneNode(true);
+      return node.content.cloneNode(true);
     }
 
     //===========================================================================
@@ -88,23 +117,19 @@
         .forEach((button) => {
           const page = button.dataset.page;
 
-          if (page === activePage) {
-            DOM.addClass(
-              button,
+          const active = page === activePage;
 
-              "bg-blue-600",
+          button.classList.toggle(
+            "bg-blue-600",
 
-              "text-white",
-            );
-          } else {
-            DOM.removeClass(
-              button,
+            active,
+          );
 
-              "bg-blue-600",
+          button.classList.toggle(
+            "text-white",
 
-              "text-white",
-            );
-          }
+            active,
+          );
         });
     }
 
@@ -147,7 +172,7 @@
 
       if (!templateId) {
         console.warn(
-          "Unknown page",
+          "Unknown page:",
 
           pageName,
         );
@@ -169,422 +194,189 @@
     }
 
     //===========================================================================
-    // Dashboard
+    // Generic Render
     //===========================================================================
 
-    function dashboard(data) {
-      if (!data) {
-        return;
-      }
+    function mount(
+      containerId,
 
-      // Guard
-      if (!DOM.$("dashboard-kpi")) {
-        return;
-      }
-
-      renderDashboardKPI(data.summary);
-
-      renderDashboardStatistics(data.statistics);
-
-      renderDashboardActivities(data.recentActivities);
-    }
-
-    //===========================================================================
-    // Dashboard KPI
-    //===========================================================================
-
-    function renderDashboardKPI(summary) {
-      const cards = [
-        Components.kpi(
-          "Products",
-
-          summary.products,
-
-          "fa-box",
-        ),
-
-        Components.kpi(
-          "Partners",
-
-          summary.partners,
-
-          "fa-users",
-        ),
-
-        Components.kpi(
-          "Purchasing",
-
-          summary.purchasings,
-
-          "fa-cart-shopping",
-        ),
-
-        Components.kpi(
-          "Expenses",
-
-          summary.expenses,
-
-          "fa-wallet",
-        ),
-      ];
-
-      kpi(
-        "dashboard-kpi",
-
-        cards,
-      );
-    }
-
-    //===========================================================================
-    // Dashboard Statistics
-    //===========================================================================
-
-    function renderDashboardStatistics(stats) {
-      const html = `
-
-      <div class="space-y-4">
-
-        <div class="flex justify-between">
-
-          <span>Purchasing</span>
-
-          <strong>
-
-            ${stats.purchasing.total}
-
-          </strong>
-
-        </div>
-
-        <div class="flex justify-between">
-
-          <span>Expense</span>
-
-          <strong>
-
-            ${stats.expense.total}
-
-          </strong>
-
-        </div>
-
-      </div>
-
-    `;
-
-      statistics(
-        "dashboard-statistics",
-
-        html,
-      );
-    }
-
-    //===========================================================================
-    // Dashboard Activities
-    //===========================================================================
-
-    function renderDashboardActivities(activities = []) {
-      const container = DOM.$("dashboard-activities");
+      html = "",
+    ) {
+      const container = DOM.$(containerId);
 
       if (!container) {
-        return;
-      }
+        console.warn(
+          "Container not found:",
 
-      if (!activities.length) {
-        DOM.html(
-          container,
-
-          Components.emptyState("No recent activities."),
+          containerId,
         );
 
-        return;
+        return false;
       }
-
-      const html = activities
-
-        .map(
-          (item) => `
-
-        <div class="flex items-center justify-between p-4">
-
-          <div>
-
-            <div class="font-medium text-slate-800">
-
-              ${item.module}
-
-            </div>
-
-            <div class="text-sm text-slate-500">
-
-              ${item.id}
-
-            </div>
-
-          </div>
-
-          <div class="text-xs text-slate-400">
-
-            ${Format.datetime(item.createdAt)}
-
-          </div>
-
-        </div>
-
-      `,
-        )
-
-        .join("");
 
       DOM.html(
         container,
 
         html,
       );
+
+      return true;
     }
 
-    //===========================================================================
-    // Products
-    //===========================================================================
-
-    function products(data = []) {
-      console.log(
-        "Render Products",
-
-        data,
-      );
-    }
-
-    //===========================================================================
-    // Partners
-    //===========================================================================
-
-    function partners(data = []) {
-      console.log(
-        "Render Partners",
-
-        data,
-      );
-    }
-
-    //===========================================================================
-    // Pickups
-    //===========================================================================
-
-    function pickups(data = []) {
-      console.log(
-        "Render Pickups",
-
-        data,
-      );
-    }
-
-    //===========================================================================
-    // Returns
-    //===========================================================================
-
-    function returns(data = []) {
-      console.log(
-        "Render Returns",
-
-        data,
-      );
-    }
-
-    //===========================================================================
-    // Purchasing
-    //===========================================================================
-
-    function purchasing(data = []) {
-      console.log(
-        "Render Purchasing",
-
-        data,
-      );
-    }
-
-    //===========================================================================
-    // Expenses
-    //===========================================================================
-
-    function expenses(data = []) {
-      console.log(
-        "Render Expenses",
-
-        data,
-      );
-    }
-
-    //===========================================================================
-    // Generic KPI
-    //===========================================================================
-
-    function kpi(containerId, cards = []) {
-      const container = DOM.$(containerId);
-
-      if (!container) {
-        return;
-      }
-
-      DOM.html(
-        container,
-
-        cards.join(""),
-      );
-    }
-
-    //===========================================================================
-    // Generic Table
-    //===========================================================================
-
-    function table(
+    function replace(
       containerId,
 
-      headers = [],
+      html = "",
+    ) {
+      return mount(
+        containerId,
 
-      rows = [],
+        html,
+      );
+    }
+
+    function append(
+      containerId,
+
+      html = "",
     ) {
       const container = DOM.$(containerId);
 
       if (!container) {
-        return;
-      }
+        console.warn(
+          "Container not found:",
 
-      if (!rows.length) {
-        DOM.html(
-          container,
-
-          Components.emptyState(),
+          containerId,
         );
 
-        return;
+        return false;
       }
 
-      const thead = headers
-
-        .map((text) => `<th class="px-4 py-3 text-left">${text}</th>`)
-
-        .join("");
-
-      DOM.html(
-        container,
-
-        `
-
-      <div class="overflow-x-auto">
-
-        <table class="min-w-full">
-
-          <thead>
-
-            <tr>
-
-              ${thead}
-
-            </tr>
-
-          </thead>
-
-          <tbody>
-
-            ${rows.join("")}
-
-          </tbody>
-
-        </table>
-
-      </div>
-
-      `,
-      );
-    }
-
-    //===========================================================================
-    // Generic Statistics
-    //===========================================================================
-
-    function statistics(
-      containerId,
-
-      html,
-    ) {
-      const container = DOM.$(containerId);
-
-      if (!container) {
-        return;
-      }
-
-      DOM.html(
-        container,
+      container.insertAdjacentHTML(
+        "beforeend",
 
         html,
       );
+
+      return true;
     }
 
-    //===========================================================================
-    // Generic Pagination
-    //===========================================================================
-
-    function pagination(
+    function prepend(
       containerId,
 
-      html,
+      html = "",
     ) {
       const container = DOM.$(containerId);
 
       if (!container) {
-        return;
+        console.warn(
+          "Container not found:",
+
+          containerId,
+        );
+
+        return false;
       }
 
-      DOM.html(
-        container,
+      container.insertAdjacentHTML(
+        "afterbegin",
 
         html,
       );
+
+      return true;
     }
 
-    //===========================================================================
-    // Generic Loading
-    //===========================================================================
-
-    function loading(
-      containerId,
-
-      message = "Loading...",
-    ) {
+    function clear(containerId) {
       const container = DOM.$(containerId);
 
       if (!container) {
-        return;
+        return false;
       }
 
       DOM.html(
         container,
 
-        Components.loading(message),
+        "",
       );
+
+      return true;
     }
 
     //===========================================================================
-    // Generic Empty
+    // Visibility
     //===========================================================================
 
-    function empty(
-      containerId,
+    function show(id) {
+      const element = DOM.$(id);
 
-      message = "No data available.",
-    ) {
-      const container = DOM.$(containerId);
-
-      if (!container) {
-        return;
+      if (!element) {
+        return false;
       }
 
-      DOM.html(
-        container,
+      DOM.removeClass(
+        element,
 
-        Components.emptyState(message),
+        "hidden",
       );
+
+      return true;
+    }
+
+    function hide(id) {
+      const element = DOM.$(id);
+
+      if (!element) {
+        return false;
+      }
+
+      DOM.addClass(
+        element,
+
+        "hidden",
+      );
+
+      return true;
+    }
+
+    //===========================================================================
+    // Utilities
+    //===========================================================================
+
+    function exists(id) {
+      return DOM.$(id) !== null;
+    }
+
+    function remove(id) {
+      const element = DOM.$(id);
+
+      if (!element) {
+        return false;
+      }
+
+      element.remove();
+
+      return true;
+    }
+
+    function focus(id) {
+      const element = DOM.$(id);
+
+      if (!element) {
+        return false;
+      }
+
+      element.focus();
+
+      return true;
+    }
+
+    function scrollTop(behavior = "smooth") {
+      window.scrollTo({
+        top: 0,
+
+        behavior,
+      });
     }
 
     //===========================================================================
@@ -592,6 +384,8 @@
     //===========================================================================
 
     return Object.freeze({
+      // Layout
+
       layout,
 
       sidebar,
@@ -600,31 +394,33 @@
 
       page,
 
-      dashboard,
+      // Generic Render
 
-      products,
+      mount,
 
-      partners,
+      replace,
 
-      pickups,
+      append,
 
-      returns,
+      prepend,
 
-      purchasing,
+      clear,
 
-      expenses,
+      // Visibility
 
-      table,
+      show,
 
-      kpi,
+      hide,
 
-      statistics,
+      // Utilities
 
-      pagination,
+      exists,
 
-      loading,
+      remove,
 
-      empty,
+      focus,
+
+      scrollTop,
     });
   })();
 </script>

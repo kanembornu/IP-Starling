@@ -11,25 +11,18 @@
  */
 
 function ExpenseService() {
-
   return EntityService.create(
-
     EXPENSE_SCHEMA,
 
     {
-
       /**
        * -----------------------------------------------------------------------
        * Before Validation
        * -----------------------------------------------------------------------
        */
       beforeValidation(data) {
-
         return Utils.trimObject(data);
-
       },
-
-
 
       /**
        * -----------------------------------------------------------------------
@@ -37,29 +30,15 @@ function ExpenseService() {
        * -----------------------------------------------------------------------
        */
       beforeCreate(data) {
-
         /**
          * Nominal tidak boleh negatif
          */
-        if (
-
-          Number(data[EXPENSE_FIELDS.AMOUNT]) < 0
-
-        ) {
-
-          return Response.error(
-
-            "Nominal tidak boleh negatif."
-
-          );
-
+        if (Number(data[EXPENSE_FIELDS.AMOUNT]) < 0) {
+          return Response.error("Nominal tidak boleh negatif.");
         }
 
         return data;
-
       },
-
-
 
       /**
        * -----------------------------------------------------------------------
@@ -67,28 +46,15 @@ function ExpenseService() {
        * -----------------------------------------------------------------------
        */
       beforeUpdate(id, data) {
-
         if (
-
           data[EXPENSE_FIELDS.AMOUNT] !== undefined &&
-
           Number(data[EXPENSE_FIELDS.AMOUNT]) < 0
-
         ) {
-
-          return Response.error(
-
-            "Nominal tidak boleh negatif."
-
-          );
-
+          return Response.error("Nominal tidak boleh negatif.");
         }
 
         return data;
-
       },
-
-
 
       /**
        * -----------------------------------------------------------------------
@@ -96,7 +62,6 @@ function ExpenseService() {
        * -----------------------------------------------------------------------
        */
       beforeDelete(id) {
-
         /**
          * Future:
          *
@@ -105,11 +70,7 @@ function ExpenseService() {
          */
 
         return id;
-
-      }
-
-    }
-
+      },
+    },
   );
-
 }

@@ -29,7 +29,11 @@
 
     function render(data) {
       if (!data) {
-        Render.empty("dashboard-kpi", "Dashboard data unavailable.");
+        Render.mount(
+          "dashboard-kpi",
+
+          Components.empty("Dashboard data unavailable."),
+        );
 
         return;
       }
@@ -47,45 +51,45 @@
     // KPI
     //===========================================================================
 
-    function renderKPI(summary) {
-      const cards = [
-        Components.kpi(
-          "Products",
+    function renderKPI(summary = {}) {
+      const html = [
+        {
+          title: "Products",
+          value: summary.products || 0,
+          icon: "fa-box",
+          color: "blue",
+        },
 
-          summary.products || 0,
+        {
+          title: "Partners",
+          value: summary.partners || 0,
+          icon: "fa-users",
+          color: "green",
+        },
 
-          "fa-box",
-        ),
+        {
+          title: "Purchasing",
+          value: summary.purchasings || 0,
+          icon: "fa-cart-shopping",
+          color: "amber",
+        },
 
-        Components.kpi(
-          "Partners",
+        {
+          title: "Expenses",
+          value: summary.expenses || 0,
+          icon: "fa-wallet",
+          color: "red",
+        },
+      ]
 
-          summary.partners || 0,
+        .map(Components.stat)
 
-          "fa-users",
-        ),
+        .join("");
 
-        Components.kpi(
-          "Purchasing",
-
-          summary.purchasings || 0,
-
-          "fa-cart-shopping",
-        ),
-
-        Components.kpi(
-          "Expenses",
-
-          summary.expenses || 0,
-
-          "fa-wallet",
-        ),
-      ];
-
-      Render.kpi(
+      Render.mount(
         "dashboard-kpi",
 
-        cards,
+        html,
       );
     }
 
@@ -130,10 +134,14 @@
 
     `;
 
-      Render.statistics(
+      Render.mount(
         "dashboard-statistics",
 
-        html,
+        Components.card({
+          title: "Statistics",
+
+          body: html,
+        }),
       );
     }
 
@@ -142,17 +150,11 @@
     //===========================================================================
 
     function renderActivities(activities = []) {
-      const container = DOM.$("dashboard-activities");
-
-      if (!container) {
-        return;
-      }
-
       if (!activities.length) {
-        Render.empty(
+        Render.mount(
           "dashboard-activities",
 
-          "No recent activities.",
+          Components.empty("No recent activities."),
         );
 
         return;
@@ -194,10 +196,14 @@
 
         .join("");
 
-      DOM.html(
-        container,
+      Render.mount(
+        "dashboard-activities",
 
-        html,
+        Components.card({
+          title: "Recent Activities",
+
+          body: html,
+        }),
       );
     }
 

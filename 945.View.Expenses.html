@@ -1,170 +1,88 @@
 <template id="expenses-page">
-
   <div class="space-y-6">
-
     <!-- =============================================================== -->
     <!-- Page Header -->
     <!-- =============================================================== -->
 
     <div class="flex items-center justify-between">
-
       <div>
+        <h2 class="text-2xl font-bold text-slate-800">Expenses</h2>
 
-        <h2 class="text-2xl font-bold text-slate-800">
-
-          Expenses
-
-        </h2>
-
-        <p class="text-sm text-slate-500">
-
-          Manage operational expenses.
-
-        </p>
-
+        <p class="text-sm text-slate-500">Manage operational expenses.</p>
       </div>
 
       <button
         id="btn-expense-add"
-        class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition">
-
+        class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition"
+      >
         <i class="fa-solid fa-plus mr-2"></i>
 
         Add Expense
-
       </button>
-
     </div>
-
-
 
     <!-- =============================================================== -->
     <!-- Toolbar -->
     <!-- =============================================================== -->
 
-    <div
-      class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
       <div class="flex flex-wrap gap-3 items-center">
-
         <div class="flex-1">
-
           <input
             id="inp-expense-search"
             type="text"
             placeholder="Search expense..."
-            class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none">
-
+            class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          />
         </div>
 
         <button
           id="btn-expense-refresh"
-          class="px-4 py-2 rounded-lg border border-slate-300 hover:bg-slate-100">
-
+          class="px-4 py-2 rounded-lg border border-slate-300 hover:bg-slate-100"
+        >
           <i class="fa-solid fa-rotate-right"></i>
-
         </button>
-
       </div>
-
     </div>
-
-
 
     <!-- =============================================================== -->
     <!-- Table -->
     <!-- =============================================================== -->
 
     <div
-      class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-
-      <table
-        id="tbl-expenses"
-        class="min-w-full text-sm">
-
+      class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
+    >
+      <table id="tbl-expenses" class="min-w-full text-sm">
         <thead class="bg-slate-100">
-
           <tr>
+            <th class="px-4 py-3 text-left">ID</th>
 
-            <th class="px-4 py-3 text-left">
+            <th class="px-4 py-3 text-left">Date</th>
 
-              ID
+            <th class="px-4 py-3 text-left">Category</th>
 
-            </th>
+            <th class="px-4 py-3 text-left">Description</th>
 
-            <th class="px-4 py-3 text-left">
+            <th class="px-4 py-3 text-right">Amount</th>
 
-              Date
+            <th class="px-4 py-3 text-center">Status</th>
 
-            </th>
-
-            <th class="px-4 py-3 text-left">
-
-              Category
-
-            </th>
-
-            <th class="px-4 py-3 text-left">
-
-              Description
-
-            </th>
-
-            <th class="px-4 py-3 text-right">
-
-              Amount
-
-            </th>
-
-            <th class="px-4 py-3 text-center">
-
-              Status
-
-            </th>
-
-            <th class="px-4 py-3 text-center">
-
-              Action
-
-            </th>
-
+            <th class="px-4 py-3 text-center">Action</th>
           </tr>
-
         </thead>
 
-        <tbody id="tbl-expenses-body">
-
-        </tbody>
-
+        <tbody id="tbl-expenses-body"></tbody>
       </table>
-
     </div>
-
-
 
     <!-- =============================================================== -->
     <!-- Pagination -->
     <!-- =============================================================== -->
 
-    <div
-      class="flex items-center justify-between">
+    <div class="flex items-center justify-between">
+      <div id="lbl-expense-info" class="text-sm text-slate-500">0 Expense</div>
 
-      <div
-        id="lbl-expense-info"
-        class="text-sm text-slate-500">
-
-        0 Expense
-
-      </div>
-
-      <div
-        id="expense-pagination"
-        class="flex gap-2">
-
-      </div>
-
+      <div id="expense-pagination" class="flex gap-2"></div>
     </div>
-
   </div>
-
 </template>

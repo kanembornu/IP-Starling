@@ -11,25 +11,18 @@
  */
 
 function ReturnService() {
-
   return EntityService.create(
-
     RETURN_SCHEMA,
 
     {
-
       /**
        * -----------------------------------------------------------------------
        * Before Validation
        * -----------------------------------------------------------------------
        */
       beforeValidation(data) {
-
         return Utils.trimObject(data);
-
       },
-
-
 
       /**
        * -----------------------------------------------------------------------
@@ -37,69 +30,37 @@ function ReturnService() {
        * -----------------------------------------------------------------------
        */
       beforeCreate(data) {
-
         /**
          * Pickup harus ada
          */
         const pickup = RepositoryReader.findById(
-
           PICKUP_SCHEMA,
 
-          data[RETURN_FIELDS.PICKUP_ID]
-
+          data[RETURN_FIELDS.PICKUP_ID],
         );
 
         if (!pickup) {
-
-          return Response.error(
-
-            "Pickup tidak ditemukan."
-
-          );
-
+          return Response.error("Pickup tidak ditemukan.");
         }
-
-
 
         /**
          * Qty minimal 1
          */
         if (Number(data[RETURN_FIELDS.QTY]) <= 0) {
-
-          return Response.error(
-
-            "Qty harus lebih besar dari 0."
-
-          );
-
+          return Response.error("Qty harus lebih besar dari 0.");
         }
-
-
 
         /**
          * Qty retur tidak boleh melebihi qty pickup
          */
         if (
-
-          Number(data[RETURN_FIELDS.QTY]) >
-
-          Number(pickup[PICKUP_FIELDS.QTY])
-
+          Number(data[RETURN_FIELDS.QTY]) > Number(pickup[PICKUP_FIELDS.QTY])
         ) {
-
-          return Response.error(
-
-            "Qty retur melebihi qty pickup."
-
-          );
-
+          return Response.error("Qty retur melebihi qty pickup.");
         }
 
         return data;
-
       },
-
-
 
       /**
        * -----------------------------------------------------------------------
@@ -107,28 +68,15 @@ function ReturnService() {
        * -----------------------------------------------------------------------
        */
       beforeUpdate(id, data) {
-
         if (
-
           data[RETURN_FIELDS.QTY] !== undefined &&
-
           Number(data[RETURN_FIELDS.QTY]) <= 0
-
         ) {
-
-          return Response.error(
-
-            "Qty harus lebih besar dari 0."
-
-          );
-
+          return Response.error("Qty harus lebih besar dari 0.");
         }
 
         return data;
-
       },
-
-
 
       /**
        * -----------------------------------------------------------------------
@@ -136,7 +84,6 @@ function ReturnService() {
        * -----------------------------------------------------------------------
        */
       beforeDelete(id) {
-
         /**
          * Future:
          *
@@ -145,11 +92,7 @@ function ReturnService() {
          */
 
         return id;
-
-      }
-
-    }
-
+      },
+    },
   );
-
 }

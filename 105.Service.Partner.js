@@ -11,25 +11,18 @@
  */
 
 function PartnerService() {
-
   return EntityService.create(
-
     PARTNER_SCHEMA,
 
     {
-
       /**
        * -----------------------------------------------------------------------
        * Before Validation
        * -----------------------------------------------------------------------
        */
       beforeValidation(data) {
-
         return Utils.trimObject(data);
-
       },
-
-
 
       /**
        * -----------------------------------------------------------------------
@@ -37,35 +30,20 @@ function PartnerService() {
        * -----------------------------------------------------------------------
        */
       beforeCreate(data) {
-
         const exists = RepositoryReader.exists(
-
           PARTNER_SCHEMA,
 
           {
-
-            [PARTNER_FIELDS.NAME]:
-              data[PARTNER_FIELDS.NAME]
-
-          }
-
+            [PARTNER_FIELDS.NAME]: data[PARTNER_FIELDS.NAME],
+          },
         );
 
         if (exists) {
-
-          return Response.error(
-
-            "Nama partner sudah digunakan."
-
-          );
-
+          return Response.error("Nama partner sudah digunakan.");
         }
 
         return data;
-
       },
-
-
 
       /**
        * -----------------------------------------------------------------------
@@ -73,47 +51,24 @@ function PartnerService() {
        * -----------------------------------------------------------------------
        */
       beforeUpdate(id, data) {
-
         if (!data[PARTNER_FIELDS.NAME]) {
-
           return data;
-
         }
 
         const partner = RepositoryReader.findOne(
-
           PARTNER_SCHEMA,
 
           {
-
-            [PARTNER_FIELDS.NAME]:
-              data[PARTNER_FIELDS.NAME]
-
-          }
-
+            [PARTNER_FIELDS.NAME]: data[PARTNER_FIELDS.NAME],
+          },
         );
 
-        if (
-
-          partner &&
-
-          partner[PARTNER_FIELDS.ID] !== id
-
-        ) {
-
-          return Response.error(
-
-            "Nama partner sudah digunakan."
-
-          );
-
+        if (partner && partner[PARTNER_FIELDS.ID] !== id) {
+          return Response.error("Nama partner sudah digunakan.");
         }
 
         return data;
-
       },
-
-
 
       /**
        * -----------------------------------------------------------------------
@@ -121,7 +76,6 @@ function PartnerService() {
        * -----------------------------------------------------------------------
        */
       beforeDelete(id) {
-
         /**
          * Future:
          *
@@ -130,11 +84,7 @@ function PartnerService() {
          */
 
         return id;
-
-      }
-
-    }
-
+      },
+    },
   );
-
 }

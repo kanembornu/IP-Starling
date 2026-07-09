@@ -21,7 +21,6 @@
  */
 
 function DashboardService() {
-
   //===========================================================================
   // Services
   //===========================================================================
@@ -38,14 +37,11 @@ function DashboardService() {
 
   const expenses = ExpenseService();
 
-
-
   //===========================================================================
   // Summary
   //===========================================================================
 
   function getSummary() {
-
     const productData = products.findAll();
 
     const partnerData = partners.findAll();
@@ -59,103 +55,59 @@ function DashboardService() {
     const expenseData = expenses.findAll();
 
     return {
+      products: productData.success ? productData.data.length : 0,
 
-      products: productData.success
-        ? productData.data.length
-        : 0,
+      partners: partnerData.success ? partnerData.data.length : 0,
 
-      partners: partnerData.success
-        ? partnerData.data.length
-        : 0,
+      pickups: pickupData.success ? pickupData.data.length : 0,
 
-      pickups: pickupData.success
-        ? pickupData.data.length
-        : 0,
+      returns: returnData.success ? returnData.data.length : 0,
 
-      returns: returnData.success
-        ? returnData.data.length
-        : 0,
+      purchasings: purchasingData.success ? purchasingData.data.length : 0,
 
-      purchasings: purchasingData.success
-        ? purchasingData.data.length
-        : 0,
-
-      expenses: expenseData.success
-        ? expenseData.data.length
-        : 0
-
+      expenses: expenseData.success ? expenseData.data.length : 0,
     };
-
   }
-
-
 
   //===========================================================================
   // Statistics
   //===========================================================================
 
   function getStatistics() {
-
     const purchasingStats = purchases.statistics();
 
     const expenseStats = expenses.statistics();
 
     return {
+      purchasing: purchasingStats.success ? purchasingStats.data : {},
 
-      purchasing:
-
-        purchasingStats.success
-
-          ? purchasingStats.data
-
-          : {},
-
-      expense:
-
-        expenseStats.success
-
-          ? expenseStats.data
-
-          : {}
-
+      expense: expenseStats.success ? expenseStats.data : {},
     };
-
   }
-
-
 
   //===========================================================================
   // Recent Activities
   //===========================================================================
 
   function getRecentActivities(limit = 10) {
-
     const activities = [];
 
     function append(serviceResponse, moduleName) {
-
       if (!serviceResponse.success) {
-
         return;
-
       }
 
-      serviceResponse.data.forEach(item => {
-
+      serviceResponse.data.forEach((item) => {
         activities.push({
-
           module: moduleName,
 
           id: item.ID,
 
           createdAt: item.CreatedAt || "",
 
-          updatedAt: item.UpdatedAt || ""
-
+          updatedAt: item.UpdatedAt || "",
         });
-
       });
-
     }
 
     append(products.findAll(), "Product");
@@ -170,50 +122,34 @@ function DashboardService() {
 
     append(expenses.findAll(), "Expense");
 
-    activities.sort(function(a, b) {
-
-      return String(b.createdAt)
-
-        .localeCompare(String(a.createdAt));
-
+    activities.sort(function (a, b) {
+      return String(b.createdAt).localeCompare(String(a.createdAt));
     });
 
     return activities.slice(0, limit);
-
   }
-
-
 
   //===========================================================================
   // Dashboard Payload
   //===========================================================================
 
   function getDashboard() {
-
     return Response.success({
-
       summary: getSummary(),
 
       statistics: getStatistics(),
 
       recentActivities: getRecentActivities(),
 
-      generatedAt: Utils.now()
-
+      generatedAt: Utils.now(),
     });
-
   }
-
-
 
   //===========================================================================
   // Public API
   //===========================================================================
 
   return Object.freeze({
-
-    getDashboard
-
+    getDashboard,
   });
-
 }

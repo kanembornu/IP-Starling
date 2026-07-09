@@ -12,7 +12,6 @@
  * ---------------------------------------------------------------------------
  */
 const APP_CONFIG = Object.freeze({
-
   NAME: "IP-Starling",
 
   VERSION: "0.1.0",
@@ -23,10 +22,8 @@ const APP_CONFIG = Object.freeze({
 
   TIMEZONE: Session.getScriptTimeZone(),
 
-  LOCALE: "id_ID"
-
+  LOCALE: "id_ID",
 });
-
 
 /**
  * ---------------------------------------------------------------------------
@@ -34,13 +31,8 @@ const APP_CONFIG = Object.freeze({
  * ---------------------------------------------------------------------------
  */
 const DATABASE_CONFIG = Object.freeze({
-
-  SPREADSHEET_ID: SpreadsheetApp
-    .getActiveSpreadsheet()
-    .getId()
-
+  SPREADSHEET_ID: SpreadsheetApp.getActiveSpreadsheet().getId(),
 });
-
 
 /**
  * ---------------------------------------------------------------------------
@@ -48,13 +40,10 @@ const DATABASE_CONFIG = Object.freeze({
  * ---------------------------------------------------------------------------
  */
 const CACHE_CONFIG = Object.freeze({
-
   ENABLED: true,
 
-  EXPIRE_SECONDS: 300
-
+  EXPIRE_SECONDS: 300,
 });
-
 
 /**
  * ---------------------------------------------------------------------------
@@ -62,15 +51,12 @@ const CACHE_CONFIG = Object.freeze({
  * ---------------------------------------------------------------------------
  */
 const PAGINATION_CONFIG = Object.freeze({
-
   DEFAULT_PAGE: 1,
 
   DEFAULT_LIMIT: 20,
 
-  MAX_LIMIT: 500
-
+  MAX_LIMIT: 500,
 });
-
 
 /**
  * ---------------------------------------------------------------------------
@@ -78,17 +64,14 @@ const PAGINATION_CONFIG = Object.freeze({
  * ---------------------------------------------------------------------------
  */
 const AUDIT_COLUMNS = Object.freeze({
-
   CREATED_AT: "CreatedAt",
 
   CREATED_BY: "CreatedBy",
 
   UPDATED_AT: "UpdatedAt",
 
-  UPDATED_BY: "UpdatedBy"
-
+  UPDATED_BY: "UpdatedBy",
 });
-
 
 /**
  * ---------------------------------------------------------------------------
@@ -96,15 +79,12 @@ const AUDIT_COLUMNS = Object.freeze({
  * ---------------------------------------------------------------------------
  */
 const SYSTEM_COLUMNS = Object.freeze({
-
   PRIMARY_KEY: "ID",
 
   IS_ACTIVE: "IsActive",
 
-  IS_DELETED: "Deleted"
-
+  IS_DELETED: "Deleted",
 });
-
 
 /**
  * ---------------------------------------------------------------------------
@@ -112,7 +92,6 @@ const SYSTEM_COLUMNS = Object.freeze({
  * ---------------------------------------------------------------------------
  */
 const SHEET_NAMES = Object.freeze({
-
   PRODUCTS: "Products",
 
   PARTNERS: "Partners",
@@ -127,10 +106,8 @@ const SHEET_NAMES = Object.freeze({
 
   SETTINGS: "Settings",
 
-  LOGS: "Logs"
-
+  LOGS: "Logs",
 });
-
 
 /**
  * ---------------------------------------------------------------------------
@@ -138,7 +115,6 @@ const SHEET_NAMES = Object.freeze({
  * ---------------------------------------------------------------------------
  */
 const ID_PREFIX = Object.freeze({
-
   PRODUCT: "PR",
 
   PARTNER: "PT",
@@ -149,8 +125,7 @@ const ID_PREFIX = Object.freeze({
 
   PURCHASE: "PC",
 
-  EXPENSE: "EX"
-
+  EXPENSE: "EX",
 });
 
 /**
@@ -159,13 +134,11 @@ const ID_PREFIX = Object.freeze({
  * ---------------------------------------------------------------------------
  */
 const ENV = Object.freeze({
-
   DEBUG: true,
 
   LOG_ENABLED: true,
 
-  CACHE_ENABLED: true
-
+  CACHE_ENABLED: true,
 });
 
 /**
@@ -174,7 +147,6 @@ const ENV = Object.freeze({
  * ---------------------------------------------------------------------------
  */
 const ROUTES = Object.freeze({
-
   DASHBOARD: "950.View.Dashboard",
 
   PRODUCTS: "920.View.Products",
@@ -188,5 +160,4 @@ const ROUTES = Object.freeze({
   PURCHASES: "940.View.Purchasing",
 
   EXPENSES: "945.View.Expenses",
-
 });

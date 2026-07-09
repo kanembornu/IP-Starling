@@ -1,377 +1,251 @@
 <script>
+  /**
+   * =============================================================================
+   * FILE        : 985.View.DOM
+   * VERSION     : 1.0.0
+   * DESCRIPTION : DOM Helper
+   * =============================================================================
+   */
 
-/**
- * =============================================================================
- * FILE        : 985.View.DOM
- * VERSION     : 1.0.0
- * DESCRIPTION : DOM Helper
- * =============================================================================
- */
+  const DOM = (() => {
+    //===========================================================================
+    // Selector
+    //===========================================================================
 
-const DOM = (() => {
-
-  //===========================================================================
-  // Selector
-  //===========================================================================
-
-  function $(id) {
-
-    return document.getElementById(id);
-
-  }
-
-
-
-  function $$(selector) {
-
-    return document.querySelector(selector);
-
-  }
-
-
-
-  function $$$ (selector) {
-
-    return Array.from(
-
-      document.querySelectorAll(selector)
-
-    );
-
-  }
-
-
-
-  //===========================================================================
-  // Template
-  //===========================================================================
-
-  function clone(templateId) {
-
-    const template = $(templateId);
-
-    if (!template) {
-
-      return null;
-
+    function $(id) {
+      return document.getElementById(id);
     }
 
-    return template.content.cloneNode(true);
-
-  }
-
-
-
-  //===========================================================================
-  // Content
-  //===========================================================================
-
-  function clear(element) {
-
-    if (!element) {
-
-      return;
-
+    function $$(selector) {
+      return document.querySelector(selector);
     }
 
-    element.innerHTML = "";
-
-  }
-
-
-
-  function html(element, value) {
-
-    if (!element) {
-
-      return;
-
+    function $$$(selector) {
+      return Array.from(document.querySelectorAll(selector));
     }
 
-    element.innerHTML = value;
+    //===========================================================================
+    // Template
+    //===========================================================================
 
-  }
+    function clone(templateId) {
+      const template = $(templateId);
 
+      if (!template) {
+        return null;
+      }
 
-
-  function text(element, value) {
-
-    if (!element) {
-
-      return;
-
+      return template.content.cloneNode(true);
     }
 
-    element.textContent = value;
+    //===========================================================================
+    // Content
+    //===========================================================================
 
-  }
+    function clear(element) {
+      if (!element) {
+        return;
+      }
 
-
-
-  //===========================================================================
-  // Append
-  //===========================================================================
-
-  function append(parent, child) {
-
-    if (!parent || !child) {
-
-      return;
-
+      element.innerHTML = "";
     }
 
-    parent.appendChild(child);
+    function html(element, value) {
+      if (!element) {
+        return;
+      }
 
-  }
-
-
-
-  function mount(containerId, templateId) {
-
-    const container = $(containerId);
-
-    const content = clone(templateId);
-
-    if (!container || !content) {
-
-      return;
-
+      element.innerHTML = value;
     }
 
-    clear(container);
+    function text(element, value) {
+      if (!element) {
+        return;
+      }
 
-    append(container, content);
-
-  }
-
-
-
-  function replace(element, child) {
-
-    if (!element || !child) {
-
-      return;
-
+      element.textContent = value;
     }
 
-    clear(element);
+    //===========================================================================
+    // Append
+    //===========================================================================
 
-    append(element, child);
+    function append(parent, child) {
+      if (!parent || !child) {
+        return;
+      }
 
-  }
-
-
-
-  //===========================================================================
-  // Remove
-  //===========================================================================
-
-  function remove(element) {
-
-    if (!element) {
-
-      return;
-
+      parent.appendChild(child);
     }
 
-    element.remove();
+    function mount(containerId, templateId) {
+      const container = $(containerId);
 
-  }
+      const content = clone(templateId);
 
+      if (!container || !content) {
+        return;
+      }
 
+      clear(container);
 
-  //===========================================================================
-  // Visibility
-  //===========================================================================
-
-  function show(element) {
-
-    if (!element) {
-
-      return;
-
+      append(container, content);
     }
 
-    element.classList.remove("hidden");
+    function replace(element, child) {
+      if (!element || !child) {
+        return;
+      }
 
-  }
+      clear(element);
 
-
-
-  function hide(element) {
-
-    if (!element) {
-
-      return;
-
+      append(element, child);
     }
 
-    element.classList.add("hidden");
+    //===========================================================================
+    // Remove
+    //===========================================================================
 
-  }
+    function remove(element) {
+      if (!element) {
+        return;
+      }
 
-
-
-  function toggle(element) {
-
-    if (!element) {
-
-      return;
-
+      element.remove();
     }
 
-    element.classList.toggle("hidden");
+    //===========================================================================
+    // Visibility
+    //===========================================================================
 
-  }
+    function show(element) {
+      if (!element) {
+        return;
+      }
 
-
-
-  //===========================================================================
-  // Class
-  //===========================================================================
-
-  function addClass(element, ...classes) {
-
-    if (!element) {
-
-      return;
-
+      element.classList.remove("hidden");
     }
 
-    element.classList.add(...classes);
+    function hide(element) {
+      if (!element) {
+        return;
+      }
 
-  }
-
-
-
-  function removeClass(element, ...classes) {
-
-    if (!element) {
-
-      return;
-
+      element.classList.add("hidden");
     }
 
-    element.classList.remove(...classes);
+    function toggle(element) {
+      if (!element) {
+        return;
+      }
 
-  }
-
-
-
-  function toggleClass(element, className) {
-
-    if (!element) {
-
-      return;
-
+      element.classList.toggle("hidden");
     }
 
-    element.classList.toggle(className);
+    //===========================================================================
+    // Class
+    //===========================================================================
 
-  }
+    function addClass(element, ...classes) {
+      if (!element) {
+        return;
+      }
 
-
-
-  function hasClass(element, className) {
-
-    if (!element) {
-
-      return false;
-
+      element.classList.add(...classes);
     }
 
-    return element.classList.contains(className);
+    function removeClass(element, ...classes) {
+      if (!element) {
+        return;
+      }
 
-  }
-
-
-
-  //===========================================================================
-  // Attribute
-  //===========================================================================
-
-  function attr(element, name, value) {
-
-    if (!element) {
-
-      return null;
-
+      element.classList.remove(...classes);
     }
 
-    if (value === undefined) {
+    function toggleClass(element, className) {
+      if (!element) {
+        return;
+      }
 
-      return element.getAttribute(name);
-
+      element.classList.toggle(className);
     }
 
-    element.setAttribute(name, value);
+    function hasClass(element, className) {
+      if (!element) {
+        return false;
+      }
 
-  }
-
-
-
-  function data(element, key) {
-
-    if (!element) {
-
-      return null;
-
+      return element.classList.contains(className);
     }
 
-    return element.dataset[key];
+    //===========================================================================
+    // Attribute
+    //===========================================================================
 
-  }
+    function attr(element, name, value) {
+      if (!element) {
+        return null;
+      }
 
+      if (value === undefined) {
+        return element.getAttribute(name);
+      }
 
+      element.setAttribute(name, value);
+    }
 
-  //===========================================================================
-  // Public API
-  //===========================================================================
+    function data(element, key) {
+      if (!element) {
+        return null;
+      }
 
-  return Object.freeze({
+      return element.dataset[key];
+    }
 
-    $,
+    //===========================================================================
+    // Public API
+    //===========================================================================
 
-    $$,
+    return Object.freeze({
+      $,
 
-    $$$,
+      $$,
 
-    clone,
+      $$$,
 
-    clear,
+      clone,
 
-    html,
+      clear,
 
-    text,
+      html,
 
-    append,
+      text,
 
-    mount,
+      append,
 
-    replace,
+      mount,
 
-    remove,
+      replace,
 
-    show,
+      remove,
 
-    hide,
+      show,
 
-    toggle,
+      hide,
 
-    addClass,
+      toggle,
 
-    removeClass,
+      addClass,
 
-    toggleClass,
+      removeClass,
 
-    hasClass,
+      toggleClass,
 
-    attr,
+      hasClass,
 
-    data
+      attr,
 
-  });
-
-})();
-
+      data,
+    });
+  })();
 </script>

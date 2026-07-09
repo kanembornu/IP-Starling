@@ -7,14 +7,10 @@
  */
 
 function doGet(e) {
-
   try {
-
     const page = resolvePage(e);
 
-    const template = HtmlService.createTemplateFromFile(
-      "900.View.Index"
-    );
+    const template = HtmlService.createTemplateFromFile("900.View.Index");
 
     template.title = APP_CONFIG.NAME;
 
@@ -30,29 +26,13 @@ function doGet(e) {
 
       .setTitle(APP_CONFIG.NAME)
 
-      .setXFrameOptionsMode(
-        HtmlService.XFrameOptionsMode.ALLOWALL
-      );
-
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   } catch (err) {
-
-    return HtmlService
-
-      .createHtmlOutput(
-
-        "<pre>" +
-
-        String(err.stack || err) +
-
-        "</pre>"
-
-      );
-
+    return HtmlService.createHtmlOutput(
+      "<pre>" + String(err.stack || err) + "</pre>",
+    );
   }
-
 }
-
-
 
 /**
  * -----------------------------------------------------------------------------
@@ -60,23 +40,13 @@ function doGet(e) {
  * -----------------------------------------------------------------------------
  */
 function resolvePage(e) {
-
   if (!e || !e.parameter) {
-
     return "dashboard";
-
   }
 
-  const page = String(
-
-    e.parameter.page || "dashboard"
-
-  ).toLowerCase();
-
-
+  const page = String(e.parameter.page || "dashboard").toLowerCase();
 
   switch (page) {
-
     case "dashboard":
 
     case "products":
@@ -90,13 +60,9 @@ function resolvePage(e) {
     case "purchases":
 
     case "expenses":
-
       return page;
 
     default:
-
       return "dashboard";
-
   }
-
 }

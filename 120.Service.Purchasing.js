@@ -11,25 +11,18 @@
  */
 
 function PurchasingService() {
-
   return EntityService.create(
-
-    PURCHASE_SCHEMA,
+    PURCHASING_SCHEMA,
 
     {
-
       /**
        * -----------------------------------------------------------------------
        * Before Validation
        * -----------------------------------------------------------------------
        */
       beforeValidation(data) {
-
         return Utils.trimObject(data);
-
       },
-
-
 
       /**
        * -----------------------------------------------------------------------
@@ -37,107 +30,55 @@ function PurchasingService() {
        * -----------------------------------------------------------------------
        */
       beforeCreate(data) {
-
         /**
          * Supplier harus ada
          */
         const supplier = RepositoryReader.findById(
-
           PARTNER_SCHEMA,
 
-          data[PURCHASE_FIELDS.SUPPLIER_ID]
-
+          data[PURCHASING_FIELDS.SUPPLIER_ID],
         );
 
         if (!supplier) {
-
-          return Response.error(
-
-            "Supplier tidak ditemukan."
-
-          );
-
+          return Response.error("Supplier tidak ditemukan.");
         }
-
-
 
         /**
          * Product harus ada
          */
         const product = RepositoryReader.findById(
-
           PRODUCT_SCHEMA,
 
-          data[PURCHASING_FIELDS.PRODUCT_ID]
-
+          data[PURCHASING_FIELDS.PRODUCT_ID],
         );
 
         if (!product) {
-
-          return Response.error(
-
-            "Produk tidak ditemukan."
-
-          );
-
+          return Response.error("Produk tidak ditemukan.");
         }
-
-
 
         /**
          * Qty minimal 1
          */
-        if (
-
-          Number(data[PURCHASE_FIELDS.QTY]) <= 0
-
-        ) {
-
-          return Response.error(
-
-            "Qty harus lebih besar dari 0."
-
-          );
-
+        if (Number(data[PURCHASING_FIELDS.QTY]) <= 0) {
+          return Response.error("Qty harus lebih besar dari 0.");
         }
-
-
 
         /**
          * Harga minimal 0
          */
-        if (
-
-          Number(data[PURCHASE_FIELDS.PRICE]) < 0
-
-        ) {
-
-          return Response.error(
-
-            "Harga tidak boleh negatif."
-
-          );
-
+        if (Number(data[PURCHASING_FIELDS.PRICE]) < 0) {
+          return Response.error("Harga tidak boleh negatif.");
         }
-
-
 
         /**
          * Hitung Total Otomatis
          */
-        data[PURCHASE_FIELDS.TOTAL] =
-
+        data[PURCHASING_FIELDS.TOTAL] =
           Number(data[PURCHASING_FIELDS.QTY]) *
-
           Number(data[PURCHASING_FIELDS.PRICE]);
 
-
-
         return data;
-
       },
-
-
 
       /**
        * -----------------------------------------------------------------------
@@ -145,97 +86,48 @@ function PurchasingService() {
        * -----------------------------------------------------------------------
        */
       beforeUpdate(id, data) {
-
         if (
-
-          data[PURCHASE_FIELDS.QTY] !== undefined &&
-
+          data[PURCHASING_FIELDS.QTY] !== undefined &&
           Number(data[PURCHASING_FIELDS.QTY]) <= 0
-
         ) {
-
-          return Response.error(
-
-            "Qty harus lebih besar dari 0."
-
-          );
-
+          return Response.error("Qty harus lebih besar dari 0.");
         }
-
-
 
         if (
-
-          data[PURCHASE_FIELDS.PRICE] !== undefined &&
-
-          Number(data[PURCHASE_FIELDS.PRICE]) < 0
-
+          data[PURCHASING_FIELDS.PRICE] !== undefined &&
+          Number(data[PURCHASING_FIELDS.PRICE]) < 0
         ) {
-
-          return Response.error(
-
-            "Harga tidak boleh negatif."
-
-          );
-
+          return Response.error("Harga tidak boleh negatif.");
         }
-
-
 
         /**
          * Recalculate Total
          */
         if (
-
-          data[PURCHASE_FIELDS.QTY] !== undefined ||
-
-          data[PURCHASE_FIELDS.PRICE] !== undefined
-
+          data[PURCHASING_FIELDS.QTY] !== undefined ||
+          data[PURCHASING_FIELDS.PRICE] !== undefined
         ) {
-
           const current = RepositoryReader.findById(
+            PURCHASING_SCHEMA,
 
-            PURCHASE_SCHEMA,
-
-            id
-
+            id,
           );
 
           if (!current) {
-
-            return Response.error(
-
-              "Data purchasing tidak ditemukan."
-
-            );
-
+            return Response.error("Data purchasing tidak ditemukan.");
           }
 
           const qty =
-
-            data[PURCHASE_FIELDS.QTY] ??
-
-            current[PURCHASE_FIELDS.QTY];
+            data[PURCHASING_FIELDS.QTY] ?? current[PURCHASING_FIELDS.QTY];
 
           const price =
+            data[PURCHASING_FIELDS.PRICE] ?? current[PURCHASING_FIELDS.PRICE];
 
-            data[PURCHASE_FIELDS.PRICE] ??
-
-            current[PURCHASE_FIELDS.PRICE];
-
-          data[PURCHASE_FIELDS.TOTAL] =
-
-            Number(qty) *
-
-            Number(price);
-
+          data[PURCHASING_FIELDS.TOTAL] = Number(qty) * Number(price);
         }
 
         return data;
-
       },
-
-
 
       /**
        * -----------------------------------------------------------------------
@@ -243,7 +135,6 @@ function PurchasingService() {
        * -----------------------------------------------------------------------
        */
       beforeDelete(id) {
-
         /**
          * Future:
          *
@@ -252,11 +143,7 @@ function PurchasingService() {
          */
 
         return id;
-
-      }
-
-    }
-
+      },
+    },
   );
-
 }

@@ -11,25 +11,18 @@
  */
 
 function ProductService() {
-
   return EntityService.create(
-
     PRODUCT_SCHEMA,
 
     {
-
       /**
        * -----------------------------------------------------------------------
        * Before Validation
        * -----------------------------------------------------------------------
        */
       beforeValidation(data) {
-
         return Utils.trimObject(data);
-
       },
-
-
 
       /**
        * -----------------------------------------------------------------------
@@ -37,35 +30,20 @@ function ProductService() {
        * -----------------------------------------------------------------------
        */
       beforeCreate(data) {
-
         const exists = RepositoryReader.exists(
-
           PRODUCT_SCHEMA,
 
           {
-
-            [PRODUCT_FIELDS.NAME]:
-              data[PRODUCT_FIELDS.NAME]
-
-          }
-
+            [PRODUCT_FIELDS.NAME]: data[PRODUCT_FIELDS.NAME],
+          },
         );
 
         if (exists) {
-
-          return Response.error(
-
-            "Nama produk sudah digunakan."
-
-          );
-
+          return Response.error("Nama produk sudah digunakan.");
         }
 
         return data;
-
       },
-
-
 
       /**
        * -----------------------------------------------------------------------
@@ -73,47 +51,24 @@ function ProductService() {
        * -----------------------------------------------------------------------
        */
       beforeUpdate(id, data) {
-
         if (!data[PRODUCT_FIELDS.NAME]) {
-
           return data;
-
         }
 
         const product = RepositoryReader.findOne(
-
           PRODUCT_SCHEMA,
 
           {
-
-            [PRODUCT_FIELDS.NAME]:
-              data[PRODUCT_FIELDS.NAME]
-
-          }
-
+            [PRODUCT_FIELDS.NAME]: data[PRODUCT_FIELDS.NAME],
+          },
         );
 
-        if (
-
-          product &&
-
-          product[PRODUCT_FIELDS.ID] !== id
-
-        ) {
-
-          return Response.error(
-
-            "Nama produk sudah digunakan."
-
-          );
-
+        if (product && product[PRODUCT_FIELDS.ID] !== id) {
+          return Response.error("Nama produk sudah digunakan.");
         }
 
         return data;
-
       },
-
-
 
       /**
        * -----------------------------------------------------------------------
@@ -121,7 +76,6 @@ function ProductService() {
        * -----------------------------------------------------------------------
        */
       beforeDelete(id) {
-
         /**
          * Future:
          *
@@ -129,11 +83,7 @@ function ProductService() {
          */
 
         return id;
-
-      }
-
-    }
-
+      },
+    },
   );
-
 }

@@ -14,20 +14,15 @@
  */
 
 const RepositoryReader = (() => {
-
   /**
    * --------------------------------------------------------------------------
    * Raw Rows
    * --------------------------------------------------------------------------
    */
   function raw(schema) {
-
     return RepositoryCache.remember(schema, () => {
-
       return RepositoryBase.rows(schema);
-
     });
-
   }
 
   /**
@@ -36,19 +31,15 @@ const RepositoryReader = (() => {
    * --------------------------------------------------------------------------
    */
   function findAll(schema) {
-
     const rows = raw(schema);
 
     const data = RepositoryBase.mapRows(schema, rows);
 
     const deletedColumn = schema.SYSTEM.IS_DELETED;
 
-    return data.filter(item => {
-
+    return data.filter((item) => {
       return item[deletedColumn] !== true;
-
     });
-
   }
 
   /**
@@ -57,15 +48,9 @@ const RepositoryReader = (() => {
    * --------------------------------------------------------------------------
    */
   function findById(schema, id) {
-
     const pk = schema.PRIMARY_KEY;
 
-    return findAll(schema)
-
-      .find(item => item[pk] === id)
-
-      || null;
-
+    return findAll(schema).find((item) => item[pk] === id) || null;
   }
 
   /**
@@ -74,17 +59,11 @@ const RepositoryReader = (() => {
    * --------------------------------------------------------------------------
    */
   function find(schema, criteria = {}) {
+    return findAll(schema).filter((item) => {
+      return Object.keys(criteria)
 
-    return findAll(schema)
-
-      .filter(item => {
-
-        return Object.keys(criteria)
-
-          .every(key => item[key] === criteria[key]);
-
-      });
-
+        .every((key) => item[key] === criteria[key]);
+    });
   }
 
   /**
@@ -93,9 +72,7 @@ const RepositoryReader = (() => {
    * --------------------------------------------------------------------------
    */
   function findOne(schema, criteria = {}) {
-
     return find(schema, criteria)[0] || null;
-
   }
 
   /**
@@ -104,9 +81,7 @@ const RepositoryReader = (() => {
    * --------------------------------------------------------------------------
    */
   function exists(schema, criteria = {}) {
-
     return findOne(schema, criteria) !== null;
-
   }
 
   /**
@@ -115,9 +90,7 @@ const RepositoryReader = (() => {
    * --------------------------------------------------------------------------
    */
   function count(schema) {
-
     return findAll(schema).length;
-
   }
 
   /**
@@ -126,7 +99,6 @@ const RepositoryReader = (() => {
    * --------------------------------------------------------------------------
    */
   return Object.freeze({
-
     raw,
 
     findAll,
@@ -139,8 +111,6 @@ const RepositoryReader = (() => {
 
     exists,
 
-    count
-
+    count,
   });
-
 })();

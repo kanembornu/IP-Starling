@@ -1,460 +1,268 @@
 <script>
-
-/**
- * =============================================================================
- * FILE        : 980.View.Event.html
- * VERSION     : 2.0.0
- * DESCRIPTION : Event Manager
- * =============================================================================
- */
-
-const Events = (() => {
-
-  //===========================================================================
-  // Initialize
-  //===========================================================================
-
-  function init() {
-
-    bindSidebar();
-
-    bindTopbar();
-
-    bindGlobal();
-
-  }
-
-
-
-  //===========================================================================
-  // Sidebar
-  //===========================================================================
-
-  function bindSidebar() {
-
-    document.addEventListener(
-
-      "click",
-
-      event => {
-
-        const button =
-
-          event.target.closest(".menu-item");
-
-        if (!button) {
-
-          return;
-
-        }
-
-        event.preventDefault();
-
-        const page =
-
-          button.dataset.page;
-
-        if (!page) {
-
-          return;
-
-        }
-
-        App.navigate(page);
-
-      }
-
-    );
-
-  }
-
-
-
-  //===========================================================================
-  // Topbar
-  //===========================================================================
-
-  function bindTopbar() {
-
-    document.addEventListener(
-
-      "click",
-
-      event => {
-
-        if (
-
-          event.target.closest(
-
-            "#btn-refresh"
-
-          )
-
-        ) {
-
-          App.refresh();
-
-          return;
-
-        }
-
-
-
-        if (
-
-          event.target.closest(
-
-            "#btn-notification"
-
-          )
-
-        ) {
-
-          console.log(
-
-            "Notification"
-
-          );
-
-        }
-
-      }
-
-    );
-
-  }
-
-
-
-  //===========================================================================
-  // Search
-  //===========================================================================
-
-  function bindGlobal() {
-
-    document.addEventListener(
-
-      "input",
-
-      Utils.debounce(event => {
-
-        const input =
-
-          event.target;
-
-        if (
-
-          !input ||
-
-          input.id !==
-
-          "global-search"
-
-        ) {
-
-          return;
-
-        }
-
-        App.search(
-
-          App.currentPage(),
-
-          input.value
-
-        );
-
-      }, 300)
-
-    );
-
-  }
-
-
-
-  //===========================================================================
-  // Product Buttons
-  //===========================================================================
-
-  document.addEventListener(
-
-    "click",
-
-    event => {
-
-      const edit =
-
-        event.target.closest(
-
-          ".btn-edit"
-
-        );
-
-      if (edit) {
-
-        App.editProduct(
-
-          edit.dataset.id
-
-        );
-
-        return;
-
-      }
-
-
-
-      const del =
-
-        event.target.closest(
-
-          ".btn-delete"
-
-        );
-
-      if (del) {
-
-        App.deleteProduct(
-
-          del.dataset.id
-
-        );
-
-        return;
-
-      }
-
+  /**
+   * =============================================================================
+   * FILE        : 980.View.Event.html
+   * VERSION     : 2.0.0
+   * DESCRIPTION : Event Manager
+   * =============================================================================
+   */
+
+  const Events = (() => {
+    //===========================================================================
+    // Initialize
+    //===========================================================================
+
+    function init() {
+      bindSidebar();
+
+      bindTopbar();
+
+      bindGlobal();
     }
-
-  );
 
     //===========================================================================
-  // Table Actions
-  //===========================================================================
+    // Sidebar
+    //===========================================================================
 
-  function bindTableActions() {
+    function bindSidebar() {
+      document.addEventListener(
+        "click",
 
-    document.addEventListener(
+        (event) => {
+          const button = event.target.closest(".menu-item");
 
-      "click",
-
-      event => {
-
-        const restore = event.target.closest(
-
-          ".btn-restore"
-
-        );
-
-        if (restore) {
-
-          const id = restore.dataset.id;
-
-          const page = App.currentPage();
-
-          dispatchRestore(page, id);
-
-          return;
-
-        }
-
-      }
-
-    );
-
-  }
-
-
-
-  //===========================================================================
-  // Restore Dispatcher
-  //===========================================================================
-
-  function dispatchRestore(page, id) {
-
-    switch (page) {
-
-      case "products":
-
-        App.restoreProduct(id);
-
-        break;
-
-      case "partners":
-
-        App.restorePartner(id);
-
-        break;
-
-      case "pickups":
-
-        App.restorePickup(id);
-
-        break;
-
-      case "returns":
-
-        App.restoreReturn(id);
-
-        break;
-
-      case "purchasing":
-
-        App.restorePurchasing(id);
-
-        break;
-
-      case "expenses":
-
-        App.restoreExpense(id);
-
-        break;
-
-    }
-
-  }
-
-
-
-  //===========================================================================
-  // Keyboard Shortcut
-  //===========================================================================
-
-  function bindKeyboard() {
-
-    document.addEventListener(
-
-      "keydown",
-
-      event => {
-
-        if (
-
-          event.key === "F5"
-
-        ) {
-
-          event.preventDefault();
-
-          App.refresh();
-
-          return;
-
-        }
-
-
-
-        if (
-
-          event.ctrlKey &&
-
-          event.key.toLowerCase() === "f"
-
-        ) {
-
-          event.preventDefault();
-
-
-
-          const search = DOM.$(
-
-            "global-search"
-
-          );
-
-
-
-          if (search) {
-
-            search.focus();
-
-            search.select();
-
+          if (!button) {
+            return;
           }
 
+          event.preventDefault();
+
+          const page = button.dataset.page;
+
+          if (!page) {
+            return;
+          }
+
+          App.navigate(page);
+        },
+      );
+    }
+
+    //===========================================================================
+    // Topbar
+    //===========================================================================
+
+    function bindTopbar() {
+      document.addEventListener(
+        "click",
+
+        (event) => {
+          if (event.target.closest("#btn-refresh")) {
+            App.refresh();
+
+            return;
+          }
+
+          if (event.target.closest("#btn-notification")) {
+            console.log("Notification");
+          }
+        },
+      );
+    }
+
+    //===========================================================================
+    // Search
+    //===========================================================================
+
+    function bindGlobal() {
+      document.addEventListener(
+        "input",
+
+        Utils.debounce((event) => {
+          const input = event.target;
+
+          if (!input || input.id !== "global-search") {
+            return;
+          }
+
+          App.search(
+            App.currentPage(),
+
+            input.value,
+          );
+        }, 300),
+      );
+    }
+
+    //===========================================================================
+    // Product Buttons
+    //===========================================================================
+
+    document.addEventListener(
+      "click",
+
+      (event) => {
+        const edit = event.target.closest(".btn-edit");
+
+        if (edit) {
+          App.editProduct(edit.dataset.id);
+
+          return;
         }
 
+        const del = event.target.closest(".btn-delete");
+
+        if (del) {
+          App.deleteProduct(del.dataset.id);
+
+          return;
+        }
+      },
+    );
+
+    //===========================================================================
+    // Table Actions
+    //===========================================================================
+
+    function bindTableActions() {
+      document.addEventListener(
+        "click",
+
+        (event) => {
+          const restore = event.target.closest(".btn-restore");
+
+          if (restore) {
+            const id = restore.dataset.id;
+
+            const page = App.currentPage();
+
+            dispatchRestore(page, id);
+
+            return;
+          }
+        },
+      );
+    }
+
+    //===========================================================================
+    // Restore Dispatcher
+    //===========================================================================
+
+    function dispatchRestore(page, id) {
+      switch (page) {
+        case "products":
+          App.restoreProduct(id);
+
+          break;
+
+        case "partners":
+          App.restorePartner(id);
+
+          break;
+
+        case "pickups":
+          App.restorePickup(id);
+
+          break;
+
+        case "returns":
+          App.restoreReturn(id);
+
+          break;
+
+        case "purchasing":
+          App.restorePurchasing(id);
+
+          break;
+
+        case "expenses":
+          App.restoreExpense(id);
+
+          break;
       }
+    }
 
-    );
+    //===========================================================================
+    // Keyboard Shortcut
+    //===========================================================================
 
-  }
+    function bindKeyboard() {
+      document.addEventListener(
+        "keydown",
 
+        (event) => {
+          if (event.key === "F5") {
+            event.preventDefault();
 
+            App.refresh();
 
-  //===========================================================================
-  // Window Event
-  //===========================================================================
+            return;
+          }
 
-  function bindWindow() {
+          if (event.ctrlKey && event.key.toLowerCase() === "f") {
+            event.preventDefault();
 
-    window.addEventListener(
+            const search = DOM.$("global-search");
 
-      "resize",
+            if (search) {
+              search.focus();
 
-      Utils.throttle(() => {
+              search.select();
+            }
+          }
+        },
+      );
+    }
 
-        console.log(
+    //===========================================================================
+    // Window Event
+    //===========================================================================
 
-          "Window resized"
+    function bindWindow() {
+      window.addEventListener(
+        "resize",
 
-        );
+        Utils.throttle(() => {
+          console.log("Window resized");
+        }, 250),
+      );
+    }
 
-      }, 250)
+    //===========================================================================
+    // Reinitialize
+    //===========================================================================
 
-    );
+    function reload() {
+      // Event Delegation
+      // Tidak perlu bind ulang.
+    }
 
-  }
+    //===========================================================================
+    // Initialize (Updated)
+    //===========================================================================
 
+    function init() {
+      bindSidebar();
 
+      bindTopbar();
 
-  //===========================================================================
-  // Reinitialize
-  //===========================================================================
+      bindGlobal();
 
-  function reload() {
+      bindTableActions();
 
-  // Event Delegation
-  // Tidak perlu bind ulang.
+      bindKeyboard();
 
-}
+      bindWindow();
+    }
 
+    //===========================================================================
+    // Public API
+    //===========================================================================
 
+    return Object.freeze({
+      init,
 
-  //===========================================================================
-  // Initialize (Updated)
-  //===========================================================================
-
-  function init() {
-
-    bindSidebar();
-
-    bindTopbar();
-
-    bindGlobal();
-
-    bindTableActions();
-
-    bindKeyboard();
-
-    bindWindow();
-
-  }
-
-
-
-  //===========================================================================
-  // Public API
-  //===========================================================================
-
-  return Object.freeze({
-
-    init,
-
-    reload
-
-  });
-
-})();
-
+      reload,
+    });
+  })();
 </script>

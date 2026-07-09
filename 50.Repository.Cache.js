@@ -7,7 +7,6 @@
  */
 
 const RepositoryCache = (() => {
-
   const cache = CacheService.getScriptCache();
 
   function key(schema) {
@@ -15,7 +14,6 @@ const RepositoryCache = (() => {
   }
 
   function get(schema) {
-
     if (!CACHE_CONFIG.ENABLED) {
       return null;
     }
@@ -27,45 +25,30 @@ const RepositoryCache = (() => {
     }
 
     try {
-
       return JSON.parse(value);
-
     } catch (err) {
-
       remove(schema);
 
       return null;
-
     }
-
   }
 
   function put(schema, value) {
-
     if (!CACHE_CONFIG.ENABLED) {
       return value;
     }
 
-    cache.put(
-      key(schema),
-      JSON.stringify(value),
-      CACHE_CONFIG.EXPIRE_SECONDS
-    );
+    cache.put(key(schema), JSON.stringify(value), CACHE_CONFIG.EXPIRE_SECONDS);
 
     return value;
-
   }
 
   function remove(schema) {
-
     cache.remove(key(schema));
-
   }
 
   function clear(schema) {
-
     remove(schema);
-
   }
 
   /**
@@ -74,27 +57,18 @@ const RepositoryCache = (() => {
    * --------------------------------------------------------------------------
    */
   function remember(schema, callback, validator = null) {
-
     let cached = get(schema);
 
     if (cached !== null) {
-
       if (typeof validator === "function") {
-
         if (validator(cached)) {
-
           return cached;
-
         }
 
         remove(schema);
-
       } else {
-
         return cached;
-
       }
-
     }
 
     const value = callback();
@@ -102,11 +76,9 @@ const RepositoryCache = (() => {
     put(schema, value);
 
     return value;
-
   }
 
   return Object.freeze({
-
     key,
 
     get,
@@ -117,8 +89,6 @@ const RepositoryCache = (() => {
 
     clear,
 
-    remember
-
+    remember,
   });
-
 })();

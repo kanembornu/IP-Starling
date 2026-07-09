@@ -7,7 +7,6 @@
  */
 
 const RepositoryBase = (() => {
-
   /**
    * --------------------------------------------------------------------------
    * Internal Cache
@@ -24,9 +23,7 @@ const RepositoryBase = (() => {
    */
 
   function sheet(schema) {
-
     return Database.sheet(schema.TABLE);
-
   }
 
   /**
@@ -36,11 +33,8 @@ const RepositoryBase = (() => {
    */
 
   function headers(schema) {
-
     if (headerCache[schema.TABLE]) {
-
       return headerCache[schema.TABLE];
-
     }
 
     const sh = sheet(schema);
@@ -48,21 +42,16 @@ const RepositoryBase = (() => {
     const cols = sh.getLastColumn();
 
     if (cols === 0) {
-
       headerCache[schema.TABLE] = [];
 
       return [];
-
     }
 
-    const values = sh
-      .getRange(1, 1, 1, cols)
-      .getValues()[0];
+    const values = sh.getRange(1, 1, 1, cols).getValues()[0];
 
     headerCache[schema.TABLE] = values;
 
     return values;
-
   }
 
   /**
@@ -72,25 +61,19 @@ const RepositoryBase = (() => {
    */
 
   function headerMap(schema) {
-
     if (headerMapCache[schema.TABLE]) {
-
       return headerMapCache[schema.TABLE];
-
     }
 
     const map = {};
 
     headers(schema).forEach((name, index) => {
-
       map[name] = index;
-
     });
 
     headerMapCache[schema.TABLE] = map;
 
     return map;
-
   }
 
   /**
@@ -100,24 +83,15 @@ const RepositoryBase = (() => {
    */
 
   function rows(schema) {
-
     const sh = sheet(schema);
 
     if (sh.getLastRow() <= 1) {
-
       return [];
-
     }
 
     return sh
-      .getRange(
-        2,
-        1,
-        sh.getLastRow() - 1,
-        sh.getLastColumn()
-      )
+      .getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn())
       .getValues();
-
   }
 
   /**
@@ -127,19 +101,15 @@ const RepositoryBase = (() => {
    */
 
   function mapRow(schema, row) {
-
     const cols = headers(schema);
 
     const obj = {};
 
     cols.forEach((column, index) => {
-
       obj[column] = row[index];
-
     });
 
     return obj;
-
   }
 
   /**
@@ -149,9 +119,7 @@ const RepositoryBase = (() => {
    */
 
   function mapRows(schema, rows) {
-
-    return rows.map(row => mapRow(schema, row));
-
+    return rows.map((row) => mapRow(schema, row));
   }
 
   /**
@@ -161,15 +129,11 @@ const RepositoryBase = (() => {
    */
 
   function toRow(schema, object) {
-
-    return headers(schema).map(column => {
-
+    return headers(schema).map((column) => {
       return Object.prototype.hasOwnProperty.call(object, column)
         ? object[column]
         : "";
-
     });
-
   }
 
   /**
@@ -183,7 +147,6 @@ const RepositoryBase = (() => {
    */
 
   function findRowIndex(schema, id) {
-
     const pk = schema.PRIMARY_KEY;
 
     const map = headerMap(schema);
@@ -191,25 +154,18 @@ const RepositoryBase = (() => {
     const pkIndex = map[pk];
 
     if (pkIndex === undefined) {
-
       return null;
-
     }
 
     const data = rows(schema);
 
     for (let i = 0; i < data.length; i++) {
-
       if (data[i][pkIndex] === id) {
-
         return i + 2;
-
       }
-
     }
 
     return null;
-
   }
 
   /**
@@ -219,9 +175,7 @@ const RepositoryBase = (() => {
    */
 
   function primaryKey(schema) {
-
     return schema.PRIMARY_KEY;
-
   }
 
   /**
@@ -231,9 +185,7 @@ const RepositoryBase = (() => {
    */
 
   function auditColumns(schema) {
-
     return schema.AUDIT;
-
   }
 
   /**
@@ -243,9 +195,7 @@ const RepositoryBase = (() => {
    */
 
   function systemColumns(schema) {
-
     return schema.SYSTEM;
-
   }
 
   /**
@@ -255,23 +205,18 @@ const RepositoryBase = (() => {
    */
 
   function clearHeaderCache(schema = null) {
-
     if (schema) {
-
       delete headerCache[schema.TABLE];
       delete headerMapCache[schema.TABLE];
 
       return;
-
     }
 
-    Object.keys(headerCache).forEach(key => delete headerCache[key]);
-    Object.keys(headerMapCache).forEach(key => delete headerMapCache[key]);
-
+    Object.keys(headerCache).forEach((key) => delete headerCache[key]);
+    Object.keys(headerMapCache).forEach((key) => delete headerMapCache[key]);
   }
 
   return Object.freeze({
-
     sheet,
 
     headers,
@@ -294,8 +239,6 @@ const RepositoryBase = (() => {
 
     systemColumns,
 
-    clearHeaderCache
-
+    clearHeaderCache,
   });
-
 })();

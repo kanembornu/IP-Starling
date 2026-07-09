@@ -14,7 +14,6 @@
  */
 
 const Database = (() => {
-
   /**
    * --------------------------------------------------------------------------
    * Spreadsheet Instance (Singleton)
@@ -23,26 +22,18 @@ const Database = (() => {
 
   let spreadsheet = null;
 
-
   /**
    * --------------------------------------------------------------------------
    * Return Active Spreadsheet
    * --------------------------------------------------------------------------
    */
   function getSpreadsheet() {
-
     if (!spreadsheet) {
-
-      spreadsheet = SpreadsheetApp.openById(
-        DATABASE_CONFIG.SPREADSHEET_ID
-      );
-
+      spreadsheet = SpreadsheetApp.openById(DATABASE_CONFIG.SPREADSHEET_ID);
     }
 
     return spreadsheet;
-
   }
-
 
   /**
    * --------------------------------------------------------------------------
@@ -50,21 +41,14 @@ const Database = (() => {
    * --------------------------------------------------------------------------
    */
   function sheet(sheetName) {
-
     const sh = getSpreadsheet().getSheetByName(sheetName);
 
     if (!sh) {
-
-      throw new Error(
-        `Sheet "${sheetName}" tidak ditemukan.`
-      );
-
+      throw new Error(`Sheet "${sheetName}" tidak ditemukan.`);
     }
 
     return sh;
-
   }
-
 
   /**
    * --------------------------------------------------------------------------
@@ -72,11 +56,8 @@ const Database = (() => {
    * --------------------------------------------------------------------------
    */
   function hasSheet(sheetName) {
-
     return getSpreadsheet().getSheetByName(sheetName) !== null;
-
   }
-
 
   /**
    * --------------------------------------------------------------------------
@@ -84,15 +65,11 @@ const Database = (() => {
    * --------------------------------------------------------------------------
    */
   function sheetNames() {
-
     return getSpreadsheet()
-
       .getSheets()
 
-      .map(sheet => sheet.getName());
-
+      .map((sheet) => sheet.getName());
   }
-
 
   /**
    * --------------------------------------------------------------------------
@@ -100,19 +77,12 @@ const Database = (() => {
    * --------------------------------------------------------------------------
    */
   function createSheet(sheetName) {
-
     if (hasSheet(sheetName)) {
-
       return sheet(sheetName);
-
     }
 
-    return getSpreadsheet()
-
-      .insertSheet(sheetName);
-
+    return getSpreadsheet().insertSheet(sheetName);
   }
-
 
   /**
    * --------------------------------------------------------------------------
@@ -120,25 +90,16 @@ const Database = (() => {
    * --------------------------------------------------------------------------
    */
   function deleteSheet(sheetName) {
-
-    const sh = getSpreadsheet()
-
-      .getSheetByName(sheetName);
+    const sh = getSpreadsheet().getSheetByName(sheetName);
 
     if (!sh) {
-
       return false;
-
     }
 
-    getSpreadsheet()
-
-      .deleteSheet(sh);
+    getSpreadsheet().deleteSheet(sh);
 
     return true;
-
   }
-
 
   /**
    * --------------------------------------------------------------------------
@@ -146,11 +107,8 @@ const Database = (() => {
    * --------------------------------------------------------------------------
    */
   function timezone() {
-
     return APP_CONFIG.TIMEZONE;
-
   }
-
 
   /**
    * --------------------------------------------------------------------------
@@ -158,11 +116,8 @@ const Database = (() => {
    * --------------------------------------------------------------------------
    */
   function flush() {
-
     SpreadsheetApp.flush();
-
   }
-
 
   /**
    * --------------------------------------------------------------------------
@@ -170,7 +125,6 @@ const Database = (() => {
    * --------------------------------------------------------------------------
    */
   return Object.freeze({
-
     spreadsheet: getSpreadsheet,
 
     sheet,
@@ -185,8 +139,6 @@ const Database = (() => {
 
     timezone,
 
-    flush
-
+    flush,
   });
-
 })();

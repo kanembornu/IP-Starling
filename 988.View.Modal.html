@@ -1,196 +1,120 @@
 <script>
+  /**
+   * =============================================================================
+   * FILE        : 988.View.Modal
+   * VERSION     : 1.0.0
+   * DESCRIPTION : Modal Manager
+   * =============================================================================
+   */
 
-/**
- * =============================================================================
- * FILE        : 988.View.Modal
- * VERSION     : 1.0.0
- * DESCRIPTION : Modal Manager
- * =============================================================================
- */
+  const Modal = (() => {
+    //===========================================================================
+    // Elements
+    //===========================================================================
 
-const Modal = (() => {
+    function overlay() {
+      return DOM.$("modal-overlay");
+    }
 
-  //===========================================================================
-  // Elements
-  //===========================================================================
+    function titleElement() {
+      return DOM.$("modal-title");
+    }
 
-  function overlay() {
+    function bodyElement() {
+      return DOM.$("modal-body");
+    }
 
-    return DOM.$("modal-overlay");
+    function footerElement() {
+      return DOM.$("modal-footer");
+    }
 
-  }
+    //===========================================================================
+    // Title
+    //===========================================================================
 
+    function title(text) {
+      DOM.text(
+        titleElement(),
 
+        text,
+      );
+    }
 
-  function titleElement() {
+    //===========================================================================
+    // Body
+    //===========================================================================
 
-    return DOM.$("modal-title");
+    function body(content) {
+      DOM.html(
+        bodyElement(),
 
-  }
+        content,
+      );
+    }
 
+    //===========================================================================
+    // Footer
+    //===========================================================================
 
+    function footer(content) {
+      DOM.html(
+        footerElement(),
 
-  function bodyElement() {
+        content,
+      );
+    }
 
-    return DOM.$("modal-body");
+    //===========================================================================
+    // Open
+    //===========================================================================
 
-  }
+    function open(options = {}) {
+      title(options.title || "");
 
+      body(options.body || "");
 
+      footer(options.footer || "");
 
-  function footerElement() {
+      DOM.removeClass(
+        overlay(),
 
-    return DOM.$("modal-footer");
+        "hidden",
+      );
 
-  }
+      DOM.addClass(
+        overlay(),
 
+        "flex",
+      );
+    }
 
+    //===========================================================================
+    // Close
+    //===========================================================================
 
-  //===========================================================================
-  // Title
-  //===========================================================================
+    function close() {
+      DOM.removeClass(
+        overlay(),
 
-  function title(text) {
+        "flex",
+      );
 
-    DOM.text(
+      DOM.addClass(
+        overlay(),
 
-      titleElement(),
+        "hidden",
+      );
+    }
 
-      text
+    //===========================================================================
+    // Alert
+    //===========================================================================
 
-    );
+    function alert(message) {
+      open({
+        title: "Information",
 
-  }
-
-
-
-  //===========================================================================
-  // Body
-  //===========================================================================
-
-  function body(content) {
-
-    DOM.html(
-
-      bodyElement(),
-
-      content
-
-    );
-
-  }
-
-
-
-  //===========================================================================
-  // Footer
-  //===========================================================================
-
-  function footer(content) {
-
-    DOM.html(
-
-      footerElement(),
-
-      content
-
-    );
-
-  }
-
-
-
-  //===========================================================================
-  // Open
-  //===========================================================================
-
-  function open(options = {}) {
-
-    title(
-
-      options.title || ""
-
-    );
-
-
-
-    body(
-
-      options.body || ""
-
-    );
-
-
-
-    footer(
-
-      options.footer || ""
-
-    );
-
-
-
-    DOM.removeClass(
-
-      overlay(),
-
-      "hidden"
-
-    );
-
-
-
-    DOM.addClass(
-
-      overlay(),
-
-      "flex"
-
-    );
-
-  }
-
-
-
-  //===========================================================================
-  // Close
-  //===========================================================================
-
-  function close() {
-
-    DOM.removeClass(
-
-      overlay(),
-
-      "flex"
-
-    );
-
-
-
-    DOM.addClass(
-
-      overlay(),
-
-      "hidden"
-
-    );
-
-  }
-
-
-
-  //===========================================================================
-  // Alert
-  //===========================================================================
-
-  function alert(message) {
-
-    open({
-
-      title: "Information",
-
-      body: `
+        body: `
 
         <div class="py-6 text-center">
 
@@ -204,7 +128,7 @@ const Modal = (() => {
 
       `,
 
-      footer: `
+        footer: `
 
         <button
           id="modal-ok"
@@ -215,47 +139,29 @@ const Modal = (() => {
 
         </button>
 
-      `
+      `,
+      });
 
-    });
+      const button = DOM.$("modal-ok");
 
+      if (button) {
+        button.addEventListener(
+          "click",
 
-
-    const button = DOM.$(
-
-      "modal-ok"
-
-    );
-
-
-
-    if (button) {
-
-      button.addEventListener(
-
-        "click",
-
-        close
-
-      );
-
+          close,
+        );
+      }
     }
 
-  }
+    //===========================================================================
+    // Confirm
+    //===========================================================================
 
+    function confirm(message, callback) {
+      open({
+        title: "Confirmation",
 
-
-  //===========================================================================
-  // Confirm
-  //===========================================================================
-
-  function confirm(message, callback) {
-
-    open({
-
-      title: "Confirmation",
-
-      body: `
+        body: `
 
         <div class="py-6 text-center">
 
@@ -269,7 +175,7 @@ const Modal = (() => {
 
       `,
 
-      footer: `
+        footer: `
 
         <div class="flex justify-end gap-3">
 
@@ -292,70 +198,50 @@ const Modal = (() => {
 
         </div>
 
-      `
+      `,
+      });
 
+      DOM.$("modal-cancel")
+
+        ?.addEventListener(
+          "click",
+
+          close,
+        );
+
+      DOM.$("modal-confirm")
+
+        ?.addEventListener(
+          "click",
+
+          () => {
+            close();
+
+            if (typeof callback === "function") {
+              callback();
+            }
+          },
+        );
+    }
+
+    //===========================================================================
+    // Public API
+    //===========================================================================
+
+    return Object.freeze({
+      open,
+
+      close,
+
+      title,
+
+      body,
+
+      footer,
+
+      alert,
+
+      confirm,
     });
-
-
-
-    DOM.$("modal-cancel")
-
-      ?.addEventListener(
-
-        "click",
-
-        close
-
-      );
-
-
-
-    DOM.$("modal-confirm")
-
-      ?.addEventListener(
-
-        "click",
-
-        () => {
-
-          close();
-
-          if (typeof callback === "function") {
-
-            callback();
-
-          }
-
-        }
-
-      );
-
-  }
-
-
-
-  //===========================================================================
-  // Public API
-  //===========================================================================
-
-  return Object.freeze({
-
-    open,
-
-    close,
-
-    title,
-
-    body,
-
-    footer,
-
-    alert,
-
-    confirm
-
-  });
-
-})();
-
+  })();
 </script>

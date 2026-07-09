@@ -1,162 +1,146 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="id">
-
-<head>
-
-  <base target="_top">
-
-  <meta charset="UTF-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0">
-
-  <title><?= title ?></title>
-
-  <!-- Tailwind -->
-  <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- Font Awesome -->
-  <link
-    rel="stylesheet"
-    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-
-  <!-- Google Font -->
-  <link
-    rel="preconnect"
-    href="https://fonts.googleapis.com">
-
-  <link
-    rel="preconnect"
-    href="https://fonts.gstatic.com"
-    crossorigin>
-
-  <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
-    rel="stylesheet">
-
-  <style>
-
-    *{
-      margin:0;
-      padding:0;
-      box-sizing:border-box;
-      font-family:"Inter",sans-serif;
-    }
-
-    html,
-    body{
-      width:100%;
-      height:100%;
-      overflow:hidden;
-      background:#f8fafc;
-    }
-
-    #app{
-      width:100%;
-      height:100%;
-    }
-
-  </style>
-
-  <script>
-
-    /**
-     * Bootstrap Configuration
-     */
-
-    window.APP = Object.freeze({
-
-      name: "<?= appName ?>",
-
-      version: "<?= appVersion ?>",
-
-      initialPage: "<?= page ?>"
-
-    });
-
-  </script>
-
-</head>
-
-<body>
-
-  <div id="app"></div>
-
-  <div id="toast-container"></div>
-
-  <div id="modal-container"></div>
-
-  <!-- ===================================================================== -->
-  <!-- Layout -->
-  <!-- ===================================================================== -->
-
-  <?!= HtmlService.createHtmlOutputFromFile("905.View.Layout").getContent(); ?>
-
-  <?!= HtmlService.createHtmlOutputFromFile("910.View.Sidebar").getContent(); ?>
-
-  <?!= HtmlService.createHtmlOutputFromFile("915.View.Topbar").getContent(); ?>
-
-
-
-  <!-- ===================================================================== -->
-  <!-- Pages -->
-  <!-- ===================================================================== -->
-
-  <?!= HtmlService.createHtmlOutputFromFile("950.View.Dashboard").getContent(); ?>
-
-  <?!= HtmlService.createHtmlOutputFromFile("920.View.Products").getContent(); ?>
-
-  <?!= HtmlService.createHtmlOutputFromFile("925.View.Partners").getContent(); ?>
-
-  <?!= HtmlService.createHtmlOutputFromFile("930.View.Pickups").getContent(); ?>
-
-  <?!= HtmlService.createHtmlOutputFromFile("935.View.Returns").getContent(); ?>
-
-  <?!= HtmlService.createHtmlOutputFromFile("940.View.Purchasing").getContent(); ?>
-
-  <?!= HtmlService.createHtmlOutputFromFile("945.View.Expenses").getContent(); ?>
-
-
-
-  <!-- ===================================================================== -->
-  <!-- Components -->
-  <!-- ===================================================================== -->
-
-  <?!= HtmlService.createHtmlOutputFromFile("955.View.Modal").getContent(); ?>
-
-  <?!= HtmlService.createHtmlOutputFromFile("960.View.Components").getContent(); ?>
-
-
-
-  <!-- ===================================================================== -->
-  <!-- Framework -->
-  <!-- ===================================================================== -->
-
-  <?!= HtmlService.createHtmlOutputFromFile("985.View.DOM").getContent(); ?>
-
-  <?!= HtmlService.createHtmlOutputFromFile("986.View.Format").getContent(); ?>
-
-  <?!= HtmlService.createHtmlOutputFromFile("987.View.UI").getContent(); ?>
-
-  <?!= HtmlService.createHtmlOutputFromFile("988.View.Modal").getContent(); ?>
-
-  <?!= HtmlService.createHtmlOutputFromFile("989.View.Utils").getContent(); ?>
-
-
-
-  <!-- ===================================================================== -->
-  <!-- Application -->
-  <!-- ===================================================================== -->
-
-  <?!= HtmlService.createHtmlOutputFromFile("965.View.API").getContent(); ?>
-
-  <?!= HtmlService.createHtmlOutputFromFile("975.View.Render").getContent(); ?>
-
-  <?!= HtmlService.createHtmlOutputFromFile("980.View.Event").getContent(); ?>
-
-  <?!= HtmlService.createHtmlOutputFromFile("970.View.App").getContent(); ?>
-
-</body>
-
+  <head>
+    <base target="_top" />
+
+    <meta charset="UTF-8" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title><?= title ?></title>
+
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Awesome -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
+    />
+
+    <!-- Google Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: "Inter", sans-serif;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #f8fafc;
+      }
+
+      #app {
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+
+    <script>
+      /**
+       * Bootstrap Configuration
+       */
+
+      window.APP = Object.freeze({
+        name: "<?= appName ?>",
+
+        version: "<?= appVersion ?>",
+
+        initialPage: "<?= page ?>",
+      });
+    </script>
+  </head>
+
+  <body>
+    <div id="app"></div>
+
+    <div id="toast-container"></div>
+
+    <div id="modal-container"></div>
+
+    <!-- ===================================================================== -->
+    <!-- Layout -->
+    <!-- ===================================================================== -->
+
+    <?!= HtmlService.createHtmlOutputFromFile("905.View.Layout").getContent();
+    ?> <?!=
+    HtmlService.createHtmlOutputFromFile("910.View.Sidebar").getContent(); ?>
+    <?!= HtmlService.createHtmlOutputFromFile("915.View.Topbar").getContent();
+    ?>
+
+    <!-- ===================================================================== -->
+    <!-- Pages -->
+    <!-- ===================================================================== -->
+
+    <?!=
+    HtmlService.createHtmlOutputFromFile("950.View.Dashboard").getContent(); ?>
+    <?!= HtmlService.createHtmlOutputFromFile("920.View.Products").getContent();
+    ?> <?!=
+    HtmlService.createHtmlOutputFromFile("925.View.Partners").getContent(); ?>
+    <?!= HtmlService.createHtmlOutputFromFile("930.View.Pickups").getContent();
+    ?> <?!=
+    HtmlService.createHtmlOutputFromFile("935.View.Returns").getContent(); ?>
+    <?!=
+    HtmlService.createHtmlOutputFromFile("940.View.Purchasing").getContent(); ?>
+    <?!= HtmlService.createHtmlOutputFromFile("945.View.Expenses").getContent();
+    ?>
+
+    <!-- ===================================================================== -->
+    <!-- Components -->
+    <!-- ===================================================================== -->
+
+    <?!= HtmlService.createHtmlOutputFromFile("955.View.Modal").getContent(); ?>
+    <?!=
+    HtmlService.createHtmlOutputFromFile("960.View.Components").getContent(); ?>
+
+    <!-- ===================================================================== -->
+    <!-- Framework -->
+    <!-- ===================================================================== -->
+
+    <?!= HtmlService.createHtmlOutputFromFile("985.View.DOM").getContent(); ?>
+    <?!= HtmlService.createHtmlOutputFromFile("986.View.Format").getContent();
+    ?> <?!=
+    HtmlService.createHtmlOutputFromFile("987.View.Components").getContent(); ?>
+    <?!= HtmlService.createHtmlOutputFromFile("988.View.Modal").getContent(); ?>
+    <?!= HtmlService.createHtmlOutputFromFile("989.View.Utils").getContent(); ?>
+
+    <!-- ===================================================================== -->
+    <!-- Application -->
+    <!-- ===================================================================== -->
+
+    <?!= HtmlService.createHtmlOutputFromFile("965.View.API").getContent(); ?>
+    <?!= HtmlService.createHtmlOutputFromFile("975.View.Render").getContent();
+    ?>
+
+    <!-- ===================================================================== -->
+    <!-- Presenters -->
+    <!-- ===================================================================== -->
+
+    <?!=HtmlService.createHtmlOutputFromFile("971.View.Dashboard.Presenter").getContent();
+    ?> <?!=
+    HtmlService.createHtmlOutputFromFile("972.View.Products.Presenter").getContent();
+    ?> <?!=
+    HtmlService.createHtmlOutputFromFile("973.View.Partners.Presenter").getContent();
+    ?> <?!=
+    HtmlService.createHtmlOutputFromFile("974.View.Pickups.Presenter").getContent();
+    ?> <?!=
+    HtmlService.createHtmlOutputFromFile("976.View.Shared.Presenter").getContent();
+    ?> <?!= HtmlService.createHtmlOutputFromFile("980.View.Event").getContent();
+    ?> <?!= HtmlService.createHtmlOutputFromFile("970.View.App").getContent();
+    ?>
+  </body>
 </html>

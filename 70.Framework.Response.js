@@ -11,24 +11,19 @@
  */
 
 const Response = (() => {
-
   /**
    * --------------------------------------------------------------------------
    * Metadata
    * --------------------------------------------------------------------------
    */
   function meta(executionTime = 0) {
-
     return {
-
       timestamp: new Date().toISOString(),
 
       version: APP_CONFIG.VERSION,
 
-      executionTime
-
+      executionTime,
     };
-
   }
 
   /**
@@ -37,9 +32,7 @@ const Response = (() => {
    * --------------------------------------------------------------------------
    */
   function success(data = null, message = "", executionTime = 0) {
-
     return {
-
       success: true,
 
       message,
@@ -48,10 +41,8 @@ const Response = (() => {
 
       errors: [],
 
-      meta: meta(executionTime)
-
+      meta: meta(executionTime),
     };
-
   }
 
   /**
@@ -60,9 +51,7 @@ const Response = (() => {
    * --------------------------------------------------------------------------
    */
   function error(message = "Unknown Error", errors = [], executionTime = 0) {
-
     return {
-
       success: false,
 
       message,
@@ -71,10 +60,8 @@ const Response = (() => {
 
       errors,
 
-      meta: meta(executionTime)
-
+      meta: meta(executionTime),
     };
-
   }
 
   /**
@@ -83,27 +70,17 @@ const Response = (() => {
    * --------------------------------------------------------------------------
    */
   function validation(result, executionTime = 0) {
-
     if (result.valid) {
-
-      return success(
-        null,
-        "Validation passed.",
-        executionTime
-      );
-
+      return success(null, "Validation passed.", executionTime);
     }
 
     return error(
-
       "Validation failed.",
 
       result.errors,
 
-      executionTime
-
+      executionTime,
     );
-
   }
 
   /**
@@ -112,13 +89,10 @@ const Response = (() => {
    * --------------------------------------------------------------------------
    */
   return Object.freeze({
-
     success,
 
     error,
 
-    validation
-
+    validation,
   });
-
 })();

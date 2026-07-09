@@ -51,13 +51,13 @@ function createSchema(options) {
     SEARCHABLE: Object.freeze(options.SEARCHABLE),
 
     UI: Object.freeze({
-      TITLE: options.Components.TITLE,
+      TITLE: options.UI.TITLE,
 
-      ICON: options.Components.ICON,
+      ICON: options.UI.ICON,
 
-      COLOR: options.Components.COLOR,
+      COLOR: options.UI.COLOR,
 
-      SEARCH_PLACEHOLDER: options.Components.SEARCH_PLACEHOLDER,
+      SEARCH_PLACEHOLDER: options.UI.SEARCH_PLACEHOLDER,
     }),
   };
 
@@ -402,7 +402,7 @@ const RETURN_SCHEMA = createSchema({
  * =============================================================================
  */
 
-const PURCHASE_FIELDS = Object.freeze({
+const PURCHASING_FIELDS = Object.freeze({
   ID: SYSTEM_COLUMNS.PRIMARY_KEY,
 
   DATE: "Tanggal",
@@ -418,18 +418,18 @@ const PURCHASE_FIELDS = Object.freeze({
   TOTAL: "Total",
 });
 
-const PURCHASE_SCHEMA = createSchema({
+const PURCHASING_SCHEMA = createSchema({
   NAME: "Purchase",
 
   TABLE: SHEET_NAMES.PURCHASES,
 
-  PRIMARY_KEY: PURCHASE_FIELDS.ID,
+  PRIMARY_KEY: PURCHASING_FIELDS.ID,
 
-  DISPLAY_FIELD: PURCHASE_FIELDS.ID,
+  DISPLAY_FIELD: PURCHASING_FIELDS.ID,
 
   ID_PREFIX: ID_PREFIX.PURCHASE,
 
-  FIELDS: PURCHASE_FIELDS,
+  FIELDS: PURCHASING_FIELDS,
 
   DEFAULT: {
     [SYSTEM_COLUMNS.IS_DELETED]: false,
@@ -438,19 +438,19 @@ const PURCHASE_SCHEMA = createSchema({
   },
 
   VALIDATION: {
-    [PURCHASE_FIELDS.DATE]: {
+    [PURCHASING_FIELDS.DATE]: {
       required: true,
     },
 
-    [PURCHASE_FIELDS.SUPPLIER_ID]: {
+    [PURCHASING_FIELDS.SUPPLIER_ID]: {
       required: true,
     },
 
-    [PURCHASE_FIELDS.PRODUCT_ID]: {
+    [PURCHASING_FIELDS.PRODUCT_ID]: {
       required: true,
     },
 
-    [PURCHASE_FIELDS.QTY]: {
+    [PURCHASING_FIELDS.QTY]: {
       required: true,
 
       numeric: true,
@@ -458,7 +458,7 @@ const PURCHASE_SCHEMA = createSchema({
       min: 1,
     },
 
-    [PURCHASE_FIELDS.PRICE]: {
+    [PURCHASING_FIELDS.PRICE]: {
       required: true,
 
       numeric: true,
@@ -466,7 +466,7 @@ const PURCHASE_SCHEMA = createSchema({
       min: 0,
     },
 
-    [PURCHASE_FIELDS.TOTAL]: {
+    [PURCHASING_FIELDS.TOTAL]: {
       required: true,
 
       numeric: true,
@@ -483,7 +483,7 @@ const PURCHASE_SCHEMA = createSchema({
     [AUDIT_COLUMNS.CREATED_BY]: true,
   },
 
-  SEARCHABLE: [PURCHASE_FIELDS.SUPPLIER_ID, PURCHASE_FIELDS.PRODUCT_ID],
+  SEARCHABLE: [PURCHASING_FIELDS.SUPPLIER_ID, PURCHASING_FIELDS.PRODUCT_ID],
 
   UI: {
     TITLE: "Purchasing",
@@ -595,7 +595,7 @@ const SCHEMA = Object.freeze({
 
   RETURN: RETURN_SCHEMA,
 
-  PURCHASE: PURCHASE_SCHEMA,
+  PURCHASE: PURCHASING_SCHEMA,
 
   EXPENSE: EXPENSE_SCHEMA,
 });
