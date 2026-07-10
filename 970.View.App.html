@@ -257,7 +257,39 @@
     // Search
     //===========================================================================
 
-    function search(module, keyword) {}
+    function search(module, keyword) {
+      if (module !== "products") {
+        return;
+      }
+
+      searchProducts(keyword);
+    }
+
+    function searchProducts(keyword = "") {
+      const value = String(keyword || "")
+        .trim()
+
+        .toLowerCase();
+
+      if (!value) {
+        ProductsPresenter.render(state.products);
+
+        return;
+      }
+
+      const fields = ["ID", "Nama", "Kategori", "Satuan"];
+
+      const result = state.products.filter((product) => {
+        return fields.some((field) => {
+          return String(product[field] || "")
+            .toLowerCase()
+
+            .includes(value);
+        });
+      });
+
+      ProductsPresenter.render(result);
+    }
 
     //===========================================================================
     // Product Action

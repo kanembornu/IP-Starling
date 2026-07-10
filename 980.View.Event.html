@@ -81,7 +81,11 @@
         Utils.debounce((event) => {
           const input = event.target;
 
-          if (!input || input.id !== "global-search") {
+          if (!input) {
+            return;
+          }
+
+          if (!isSearchInput(input)) {
             return;
           }
 
@@ -91,6 +95,16 @@
             input.value,
           );
         }, 300),
+      );
+    }
+
+    function isSearchInput(input) {
+      const page = App.currentPage();
+
+      return (
+        input.id === "global-search" ||
+
+        input.id === `inp-${page}-search`
       );
     }
 
