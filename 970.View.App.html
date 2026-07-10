@@ -258,11 +258,20 @@
     //===========================================================================
 
     function search(module, keyword) {
-      if (module !== "products") {
-        return;
-      }
+      switch (module) {
+        case "products":
+          searchProducts(keyword);
 
-      searchProducts(keyword);
+          break;
+
+        case "partners":
+          searchPartners(keyword);
+
+          break;
+
+        default:
+          break;
+      }
     }
 
     function searchProducts(keyword = "") {
@@ -289,6 +298,44 @@
       });
 
       ProductsPresenter.render(result);
+    }
+
+    //===========================================================================
+    // Partner Search
+    //===========================================================================
+
+    function searchPartners(keyword = "") {
+      const value = String(keyword || "")
+        .trim()
+        .toLowerCase();
+
+      if (!value) {
+        PartnersPresenter.render(state.partners);
+
+        return;
+      }
+
+      const fields = [
+        "ID",
+
+        "Nama",
+
+        "Jenis",
+
+        "Telepon",
+
+        "Alamat",
+      ];
+
+      const result = state.partners.filter((partner) => {
+        return fields.some((field) => {
+          return String(partner[field] || "")
+            .toLowerCase()
+            .includes(value);
+        });
+      });
+
+      PartnersPresenter.render(result);
     }
 
     //===========================================================================

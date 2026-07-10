@@ -90,7 +90,7 @@
           }
 
           App.search(
-            App.currentPage(),
+            input.dataset.module || App.currentPage(),
 
             input.value,
           );
@@ -99,12 +99,10 @@
     }
 
     function isSearchInput(input) {
-      const page = App.currentPage();
-
       return (
         input.id === "global-search" ||
 
-        input.id === `inp-${page}-search`
+        input.dataset.module !== undefined
       );
     }
 
