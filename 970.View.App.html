@@ -269,6 +269,11 @@
 
           break;
 
+        case "expenses":
+          searchExpenses(keyword);
+
+          break;
+
         default:
           break;
       }
@@ -336,6 +341,42 @@
       });
 
       PartnersPresenter.render(result);
+    }
+
+    //===========================================================================
+    // Expense Search
+    //===========================================================================
+
+    function searchExpenses(keyword = "") {
+      const value = String(keyword || "")
+        .trim()
+        .toLowerCase();
+
+      if (!value) {
+        ExpensesPresenter.render(state.expenses);
+
+        return;
+      }
+
+      const fields = [
+        "ID",
+
+        "Kategori",
+
+        "Keterangan",
+
+        "Nominal",
+      ];
+
+      const result = state.expenses.filter((expense) => {
+        return fields.some((field) => {
+          return String(expense[field] || "")
+            .toLowerCase()
+            .includes(value);
+        });
+      });
+
+      ExpensesPresenter.render(result);
     }
 
     //===========================================================================
