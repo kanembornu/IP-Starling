@@ -50,5 +50,6 @@
     "Tailwind",
     "Chartjs",
     "Fontawesome"
-  ]
+  ],
+  "files.autoSave": "afterDelay"
 }

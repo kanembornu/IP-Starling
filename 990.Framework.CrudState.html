@@ -1,0 +1,70 @@
+<script>
+  const CrudState = (() => {
+    function create(initial = {}) {
+      const defaults = {
+        rows: [],
+        filteredRows: [],
+        keyword: "",
+        loading: false,
+        selectedId: null,
+        page: 1,
+        pageSize: 20,
+        total: 0,
+      };
+
+      let state = {
+        ...defaults,
+        ...initial,
+      };
+
+      function get() {
+        return { ...state };
+      }
+
+      function set(data = {}) {
+        state = {
+          ...state,
+          ...data,
+        };
+        return api;
+      }
+
+      function reset() {
+        state = { ...defaults };
+        return api;
+      }
+
+      function accessor(key) {
+        return function (value) {
+          if (arguments.length === 0) {
+            return state[key];
+          }
+
+          state[key] = value;
+          return api;
+        };
+      }
+
+      const api = {
+        get,
+        set,
+        reset,
+
+        rows: accessor("rows"),
+        filteredRows: accessor("filteredRows"),
+        keyword: accessor("keyword"),
+        loading: accessor("loading"),
+        selectedId: accessor("selectedId"),
+        page: accessor("page"),
+        pageSize: accessor("pageSize"),
+        total: accessor("total"),
+      };
+
+      return api;
+    }
+
+    return {
+      create,
+    };
+  })();
+</script>

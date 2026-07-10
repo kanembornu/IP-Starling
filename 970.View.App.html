@@ -35,8 +35,6 @@
     //===========================================================================
 
     async function init() {
-      console.log("APP INIT");
-
       Render.layout();
 
       Render.sidebar(state.page);
@@ -137,11 +135,7 @@
       const res = await Api.Dashboard.get();
 
       if (!res || !res.success) {
-        Render.mount(
-          "dashboard-kpi",
-
-          Components.empty(res?.message || "Dashboard failed."),
-        );
+        Components.toast(res?.message || "Dashboard failed.");
 
         return;
       }
@@ -166,7 +160,7 @@
 
       state.products = Utils.deepClone(res.data);
 
-      Render.products(state.products);
+      ProductsPresenter.render(state.products);
     }
 
     //===========================================================================
@@ -263,183 +257,67 @@
     // Search
     //===========================================================================
 
-    function search(module, keyword) {
-      console.log(
-        "Search",
-
-        module,
-
-        keyword,
-      );
-    }
+    function search(module, keyword) {}
 
     //===========================================================================
     // Product Action
     //===========================================================================
 
-    function editProduct(id) {
-      console.log(
-        "Edit Product",
+    function editProduct(id) {}
 
-        id,
-      );
-    }
+    function deleteProduct(id) {}
 
-    function deleteProduct(id) {
-      console.log(
-        "Delete Product",
-
-        id,
-      );
-    }
-
-    function restoreProduct(id) {
-      console.log(
-        "Restore Product",
-
-        id,
-      );
-    }
+    function restoreProduct(id) {}
 
     //===========================================================================
     // Partner Action
     //===========================================================================
 
-    function editPartner(id) {
-      console.log(
-        "Edit Partner",
+    function editPartner(id) {}
 
-        id,
-      );
-    }
+    function deletePartner(id) {}
 
-    function deletePartner(id) {
-      console.log(
-        "Delete Partner",
-
-        id,
-      );
-    }
-
-    function restorePartner(id) {
-      console.log(
-        "Restore Partner",
-
-        id,
-      );
-    }
+    function restorePartner(id) {}
 
     //===========================================================================
     // Pickup Action
     //===========================================================================
 
-    function editPickup(id) {
-      console.log(
-        "Edit Pickup",
+    function editPickup(id) {}
 
-        id,
-      );
-    }
+    function deletePickup(id) {}
 
-    function deletePickup(id) {
-      console.log(
-        "Delete Pickup",
-
-        id,
-      );
-    }
-
-    function restorePickup(id) {
-      console.log(
-        "Restore Pickup",
-
-        id,
-      );
-    }
+    function restorePickup(id) {}
 
     //===========================================================================
     // Return Action
     //===========================================================================
 
-    function editReturn(id) {
-      console.log(
-        "Edit Return",
+    function editReturn(id) {}
 
-        id,
-      );
-    }
+    function deleteReturn(id) {}
 
-    function deleteReturn(id) {
-      console.log(
-        "Delete Return",
-
-        id,
-      );
-    }
-
-    function restoreReturn(id) {
-      console.log(
-        "Restore Return",
-
-        id,
-      );
-    }
+    function restoreReturn(id) {}
 
     //===========================================================================
     // Purchasing Action
     //===========================================================================
 
-    function editPurchasing(id) {
-      console.log(
-        "Edit Purchasing",
+    function editPurchasing(id) {}
 
-        id,
-      );
-    }
+    function deletePurchasing(id) {}
 
-    function deletePurchasing(id) {
-      console.log(
-        "Delete Purchasing",
-
-        id,
-      );
-    }
-
-    function restorePurchasing(id) {
-      console.log(
-        "Restore Purchasing",
-
-        id,
-      );
-    }
+    function restorePurchasing(id) {}
 
     //===========================================================================
     // Expense Action
     //===========================================================================
 
-    function editExpense(id) {
-      console.log(
-        "Edit Expense",
+    function editExpense(id) {}
 
-        id,
-      );
-    }
+    function deleteExpense(id) {}
 
-    function deleteExpense(id) {
-      console.log(
-        "Delete Expense",
-
-        id,
-      );
-    }
-
-    function restoreExpense(id) {
-      console.log(
-        "Restore Expense",
-
-        id,
-      );
-    }
+    function restoreExpense(id) {}
 
     //===========================================================================
     // Public API
