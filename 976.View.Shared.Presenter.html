@@ -1,7 +1,109 @@
-<!doctype html>
-<html>
-  <head>
-    <base target="_top" />
-  </head>
-  <body></body>
-</html>
+<script>
+  /**
+   * =============================================================================
+   * FILE        : 976.View.Shared.Presenter.html
+   * VERSION     : 1.0.0
+   * DESCRIPTION : Shared Presenter Helpers
+   * =============================================================================
+   */
+
+  const SharedPresenter = (() => {
+    //===========================================================================
+    // Status
+    //===========================================================================
+
+    function renderStatus(value) {
+      const active = isActive(value);
+
+      return Components.badge(
+        Format.status(active),
+
+        active,
+      );
+    }
+
+    function isActive(value) {
+      if (typeof value === "string") {
+        return value.toLowerCase() === "true";
+      }
+
+      return Boolean(value);
+    }
+
+    //===========================================================================
+    // Actions
+    //===========================================================================
+
+    function renderActions(id) {
+      return `
+        <div class="flex items-center justify-center gap-2">
+          ${actionButton("Edit", "fa-pen", "blue", id)}
+
+          ${actionButton("Delete", "fa-trash", "red", id)}
+        </div>
+      `;
+    }
+
+    function actionButton(
+      label,
+
+      icon,
+
+      color,
+
+      id,
+    ) {
+      const palette = {
+        blue: "bg-blue-100 hover:bg-blue-200 text-blue-600",
+
+        red: "bg-red-100 hover:bg-red-200 text-red-600",
+      };
+
+      return `
+        <button
+          type="button"
+          data-id="${text(id)}"
+          title="${label}"
+          class="
+            inline-flex
+            items-center
+            gap-2
+            px-3
+            py-2
+            rounded-lg
+            transition
+            ${palette[color]}
+          "
+        >
+          ${Components.icon(icon)}
+
+          <span>${label}</span>
+        </button>
+      `;
+    }
+
+    //===========================================================================
+    // Text
+    //===========================================================================
+
+    function text(value) {
+      if (Utils.isEmpty(value)) {
+        return "-";
+      }
+
+      return Utils.escapeHTML(value);
+    }
+
+    //===========================================================================
+    // Public API
+    //===========================================================================
+
+    return Object.freeze({
+      renderStatus,
+
+      renderActions,
+
+      text,
+    });
+  })();
+</script>

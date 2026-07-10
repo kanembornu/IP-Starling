@@ -1,0 +1,125 @@
+<script>
+  /**
+   * =============================================================================
+   * FILE        : 977.View.Expenses.Presenter.html
+   * VERSION     : 1.0.0
+   * DESCRIPTION : Expenses Presenter
+   * =============================================================================
+   */
+
+  const ExpensesPresenter = (() => {
+    //===========================================================================
+    // Fields
+    //===========================================================================
+
+    const FIELD = Object.freeze({
+      ID: "ID",
+
+      DATE: "Tanggal",
+
+      CATEGORY: "Kategori",
+
+      DESCRIPTION: "Keterangan",
+
+      AMOUNT: "Nominal",
+
+      IS_ACTIVE: "IsActive",
+    });
+
+    //===========================================================================
+    // Public Render
+    //===========================================================================
+
+    function render(expenses = []) {
+      const list = Array.isArray(expenses) ? expenses : [];
+
+      renderInfo(list.length);
+
+      if (!list.length) {
+        renderEmpty();
+
+        return;
+      }
+
+      Render.mount(
+        "tbl-expenses-body",
+
+        list.map(renderRow).join(""),
+      );
+    }
+
+    //===========================================================================
+    // Row
+    //===========================================================================
+
+    function renderRow(expense = {}) {
+      const id = expense[FIELD.ID];
+
+      return Components.tableRow([
+        Components.tableCell(
+          SharedPresenter.text(id),
+
+          "font-medium text-slate-800",
+        ),
+
+        Components.tableCell(Format.date(expense[FIELD.DATE])),
+
+        Components.tableCell(SharedPresenter.text(expense[FIELD.CATEGORY])),
+
+        Components.tableCell(SharedPresenter.text(expense[FIELD.DESCRIPTION])),
+
+        Components.tableCell(
+          Format.currency(expense[FIELD.AMOUNT]),
+
+          "text-right",
+        ),
+
+        Components.tableCell(
+          SharedPresenter.renderStatus(expense[FIELD.IS_ACTIVE]),
+
+          "text-center",
+        ),
+
+        Components.tableCell(SharedPresenter.renderActions(id), "text-center"),
+      ]);
+    }
+
+    //===========================================================================
+    // Empty
+    //===========================================================================
+
+    function renderEmpty() {
+      Render.mount(
+        "tbl-expenses-body",
+
+        `
+        <tr>
+          <td colspan="7">
+            ${Components.empty("No expenses available.")}
+          </td>
+        </tr>
+      `,
+      );
+    }
+
+    //===========================================================================
+    // Info
+    //===========================================================================
+
+    function renderInfo(total = 0) {
+      Render.mount(
+        "lbl-expense-info",
+
+        `${Format.number(total)} Expense`,
+      );
+    }
+
+    //===========================================================================
+    // Public API
+    //===========================================================================
+
+    return Object.freeze({
+      render,
+    });
+  })();
+</script>
