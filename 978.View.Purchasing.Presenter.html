@@ -1,7 +1,7 @@
 <script>
   /**
    * =============================================================================
-   * FILE        : 977.View.Purchasing.Presenter.html
+   * FILE        : 978.View.Purchasing.Presenter.html
    * VERSION     : 1.0.0
    * DESCRIPTION : Purchasing Presenter
    * =============================================================================
@@ -46,7 +46,7 @@
       }
 
       Render.mount(
-        "tbl-expenses-body",
+        "tbl-purchasing-body",
 
         list.map(renderRow).join(""),
       );
@@ -66,17 +66,11 @@
           "font-medium text-slate-800",
         ),
 
-        Components.tableCell(
-          Format.date(purchase[FIELD.DATE]),
-        ),
+        Components.tableCell(Format.date(purchase[FIELD.DATE])),
 
-        Components.tableCell(
-          SharedPresenter.text(purchase[FIELD.SUPPLIER]),
-        ),
+        Components.tableCell(SharedPresenter.text(purchase[FIELD.SUPPLIER])),
 
-        Components.tableCell(
-          SharedPresenter.text(purchase[FIELD.PRODUCT]),
-        ),
+        Components.tableCell(SharedPresenter.text(purchase[FIELD.PRODUCT])),
 
         Components.tableCell(
           Format.number(purchase[FIELD.QTY]),
@@ -97,9 +91,7 @@
         ),
 
         Components.tableCell(
-          SharedPresenter.renderStatus(
-            purchase[FIELD.IS_ACTIVE],
-          ),
+          SharedPresenter.renderStatus(purchase[FIELD.IS_ACTIVE]),
 
           "text-center",
         ),
