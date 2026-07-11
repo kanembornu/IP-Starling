@@ -214,7 +214,7 @@
 
       state.returns = Utils.deepClone(res.data);
 
-      Render.returns(state.returns);
+      ReturnsPresenter.render(state.returns);
     }
 
     //===========================================================================
@@ -320,17 +320,7 @@
         return;
       }
 
-      const fields = [
-        "ID",
-
-        "Nama",
-
-        "Jenis",
-
-        "Telepon",
-
-        "Alamat",
-      ];
+      const fields = ["ID", "Nama", "Jenis", "Telepon", "Alamat"];
 
       const result = state.partners.filter((partner) => {
         return fields.some((field) => {
@@ -358,15 +348,7 @@
         return;
       }
 
-      const fields = [
-        "ID",
-
-        "Kategori",
-
-        "Keterangan",
-
-        "Nominal",
-      ];
+      const fields = ["ID", "Kategori", "Keterangan", "Nominal"];
 
       const result = state.expenses.filter((expense) => {
         return fields.some((field) => {
