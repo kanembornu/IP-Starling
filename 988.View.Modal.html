@@ -28,6 +28,28 @@
       return DOM.$("modal-footer");
     }
 
+    function windowElement() {
+      return DOM.$("modal-window");
+    }
+
+    //===========================================================================
+    // Initialize
+    //===========================================================================
+
+    function init() {
+      const container = DOM.$("modal-container");
+
+      const template = DOM.$("modal-template");
+
+      if (!container || !template) {
+        return false;
+      }
+
+      container.appendChild(template.content.cloneNode(true));
+
+      return true;
+    }
+
     //===========================================================================
     // Title
     //===========================================================================
@@ -67,25 +89,49 @@
     //===========================================================================
     // Open
     //===========================================================================
+    const WIDTH = Object.freeze({
+      sm: "max-w-md",
+
+      md: "max-w-2xl",
+
+      lg: "max-w-4xl",
+
+      xl: "max-w-6xl",
+    });
 
     function open(options = {}) {
+      if (!DOM.$("modal-overlay")) {
+        init();
+      }
+
       title(options.title || "");
 
       body(options.body || "");
 
       footer(options.footer || "");
 
-      DOM.removeClass(
-        overlay(),
+      const dialog = windowElement();
 
-        "hidden",
-      );
+      if (dialog) {
+        dialog.classList.remove(WIDTH.sm, WIDTH.md, WIDTH.lg, WIDTH.xl);
 
-      DOM.addClass(
-        overlay(),
+        dialog.classList.add(WIDTH[options.width] || WIDTH.md);
+      }
 
-        "flex",
-      );
+      const modal = overlay();
+
+      if (modal) {
+        modal.classList.remove("hidden");
+
+        modal.classList.add("flex");
+      }
+
+      const ov = overlay();
+
+      if (ov) {
+        ov.classList.remove("hidden");
+        ov.classList.add("flex");
+      }
     }
 
     //===========================================================================
@@ -225,10 +271,41 @@
     }
 
     //===========================================================================
+    // Loading
+    //===========================================================================
+
+    function loading(show = true) {
+      const footer = footerElement();
+
+      if (!footer) return;
+
+      footer
+        .querySelectorAll("button")
+
+        .forEach((button) => {
+          button.disabled = show;
+
+          button.classList.toggle(
+            "opacity-50",
+
+            show,
+          );
+
+          button.classList.toggle(
+            "cursor-not-allowed",
+
+            show,
+          );
+        });
+    }
+
+    //===========================================================================
     // Public API
     //===========================================================================
 
     return Object.freeze({
+      init,
+
       open,
 
       close,
@@ -242,6 +319,9 @@
       alert,
 
       confirm,
+
+      loading,
     });
   })();
+  console.log("MODAL LOADED", typeof DOM);
 </script>

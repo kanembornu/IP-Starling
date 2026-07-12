@@ -9,18 +9,6 @@
 
   const Events = (() => {
     //===========================================================================
-    // Initialize
-    //===========================================================================
-
-    function init() {
-      bindSidebar();
-
-      bindTopbar();
-
-      bindGlobal();
-    }
-
-    //===========================================================================
     // Sidebar
     //===========================================================================
 
@@ -99,11 +87,7 @@
     }
 
     function isSearchInput(input) {
-      return (
-        input.id === "global-search" ||
-
-        input.dataset.module !== undefined
-      );
+      return input.id === "global-search" || input.dataset.module !== undefined;
     }
 
     //===========================================================================
@@ -149,6 +133,24 @@
             const page = App.currentPage();
 
             dispatchRestore(page, id);
+
+            return;
+          }
+        },
+      );
+    }
+
+    //===========================================================================
+    // CRUD
+    //===========================================================================
+
+    function bindCrud() {
+      document.addEventListener(
+        "click",
+
+        (event) => {
+          if (event.target.closest("#btn-product-add")) {
+            App.openCreateProduct();
 
             return;
           }
@@ -250,7 +252,7 @@
     }
 
     //===========================================================================
-    // Initialize (Updated)
+    // Initialize
     //===========================================================================
 
     function init() {
@@ -261,6 +263,8 @@
       bindGlobal();
 
       bindTableActions();
+
+      bindCrud();
 
       bindKeyboard();
 

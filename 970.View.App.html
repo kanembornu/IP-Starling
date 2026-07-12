@@ -37,6 +37,10 @@
     async function init() {
       Render.layout();
 
+      Modal.init();
+
+      console.log(document.getElementById("modal-overlay"));
+
       Render.sidebar(state.page);
 
       Render.topbar(state.page);
@@ -161,6 +165,41 @@
       state.products = Utils.deepClone(res.data);
 
       ProductsPresenter.render(state.products);
+    }
+
+    //===========================================================================
+    // Product CRUD
+    //===========================================================================
+
+    function openCreateProduct() {
+      Modal.open({
+        title: "Add Product",
+
+        width: "md",
+
+        body: `
+          <div class="py-10 text-center text-slate-500">
+            Product Form Coming Soon...
+          </div>
+        `,
+
+        footer: `
+          <button
+            id="btn-modal-close"
+            class="px-5 py-2 rounded-lg border border-slate-300 hover:bg-slate-100"
+          >
+            Close
+          </button>
+        `,
+      });
+
+      DOM.$("btn-modal-close")?.addEventListener(
+        "click",
+
+        () => {
+          Modal.close();
+        },
+      );
     }
 
     //===========================================================================
@@ -471,6 +510,8 @@
       deleteExpense,
 
       restoreExpense,
+
+      openCreateProduct,
     });
   })();
 
