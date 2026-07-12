@@ -272,10 +272,11 @@
           </button>
 
           <button
-          id="btn-product-save"
-          class="px-4 py-2 bg-blue-600 text-white rounded-lg"
+            id="btn-product-save"
+            onclick="App.saveProduct()"
+            class="px-4 py-2 bg-blue-600 text-white rounded-lg"
           >
-          Save Product
+            Save Product
           </button>
 
           </div>
@@ -289,6 +290,68 @@
           Modal.close();
         },
       );
+    }
+
+    //===========================================================================
+    // Product Form
+    //===========================================================================
+
+    function readProductForm() {
+      return {
+        Nama: DOM.value("inp-product-name").trim(),
+
+        Kategori: DOM.value("inp-product-category").trim(),
+
+        Satuan: DOM.value("inp-product-unit").trim(),
+
+        Harga: Number(DOM.value("inp-product-price")),
+
+        IsActive: DOM.checked("inp-product-active"),
+      };
+    }
+
+    function validateProductForm(product = {}) {
+      const errors = [];
+
+      if (!product.Nama) {
+        errors.push("Product Name is required.");
+      }
+
+      if (!product.Kategori) {
+        errors.push("Category is required.");
+      }
+
+      if (!product.Satuan) {
+        errors.push("Unit is required.");
+      }
+
+      if (Number.isNaN(product.Harga)) {
+        errors.push("Price is required.");
+      }
+
+      if (product.Harga < 0) {
+        errors.push("Price cannot be negative.");
+      }
+
+      return {
+        valid: errors.length === 0,
+
+        errors,
+      };
+    }
+
+    function saveProduct() {
+      const product = readProductForm();
+
+      const result = validateProductForm(product);
+
+      if (!result.valid) {
+        alert(result.errors.join("\n"));
+
+        return;
+      }
+
+      console.log(product);
     }
 
     //===========================================================================
@@ -601,6 +664,8 @@
       restoreExpense,
 
       openCreateProduct,
+
+      saveProduct,
     });
   })();
 

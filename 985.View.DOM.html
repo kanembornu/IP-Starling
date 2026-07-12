@@ -203,6 +203,38 @@
     }
 
     //===========================================================================
+    // Form
+    //===========================================================================
+
+    function value(id) {
+      return $(id)?.value ?? "";
+    }
+
+    function checked(id) {
+      return Boolean($(id)?.checked);
+    }
+
+    function setValue(id, value) {
+      const element = $(id);
+
+      if (!element) {
+        return;
+      }
+
+      element.value = value;
+    }
+
+    function setChecked(id, checked) {
+      const element = $(id);
+
+      if (!element) {
+        return;
+      }
+
+      element.checked = Boolean(checked);
+    }
+
+    //===========================================================================
     // Public API
     //===========================================================================
 
@@ -246,7 +278,14 @@
       attr,
 
       data,
+
+      value,
+
+      checked,
+
+      setValue,
+
+      setChecked,
     });
   })();
-  console.log("DOM LOADED", typeof DOM);
 </script>
