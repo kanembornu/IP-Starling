@@ -1,0 +1,155 @@
+<script>
+  /**
+   * =============================================================================
+   * FILE        : 983.View.Products.Actions
+   * VERSION     : 1.0.0
+   * DESCRIPTION : Product Actions Module
+   * =============================================================================
+   */
+
+  const ProductsActions = (() => {
+    //==========================================================================
+    // Footer Template
+    //==========================================================================
+
+    function footer() {
+      return `
+        <div class="flex justify-end gap-2">
+
+          <button
+            class="px-4 py-2 border rounded-lg"
+            onclick="Modal.close()"
+          >
+            Cancel
+          </button>
+
+          <button
+            class="px-4 py-2 bg-blue-600 text-white rounded-lg"
+            onclick="ProductsActions.save()"
+          >
+            Save Product
+          </button>
+
+        </div>
+      `;
+    }
+
+    //==========================================================================
+    // Open Create
+    //==========================================================================
+
+    function openCreate() {
+      CrudState.create();
+
+      Modal.open({
+        title: "Add Product",
+        width: "md",
+        body: ProductsForm.template(),
+        footer: footer(),
+      });
+    }
+
+    //==========================================================================
+    // Open Edit
+    //==========================================================================
+
+    async function openEdit(id) {
+      CrudState.update(id);
+
+      const response =
+        await Api.Product.get(id);
+
+      if (!response.success) {
+        Toast.error(response.message);
+
+        return;
+      }
+
+      Modal.open({
+        title: "Edit Product",
+        width: "md",
+        body: ProductsForm.template(),
+        footer: footer(),
+      });
+
+      ProductsForm.fill(response.data);
+    }
+
+    //==========================================================================
+    // Save
+    //==========================================================================
+
+    async function save() {
+      const product =
+        ProductsForm.read();
+
+      const validation =
+        ProductsValidator.validate(product);
+
+      if (!validation.valid) {
+        Toast.warning(
+          validation.errors.join("\n")
+        );
+
+        return;
+      }
+
+      const isCreate =
+        CrudState.isCreate();
+
+      const id =
+        CrudState.id();
+
+      await Actions.execute({
+        task: () =>
+          isCreate
+            ? Api.Product.create(product)
+            : Api.Product.update(id, product),
+
+        reload: App.loadProducts,
+
+        success: isCreate
+          ? "Product berhasil dibuat."
+          : "Product berhasil diperbarui.",
+
+        afterSuccess: () => {
+          ProductsForm.reset();
+
+          CrudState.reset();
+        },
+      });
+    }
+
+    //==========================================================================
+    // Delete
+    //==========================================================================
+
+    async function remove(id) {
+      await Actions.remove({
+        title: "Delete Product",
+
+        message:
+          "Are you sure you want to delete this product?",
+
+        task: () =>
+          Api.Product.remove(id),
+
+        reload: App.loadProducts,
+
+        success:
+          "Product berhasil dihapus.",
+      });
+    }
+
+    //==========================================================================
+    // Public API
+    //==========================================================================
+
+    return Object.freeze({
+      openCreate,
+      openEdit,
+      save,
+      remove,
+    });
+  })();
+</script>

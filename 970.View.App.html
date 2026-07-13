@@ -262,44 +262,7 @@
     //===========================================================================
 
     function openCreateProduct() {
-      CrudState.create();
-
-      Modal.open({
-        title: "Add Product",
-
-        width: "md",
-
-        body: productFormTemplate(),
-
-        footer: `
-          <div class="flex justify-end gap-2">
-
-          <button
-          class="px-4 py-2 border rounded-lg"
-          onclick="Modal.close()"
-          >
-          Cancel
-          </button>
-
-          <button
-            id="btn-product-save"
-            onclick="App.saveProduct()"
-            class="px-4 py-2 bg-blue-600 text-white rounded-lg"
-          >
-            Save Product
-          </button>
-
-          </div>
-        `,
-      });
-
-      DOM.$("btn-modal-close")?.addEventListener(
-        "click",
-
-        () => {
-          Modal.close();
-        },
-      );
+      ProductsActions.openCreate();
     }
 
     //===========================================================================
@@ -351,43 +314,7 @@
     }
 
     async function saveProduct() {
-      const product = readProductForm();
-
-      const validation = validateProductForm(product);
-
-      if (!validation.valid) {
-        alert(validation.errors.join("\n"));
-
-        return;
-      }
-
-      try {
-        let response;
-
-        if (CrudState.isCreate()) {
-          response = await Api.Product.create(product);
-        } else {
-          response = await Api.Product.update(CrudState.id(), product);
-        }
-
-        if (!response.success) {
-          alert(response.message);
-
-          return;
-        }
-
-        resetProductForm();
-        CrudState.reset();
-        Modal.close();
-
-        await loadProducts();
-
-        alert(response.message);
-      } catch (error) {
-        console.error(error);
-
-        alert("Failed to save product.");
-      }
+      return ProductsActions.save();
     }
 
     function resetProductForm() {
@@ -455,82 +382,11 @@
     }
 
     async function openEditProduct(id) {
-      CrudState.update(id);
-
-      try {
-        const response = await Api.Product.get(id);
-
-        if (!response.success) {
-          alert(response.message);
-
-          return;
-        }
-
-        Modal.open({
-          title: "Edit Product",
-
-          width: "md",
-
-          body: productFormTemplate(),
-
-          footer: `
-          <div class="flex justify-end gap-2">
-
-          <button
-          class="px-4 py-2 border rounded-lg"
-          onclick="Modal.close()"
-          >
-          Cancel
-          </button>
-
-          <button
-            id="btn-product-save"
-            onclick="App.saveProduct()"
-            class="px-4 py-2 bg-blue-600 text-white rounded-lg"
-          >
-            Save Product
-          </button>
-
-          </div>
-        `,
-        });
-
-        fillProductForm(response.data);
-      } catch (error) {
-        console.error(error);
-
-        alert("Failed to load product.");
-      }
+      return ProductsActions.openEdit(id);
     }
 
     async function deleteProduct(id) {
-      const ok = await Dialog.confirm({
-        title: "Delete Product",
-
-        message: "Are you sure you want to delete this product?",
-      });
-
-      if (!ok) {
-        return;
-      }
-
-      try {
-        const response = await Api.Product.remove(id);
-
-        if (!response.success) {
-          alert(response.message);
-
-          return;
-        }
-
-        await loadProducts();
-
-        alert(response.message);
-      } catch (error) {
-        console.error(error);
-
-        alert("Failed to delete product.");
-      }
+      return ProductsActions.remove(id);
     }
 
     //===========================================================================
@@ -743,6 +599,8 @@
       refresh,
 
       currentPage,
+
+      loadProducts,
 
       search,
 

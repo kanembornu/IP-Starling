@@ -1,0 +1,52 @@
+<script>
+  /**
+   * =============================================================================
+   * FILE        : 982.View.Products.Validator
+   * VERSION     : 1.0.0
+   * DESCRIPTION : Product Validation Module
+   * =============================================================================
+   */
+
+  const ProductsValidator = (() => {
+    //==========================================================================
+    // Validate
+    //==========================================================================
+
+    function validate(product = {}) {
+      const errors = [];
+
+      if (!product.Nama) {
+        errors.push("Product Name is required.");
+      }
+
+      if (!product.Kategori) {
+        errors.push("Category is required.");
+      }
+
+      if (!product.Satuan) {
+        errors.push("Unit is required.");
+      }
+
+      if (Number.isNaN(product.Harga)) {
+        errors.push("Price is required.");
+      }
+
+      if (product.Harga < 0) {
+        errors.push("Price cannot be negative.");
+      }
+
+      return Object.freeze({
+        valid: errors.length === 0,
+        errors,
+      });
+    }
+
+    //==========================================================================
+    // Public API
+    //==========================================================================
+
+    return Object.freeze({
+      validate,
+    });
+  })();
+</script>
