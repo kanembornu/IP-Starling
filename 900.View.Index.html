@@ -117,6 +117,9 @@
     HtmlService.createHtmlOutputFromFile("987.View.Components").getContent(); ?>
     <?!= HtmlService.createHtmlOutputFromFile("988.View.Modal").getContent(); ?>
     <?!= HtmlService.createHtmlOutputFromFile("989.View.Utils").getContent(); ?>
+    <?!=
+    HtmlService.createHtmlOutputFromFile("990.Framework.CrudState").getContent();
+    ?>
 
     <!-- ===================================================================== -->
     <!-- Application -->
@@ -130,7 +133,8 @@
     <!-- Presenters -->
     <!-- ===================================================================== -->
 
-    <?!=HtmlService.createHtmlOutputFromFile("971.View.Dashboard.Presenter").getContent();
+    <?!=
+    HtmlService.createHtmlOutputFromFile("971.View.Dashboard.Presenter").getContent();
     ?> <?!=
     HtmlService.createHtmlOutputFromFile("972.View.Products.Presenter").getContent();
     ?> <?!=

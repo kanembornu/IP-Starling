@@ -170,6 +170,12 @@
     //===========================================================================
 
     function openCreateProduct() {
+      CrudState.create();
+
+      console.log(CrudState.mode());
+
+      console.log(CrudState.id());
+
       Modal.open({
         title: "Add Product",
 
@@ -343,10 +349,10 @@
     async function saveProduct() {
       const product = readProductForm();
 
-      const result = validateProductForm(product);
+      const validation = validateProductForm(product);
 
-      if (!result.valid) {
-        alert(result.errors.join("\n"));
+      if (!validation.valid) {
+        alert(validation.errors.join("\n"));
 
         return;
       }
@@ -354,12 +360,56 @@
       try {
         const response = await Api.Product.create(product);
 
-        console.log(response);
+        if (!response.success) {
+          alert(response.message);
+
+          return;
+        }
+
+        resetProductForm();
+
+        Modal.close();
+
+        await loadProducts();
+
+        alert(response.message);
       } catch (error) {
         console.error(error);
 
         alert("Failed to save product.");
       }
+    }
+
+    function resetProductForm() {
+      DOM.setValue(
+        "inp-product-name",
+
+        "",
+      );
+
+      DOM.setValue(
+        "inp-product-category",
+
+        "",
+      );
+
+      DOM.setValue(
+        "inp-product-unit",
+
+        "",
+      );
+
+      DOM.setValue(
+        "inp-product-price",
+
+        "",
+      );
+
+      DOM.setChecked(
+        "inp-product-active",
+
+        true,
+      );
     }
 
     //===========================================================================
