@@ -166,22 +166,11 @@
     }
 
     //===========================================================================
-    // Product CRUD
+    // Product Template
     //===========================================================================
 
-    function openCreateProduct() {
-      CrudState.create();
-
-      console.log(CrudState.mode());
-
-      console.log(CrudState.id());
-
-      Modal.open({
-        title: "Add Product",
-
-        width: "md",
-
-        body: `
+    function productFormTemplate() {
+      return `
         <div class="space-y-4">
 
           <div>
@@ -265,7 +254,26 @@
           </label>
 
         </div>
-        `,
+      `;
+    }
+
+    //===========================================================================
+    // Product CRUD
+    //===========================================================================
+
+    function openCreateProduct() {
+      CrudState.create();
+
+      console.log(CrudState.mode());
+
+      console.log(CrudState.id());
+
+      Modal.open({
+        title: "Add Product",
+
+        width: "md",
+
+        body: productFormTemplate(),
 
         footer: `
           <div class="flex justify-end gap-2">
@@ -410,6 +418,87 @@
 
         true,
       );
+    }
+
+    function fillProductForm(product = {}) {
+      DOM.setValue(
+        "inp-product-name",
+
+        product.Nama ?? "",
+      );
+
+      DOM.setValue(
+        "inp-product-category",
+
+        product.Kategori ?? "",
+      );
+
+      DOM.setValue(
+        "inp-product-unit",
+
+        product.Satuan ?? "",
+      );
+
+      DOM.setValue(
+        "inp-product-price",
+
+        product.Harga ?? "",
+      );
+
+      DOM.setChecked(
+        "inp-product-active",
+
+        product.IsActive,
+      );
+    }
+
+    async function openEditProduct(id) {
+      CrudState.update(id);
+
+      try {
+        const response = await Api.Product.get(id);
+
+        if (!response.success) {
+          alert(response.message);
+
+          return;
+        }
+
+        Modal.open({
+          title: "Edit Product",
+
+          width: "md",
+
+          body: productFormTemplate(),
+
+          footer: `
+          <div class="flex justify-end gap-2">
+
+          <button
+          class="px-4 py-2 border rounded-lg"
+          onclick="Modal.close()"
+          >
+          Cancel
+          </button>
+
+          <button
+            id="btn-product-save"
+            onclick="App.saveProduct()"
+            class="px-4 py-2 bg-blue-600 text-white rounded-lg"
+          >
+            Save Product
+          </button>
+
+          </div>
+        `,
+        });
+
+        fillProductForm(response.data);
+      } catch (error) {
+        console.error(error);
+
+        alert("Failed to load product.");
+      }
     }
 
     //===========================================================================
@@ -724,6 +813,8 @@
       openCreateProduct,
 
       saveProduct,
+
+      openEditProduct,
     });
   })();
 

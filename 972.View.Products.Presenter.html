@@ -162,26 +162,31 @@
       };
 
       return `
-        <button
-          type="button"
-          data-id="${text(id)}"
-          title="${label}"
-          class="
-            inline-flex
-            items-center
-            gap-2
-            px-3
-            py-2
-            rounded-lg
-            transition
-            ${palette[color]}
-          "
-        >
-          ${Components.icon(icon)}
+    <button
+      type="button"
 
-          <span>${label}</span>
-        </button>
-      `;
+      data-action="${label.toLowerCase()}"
+
+      data-id="${text(id)}"
+
+      title="${label}"
+
+      class="
+        inline-flex
+        items-center
+        gap-2
+        px-3
+        py-2
+        rounded-lg
+        transition
+        ${palette[color]}
+      "
+    >
+      ${Components.icon(icon)}
+
+      <span>${label}</span>
+    </button>
+  `;
     }
 
     //===========================================================================
