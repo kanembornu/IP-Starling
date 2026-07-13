@@ -503,6 +503,27 @@
       }
     }
 
+    async function deleteProduct(id) {
+      console.log("DELETE PRODUCT()", id);
+      try {
+        const response = await Api.Product.remove(id);
+
+        if (!response.success) {
+          alert(response.message);
+
+          return;
+        }
+
+        await loadProducts();
+
+        alert(response.message);
+      } catch (error) {
+        console.error(error);
+
+        alert("Failed to delete product.");
+      }
+    }
+
     //===========================================================================
     // Partners
     //===========================================================================
@@ -702,66 +723,6 @@
     }
 
     //===========================================================================
-    // Product Action
-    //===========================================================================
-
-    function editProduct(id) {}
-
-    function deleteProduct(id) {}
-
-    function restoreProduct(id) {}
-
-    //===========================================================================
-    // Partner Action
-    //===========================================================================
-
-    function editPartner(id) {}
-
-    function deletePartner(id) {}
-
-    function restorePartner(id) {}
-
-    //===========================================================================
-    // Pickup Action
-    //===========================================================================
-
-    function editPickup(id) {}
-
-    function deletePickup(id) {}
-
-    function restorePickup(id) {}
-
-    //===========================================================================
-    // Return Action
-    //===========================================================================
-
-    function editReturn(id) {}
-
-    function deleteReturn(id) {}
-
-    function restoreReturn(id) {}
-
-    //===========================================================================
-    // Purchasing Action
-    //===========================================================================
-
-    function editPurchasing(id) {}
-
-    function deletePurchasing(id) {}
-
-    function restorePurchasing(id) {}
-
-    //===========================================================================
-    // Expense Action
-    //===========================================================================
-
-    function editExpense(id) {}
-
-    function deleteExpense(id) {}
-
-    function restoreExpense(id) {}
-
-    //===========================================================================
     // Public API
     //===========================================================================
 
@@ -776,47 +737,13 @@
 
       search,
 
-      editProduct,
-
-      deleteProduct,
-
-      restoreProduct,
-
-      editPartner,
-
-      deletePartner,
-
-      restorePartner,
-
-      editPickup,
-
-      deletePickup,
-
-      restorePickup,
-
-      editReturn,
-
-      deleteReturn,
-
-      restoreReturn,
-
-      editPurchasing,
-
-      deletePurchasing,
-
-      restorePurchasing,
-
-      editExpense,
-
-      deleteExpense,
-
-      restoreExpense,
-
       openCreateProduct,
+
+      openEditProduct,
 
       saveProduct,
 
-      openEditProduct,
+      deleteProduct,
     });
   })();
 
