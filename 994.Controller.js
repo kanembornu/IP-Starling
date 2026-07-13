@@ -31,19 +31,19 @@ function getDashboard() {
 //=============================================================================
 
 function getProducts() {
-  return ProductService().findAll();
+  return JSON.parse(JSON.stringify(ProductService().findAll()));
 }
 
 function getProduct(id) {
-  return ProductService().findById(id);
+  return JSON.parse(JSON.stringify(ProductService().findById(id)));
 }
 
 function createProduct(data) {
-  return ProductService().create(data);
+  return JSON.parse(JSON.stringify(ProductService().create(data)));
 }
 
 function updateProduct(id, data) {
-  return ProductService().update(id, data);
+  return JSON.parse(JSON.stringify(ProductService().update(id, data)));
 }
 
 function deleteProduct(id) {

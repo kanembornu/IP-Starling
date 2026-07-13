@@ -340,7 +340,7 @@
       };
     }
 
-    function saveProduct() {
+    async function saveProduct() {
       const product = readProductForm();
 
       const result = validateProductForm(product);
@@ -351,7 +351,15 @@
         return;
       }
 
-      console.log(product);
+      try {
+        const response = await Api.Product.create(product);
+
+        console.log(response);
+      } catch (error) {
+        console.error(error);
+
+        alert("Failed to save product.");
+      }
     }
 
     //===========================================================================
