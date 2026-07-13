@@ -1,0 +1,105 @@
+<script>
+  /**
+   * =============================================================================
+   * FILE        : 992.View.Toast
+   * VERSION     : 2.0.0
+   * DESCRIPTION : Toast Notification Framework
+   * =============================================================================
+   */
+
+  const Toast = (() => {
+    //==========================================================================
+    // Configuration
+    //==========================================================================
+
+    const COLORS = Object.freeze({
+      success: "#16A34A",
+      error: "#DC2626",
+      warning: "#D97706",
+      info: "#2563EB",
+    });
+
+    //==========================================================================
+    // Show
+    //==========================================================================
+
+    function show(message, type = "info") {
+      const container = DOM.$("toast-container");
+
+      if (!container) {
+        console.error("Toast container not found.");
+
+        return;
+      }
+
+      const toast = document.createElement("div");
+
+      toast.style.cssText = `
+        min-width:280px;
+        max-width:360px;
+        padding:12px 16px;
+        border-radius:10px;
+        color:#ffffff;
+        background:${COLORS[type] || COLORS.info};
+        font-size:14px;
+        font-weight:500;
+        box-shadow:0 10px 25px rgba(0,0,0,.15);
+        opacity:0;
+        transform:translateX(30px);
+        transition:all .25s ease;
+        pointer-events:auto;
+        word-break:break-word;
+      `;
+
+      toast.textContent = message;
+
+      container.appendChild(toast);
+
+      requestAnimationFrame(() => {
+        toast.style.opacity = "1";
+        toast.style.transform = "translateX(0)";
+      });
+
+      setTimeout(() => {
+        toast.style.opacity = "0";
+        toast.style.transform = "translateX(30px)";
+
+        setTimeout(() => {
+          toast.remove();
+        }, 250);
+      }, 3000);
+    }
+
+    //==========================================================================
+    // Helpers
+    //==========================================================================
+
+    function success(message) {
+      show(message, "success");
+    }
+
+    function error(message) {
+      show(message, "error");
+    }
+
+    function warning(message) {
+      show(message, "warning");
+    }
+
+    function info(message) {
+      show(message, "info");
+    }
+
+    //==========================================================================
+    // Public API
+    //==========================================================================
+
+    return Object.freeze({
+      show,
+      success,
+      error,
+      warning,
+      info,
+    });
+  })();
+</script>

@@ -68,7 +68,19 @@
   <body>
     <div id="app"></div>
 
-    <div id="toast-container"></div>
+    <div
+      id="toast-container"
+      style="
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        z-index: 9999;
+        pointer-events: none;
+      "
+    ></div>
 
     <div id="modal-container"></div>
 
@@ -121,6 +133,7 @@
     HtmlService.createHtmlOutputFromFile("990.Framework.CrudState").getContent();
     ?> <?!=
     HtmlService.createHtmlOutputFromFile("991.View.Dialog").getContent(); ?>
+    <?!= HtmlService.createHtmlOutputFromFile("992.View.Toast").getContent(); ?>
 
     <!-- ===================================================================== -->
     <!-- Application -->
