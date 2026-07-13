@@ -1,0 +1,71 @@
+<script>
+  /**
+   * =============================================================================
+   * FILE        : 991.View.Dialog
+   * VERSION     : 1.0.0
+   * DESCRIPTION : Dialog Framework
+   * =============================================================================
+   */
+
+  const Dialog = (() => {
+    async function confirm(options = {}) {
+      return new Promise((resolve) => {
+        Modal.open({
+          title: options.title || "Confirmation",
+
+          width: "sm",
+
+          body: `
+        <div class="py-2 text-slate-700">
+          ${options.message || ""}
+        </div>
+      `,
+
+          footer: `
+        <div class="flex justify-end gap-2">
+
+          <button
+            id="dialog-cancel"
+            class="px-4 py-2 border rounded-lg"
+          >
+            Cancel
+          </button>
+
+          <button
+            id="dialog-ok"
+            class="px-4 py-2 bg-red-600 text-white rounded-lg"
+          >
+            OK
+          </button>
+
+        </div>
+      `,
+        });
+
+        DOM.$("dialog-cancel").addEventListener(
+          "click",
+
+          () => {
+            Modal.close();
+
+            resolve(false);
+          },
+        );
+
+        DOM.$("dialog-ok").addEventListener(
+          "click",
+
+          () => {
+            Modal.close();
+
+            resolve(true);
+          },
+        );
+      });
+    }
+
+    return Object.freeze({
+      confirm,
+    });
+  })();
+</script>
