@@ -101,6 +101,12 @@ const RepositoryWriter = (() => {
   function softDelete(schema, id) {
     return update(schema, id, {
       [schema.SYSTEM.IS_DELETED]: true,
+
+      [schema.SYSTEM.IS_ACTIVE]: false,
+
+      [schema.SYSTEM.UPDATED_AT]: Utils.now(),
+
+      [schema.SYSTEM.UPDATED_BY]: Utils.currentUser(),
     });
   }
 
@@ -112,6 +118,12 @@ const RepositoryWriter = (() => {
   function restore(schema, id) {
     return update(schema, id, {
       [schema.SYSTEM.IS_DELETED]: false,
+
+      [schema.SYSTEM.IS_ACTIVE]: true,
+
+      [schema.SYSTEM.UPDATED_AT]: Utils.now(),
+
+      [schema.SYSTEM.UPDATED_BY]: Utils.currentUser(),
     });
   }
 

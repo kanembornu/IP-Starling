@@ -504,7 +504,16 @@
     }
 
     async function deleteProduct(id) {
-      console.log("DELETE PRODUCT()", id);
+      const ok = await Dialog.confirm({
+        title: "Delete Product",
+
+        message: "Are you sure you want to delete this product?",
+      });
+
+      if (!ok) {
+        return;
+      }
+
       try {
         const response = await Api.Product.remove(id);
 
