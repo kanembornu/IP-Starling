@@ -366,7 +366,13 @@
       }
 
       try {
-        const response = await Api.Product.create(product);
+        let response;
+
+        if (CrudState.isCreate()) {
+          response = await Api.Product.create(product);
+        } else {
+          response = await Api.Product.update(CrudState.id(), product);
+        }
 
         if (!response.success) {
           alert(response.message);
@@ -375,7 +381,7 @@
         }
 
         resetProductForm();
-
+        CrudState.reset();
         Modal.close();
 
         await loadProducts();
