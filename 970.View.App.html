@@ -166,98 +166,6 @@
     }
 
     //===========================================================================
-    // Product Template
-    //===========================================================================
-
-    function productFormTemplate() {
-      return `
-        <div class="space-y-4">
-
-          <div>
-            <label
-              class="block text-sm font-medium text-slate-700 mb-1"
-            >
-              Product Name
-            </label>
-
-            <input
-              id="inp-product-name"
-              type="text"
-              class="w-full rounded-lg border border-slate-300 px-3 py-2
-                    focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              placeholder="Enter product name"
-            />
-          </div>
-
-          <div>
-            <label
-              class="block text-sm font-medium text-slate-700 mb-1"
-            >
-              Category
-            </label>
-
-            <input
-              id="inp-product-category"
-              type="text"
-              class="w-full rounded-lg border border-slate-300 px-3 py-2
-                    focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              placeholder="Coffee, Tea, etc."
-            />
-          </div>
-
-          <div class="grid grid-cols-2 gap-4">
-
-            <div>
-              <label
-                class="block text-sm font-medium text-slate-700 mb-1"
-              >
-                Unit
-              </label>
-
-              <input
-                id="inp-product-unit"
-                type="text"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2"
-                placeholder="Cup"
-              />
-            </div>
-
-            <div>
-              <label
-                class="block text-sm font-medium text-slate-700 mb-1"
-              >
-                Price
-              </label>
-
-              <input
-                id="inp-product-price"
-                type="number"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2"
-                placeholder="0"
-              />
-            </div>
-
-          </div>
-
-          <label class="flex items-center gap-2">
-
-            <input
-              id="inp-product-active"
-              type="checkbox"
-              checked
-            />
-
-            <span class="text-sm">
-              Active
-            </span>
-
-          </label>
-
-        </div>
-      `;
-    }
-
-    //===========================================================================
     // Product CRUD
     //===========================================================================
 
@@ -265,124 +173,12 @@
       ProductsActions.openCreate();
     }
 
-    //===========================================================================
-    // Product Form
-    //===========================================================================
-
-    function readProductForm() {
-      return {
-        Nama: DOM.value("inp-product-name").trim(),
-
-        Kategori: DOM.value("inp-product-category").trim(),
-
-        Satuan: DOM.value("inp-product-unit").trim(),
-
-        Harga: Number(DOM.value("inp-product-price")),
-
-        IsActive: DOM.checked("inp-product-active"),
-      };
-    }
-
-    function validateProductForm(product = {}) {
-      const errors = [];
-
-      if (!product.Nama) {
-        errors.push("Product Name is required.");
-      }
-
-      if (!product.Kategori) {
-        errors.push("Category is required.");
-      }
-
-      if (!product.Satuan) {
-        errors.push("Unit is required.");
-      }
-
-      if (Number.isNaN(product.Harga)) {
-        errors.push("Price is required.");
-      }
-
-      if (product.Harga < 0) {
-        errors.push("Price cannot be negative.");
-      }
-
-      return {
-        valid: errors.length === 0,
-
-        errors,
-      };
+    async function openEditProduct(id) {
+      return ProductsActions.openEdit(id);
     }
 
     async function saveProduct() {
       return ProductsActions.save();
-    }
-
-    function resetProductForm() {
-      DOM.setValue(
-        "inp-product-name",
-
-        "",
-      );
-
-      DOM.setValue(
-        "inp-product-category",
-
-        "",
-      );
-
-      DOM.setValue(
-        "inp-product-unit",
-
-        "",
-      );
-
-      DOM.setValue(
-        "inp-product-price",
-
-        "",
-      );
-
-      DOM.setChecked(
-        "inp-product-active",
-
-        true,
-      );
-    }
-
-    function fillProductForm(product = {}) {
-      DOM.setValue(
-        "inp-product-name",
-
-        product.Nama ?? "",
-      );
-
-      DOM.setValue(
-        "inp-product-category",
-
-        product.Kategori ?? "",
-      );
-
-      DOM.setValue(
-        "inp-product-unit",
-
-        product.Satuan ?? "",
-      );
-
-      DOM.setValue(
-        "inp-product-price",
-
-        product.Harga ?? "",
-      );
-
-      DOM.setChecked(
-        "inp-product-active",
-
-        product.IsActive,
-      );
-    }
-
-    async function openEditProduct(id) {
-      return ProductsActions.openEdit(id);
     }
 
     async function deleteProduct(id) {
@@ -405,6 +201,22 @@
       state.partners = Utils.deepClone(res.data);
 
       PartnersPresenter.render(state.partners);
+    }
+
+    //===========================================================================
+    // Partner CRUD
+    //===========================================================================
+    function openCreatePartner() {
+      PartnersActions.openCreate();
+    }
+    function openEditPartner(id) {
+      return PartnersActions.openEdit(id);
+    }
+    function savePartner() {
+      return PartnersActions.save();
+    }
+    function deletePartner(id) {
+      return PartnersActions.remove(id);
     }
 
     //===========================================================================
@@ -593,24 +405,22 @@
 
     return Object.freeze({
       init,
-
       navigate,
-
       refresh,
-
       currentPage,
-
-      loadProducts,
-
       search,
 
+      loadProducts,
       openCreateProduct,
-
       openEditProduct,
-
       saveProduct,
-
       deleteProduct,
+
+      loadPartners,
+      openCreatePartner,
+      openEditPartner,
+      savePartner,
+      deletePartner,
     });
   })();
 

@@ -1,0 +1,149 @@
+<script>
+  /**
+   * =============================================================================
+   * FILE        : 986.View.Partners.Actions
+   * VERSION     : 1.0.0
+   * DESCRIPTION : Partner Actions Module
+   * =============================================================================
+   */
+
+  const PartnersActions = (() => {
+    //==========================================================================
+    // Footer
+    //==========================================================================
+
+    function footer() {
+      return `
+        <div class="flex justify-end gap-2">
+
+          <button
+            type="button"
+            class="px-4 py-2 border rounded-lg"
+            onclick="Modal.close()"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            class="px-4 py-2 bg-blue-600 text-white rounded-lg"
+            onclick="PartnersActions.save()"
+          >
+            Save Partner
+          </button>
+
+        </div>
+      `;
+    }
+
+    //==========================================================================
+    // Open Create
+    //==========================================================================
+
+    function openCreate() {
+      CrudState.create();
+
+      Modal.open({
+        title: "Add Partner",
+        width: "md",
+        body: PartnersForm.template(),
+        footer: footer(),
+      });
+
+      PartnersForm.reset();
+    }
+
+    //==========================================================================
+    // Open Edit
+    //==========================================================================
+
+    async function openEdit(id) {
+      CrudState.update(id);
+
+      const response = await Api.Partner.get(id);
+
+      if (!response.success) {
+        Toast.error(response.message);
+
+        return;
+      }
+
+      Modal.open({
+        title: "Edit Partner",
+        width: "md",
+        body: PartnersForm.template(),
+        footer: footer(),
+      });
+
+      PartnersForm.fill(response.data);
+    }
+
+    //==========================================================================
+    // Save
+    //==========================================================================
+
+    async function save() {
+      const partner = PartnersForm.read();
+
+      const validation = PartnersValidator.validate(partner);
+
+      if (!validation.valid) {
+        Toast.warning(validation.errors.join("\n"));
+
+        return;
+      }
+
+      const isCreate = CrudState.isCreate();
+
+      const id = CrudState.id();
+
+      await Actions.execute({
+        task: () =>
+          isCreate
+            ? Api.Partner.create(partner)
+            : Api.Partner.update(id, partner),
+
+        reload: App.loadPartners,
+
+        success: isCreate
+          ? "Partner berhasil dibuat."
+          : "Partner berhasil diperbarui.",
+
+        afterSuccess: () => {
+          PartnersForm.reset();
+
+          CrudState.reset();
+        },
+      });
+    }
+
+    //==========================================================================
+    // Delete
+    //==========================================================================
+
+    async function remove(id) {
+      await Actions.remove({
+        title: "Delete Partner",
+
+        message: "Are you sure you want to delete this partner?",
+
+        task: () => Api.Partner.remove(id),
+
+        reload: App.loadPartners,
+
+        success: "Partner berhasil dihapus.",
+      });
+    }
+
+    //==========================================================================
+    // Public API
+    //==========================================================================
+
+    return Object.freeze({
+      openCreate,
+      openEdit,
+      save,
+      remove,
+    });
+  })();
+</script>

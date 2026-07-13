@@ -59,27 +59,27 @@ function restoreProduct(id) {
 //=============================================================================
 
 function getPartners() {
-  return PartnerService().findAll();
+  return JSON.parse(JSON.stringify(PartnerService().findAll()));
 }
 
 function getPartner(id) {
-  return PartnerService().findById(id);
+  return JSON.parse(JSON.stringify(PartnerService().findById(id)));
 }
 
 function createPartner(data) {
-  return PartnerService().create(data);
+  return JSON.parse(JSON.stringify(PartnerService().create(data)));
 }
 
 function updatePartner(id, data) {
-  return PartnerService().update(id, data);
+  return JSON.parse(JSON.stringify(PartnerService().update(id, data)));
 }
 
 function deletePartner(id) {
-  return PartnerService().remove(id);
+  return JSON.parse(JSON.stringify(PartnerService().remove(id)));
 }
 
 function restorePartner(id) {
-  return PartnerService().restore(id);
+  return JSON.parse(JSON.stringify(PartnerService().restore(id)));
 }
 
 //=============================================================================

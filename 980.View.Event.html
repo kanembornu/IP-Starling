@@ -154,6 +154,12 @@
 
             return;
           }
+
+          if (event.target.closest("#btn-partner-add")) {
+            App.openCreatePartner();
+
+            return;
+          }
         },
       );
     }
@@ -284,14 +290,28 @@
     function handleActionClick(event) {
       const button = event.target.closest("[data-action]");
 
-      if (!button) {
-        return;
-      }
+      if (!button) return;
 
       const action = button.dataset.action;
 
       const id = button.dataset.id;
 
+      const page = App.currentPage();
+
+      switch (page) {
+        case "products":
+          dispatchProduct(action, id);
+
+          break;
+
+        case "partners":
+          dispatchPartner(action, id);
+
+          break;
+      }
+    }
+
+    function dispatchProduct(action, id) {
       switch (action) {
         case "edit":
           App.openEditProduct(id);
@@ -299,8 +319,21 @@
           break;
 
         case "delete":
-          console.log("DELETE CLICK", id);
           App.deleteProduct(id);
+
+          break;
+      }
+    }
+
+    function dispatchPartner(action, id) {
+      switch (action) {
+        case "edit":
+          App.openEditPartner(id);
+
+          break;
+
+        case "delete":
+          App.deletePartner(id);
 
           break;
       }

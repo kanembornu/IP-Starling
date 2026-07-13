@@ -1,0 +1,47 @@
+<script>
+  /**
+   * =============================================================================
+   * FILE        : 985.View.Partners.Validator
+   * VERSION     : 1.0.0
+   * DESCRIPTION : Partner Validation Module
+   * =============================================================================
+   */
+
+  const PartnersValidator = (() => {
+    //==========================================================================
+    // Validate
+    //==========================================================================
+
+    function validate(partner = {}) {
+      const errors = [];
+
+      if (!partner.Nama) {
+        errors.push("Partner Name is required.");
+      }
+
+      if (!partner.Jenis) {
+        errors.push("Partner Type is required.");
+      }
+
+      if (
+        partner.Telepon &&
+        !/^[0-9+\-\s()]+$/.test(partner.Telepon)
+      ) {
+        errors.push("Phone number format is invalid.");
+      }
+
+      return Object.freeze({
+        valid: errors.length === 0,
+        errors,
+      });
+    }
+
+    //==========================================================================
+    // Public API
+    //==========================================================================
+
+    return Object.freeze({
+      validate,
+    });
+  })();
+</script>

@@ -1,0 +1,221 @@
+<script>
+  /**
+   * =============================================================================
+   * FILE        : 984.View.Partners.Form
+   * VERSION     : 1.0.0
+   * DESCRIPTION : Partner Form Module
+   * =============================================================================
+   */
+
+  const PartnersForm = (() => {
+    //==========================================================================
+    // Template
+    //==========================================================================
+
+    function template() {
+      return `
+        <div class="space-y-4">
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">
+              Partner Name
+            </label>
+
+            <input
+              id="inp-partner-name"
+              type="text"
+              class="
+                w-full
+                rounded-lg
+                border
+                border-slate-300
+                px-3
+                py-2
+                focus:ring-2
+                focus:ring-blue-500
+                focus:outline-none
+              "
+              placeholder="Enter partner name"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">
+              Type
+            </label>
+
+            <select
+              id="inp-partner-type"
+              class="
+                w-full
+                rounded-lg
+                border
+                border-slate-300
+                px-3
+                py-2
+                focus:ring-2
+                focus:ring-blue-500
+                focus:outline-none
+              "
+            >
+              <option value="">-- Select Type --</option>
+              <option value="Supplier">Supplier</option>
+              <option value="Customer">Customer</option>
+              <option value="Reseller">Reseller</option>
+              <option value="Distributor">Distributor</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">
+              Phone
+            </label>
+
+            <input
+              id="inp-partner-phone"
+              type="text"
+              class="
+                w-full
+                rounded-lg
+                border
+                border-slate-300
+                px-3
+                py-2
+                focus:ring-2
+                focus:ring-blue-500
+                focus:outline-none
+              "
+              placeholder="081234567890"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">
+              Address
+            </label>
+
+            <textarea
+              id="inp-partner-address"
+              rows="3"
+              class="
+                w-full
+                rounded-lg
+                border
+                border-slate-300
+                px-3
+                py-2
+                focus:ring-2
+                focus:ring-blue-500
+                focus:outline-none
+              "
+              placeholder="Enter address"
+            ></textarea>
+          </div>
+
+          <label class="flex items-center gap-2">
+
+            <input
+              id="inp-partner-active"
+              type="checkbox"
+              checked
+            />
+
+            <span class="text-sm">
+              Active
+            </span>
+
+          </label>
+
+        </div>
+      `;
+    }
+
+    //==========================================================================
+    // Read
+    //==========================================================================
+
+    function read() {
+      return {
+        Nama: DOM.value("inp-partner-name").trim(),
+        Jenis: DOM.value("inp-partner-type"),
+        Telepon: DOM.value("inp-partner-phone").trim(),
+        Alamat: DOM.value("inp-partner-address").trim(),
+        IsActive: DOM.checked("inp-partner-active"),
+      };
+    }
+
+    //==========================================================================
+    // Fill
+    //==========================================================================
+
+    function fill(partner = {}) {
+      DOM.setValue(
+        "inp-partner-name",
+        partner.Nama ?? "",
+      );
+
+      DOM.setValue(
+        "inp-partner-type",
+        partner.Jenis ?? "",
+      );
+
+      DOM.setValue(
+        "inp-partner-phone",
+        partner.Telepon ?? "",
+      );
+
+      DOM.setValue(
+        "inp-partner-address",
+        partner.Alamat ?? "",
+      );
+
+      DOM.setChecked(
+        "inp-partner-active",
+        partner.IsActive,
+      );
+    }
+
+    //==========================================================================
+    // Reset
+    //==========================================================================
+
+    function reset() {
+      DOM.setValue(
+        "inp-partner-name",
+        "",
+      );
+
+      DOM.setValue(
+        "inp-partner-type",
+        "",
+      );
+
+      DOM.setValue(
+        "inp-partner-phone",
+        "",
+      );
+
+      DOM.setValue(
+        "inp-partner-address",
+        "",
+      );
+
+      DOM.setChecked(
+        "inp-partner-active",
+        true,
+      );
+    }
+
+    //==========================================================================
+    // Public API
+    //==========================================================================
+
+    return Object.freeze({
+      template,
+      read,
+      fill,
+      reset,
+    });
+  })();
+</script>
