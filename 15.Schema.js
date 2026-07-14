@@ -42,6 +42,19 @@ function createSchema(options) {
       UPDATED_BY: AUDIT_COLUMNS.UPDATED_BY,
     }),
 
+    HEADERS: Object.freeze([
+      ...Object.values(options.FIELDS),
+
+      SYSTEM_COLUMNS.IS_DELETED,
+      SYSTEM_COLUMNS.IS_ACTIVE,
+
+      AUDIT_COLUMNS.CREATED_AT,
+      AUDIT_COLUMNS.CREATED_BY,
+
+      AUDIT_COLUMNS.UPDATED_AT,
+      AUDIT_COLUMNS.UPDATED_BY,
+    ]),
+
     DEFAULT: Object.freeze(options.DEFAULT),
 
     VALIDATION: Object.freeze(options.VALIDATION),
@@ -311,6 +324,170 @@ const PICKUP_SCHEMA = createSchema({
     COLOR: "cyan",
 
     SEARCH_PLACEHOLDER: "Cari pickup...",
+  },
+});
+
+/**
+ * =============================================================================
+ * PICKUP HEADER
+ * =============================================================================
+ */
+
+const PICKUP_HEADER_FIELDS = Object.freeze({
+  ID: SYSTEM_COLUMNS.PRIMARY_KEY,
+
+  NUMBER: "PickupNo",
+
+  DATE: "Tanggal",
+
+  PARTNER_ID: "PartnerID",
+
+  TOTAL_ITEM: "TotalItem",
+
+  TOTAL_QTY: "TotalQty",
+
+  STATUS: "Status",
+
+  NOTES: "Notes",
+});
+
+const PICKUP_HEADER_SCHEMA = createSchema({
+  NAME: "PickupHeader",
+
+  TABLE: "PickupHeaders",
+
+  PRIMARY_KEY: PICKUP_HEADER_FIELDS.ID,
+
+  DISPLAY_FIELD: PICKUP_HEADER_FIELDS.NUMBER,
+
+  ID_PREFIX: "PH",
+
+  FIELDS: PICKUP_HEADER_FIELDS,
+
+  DEFAULT: {
+    [PICKUP_HEADER_FIELDS.TOTAL_ITEM]: 0,
+
+    [PICKUP_HEADER_FIELDS.TOTAL_QTY]: 0,
+
+    [PICKUP_HEADER_FIELDS.STATUS]: "Posted",
+
+    [PICKUP_HEADER_FIELDS.NOTES]: "",
+
+    [SYSTEM_COLUMNS.IS_DELETED]: false,
+
+    [SYSTEM_COLUMNS.IS_ACTIVE]: true,
+  },
+
+  VALIDATION: {
+    [PICKUP_HEADER_FIELDS.DATE]: {
+      required: true,
+    },
+
+    [PICKUP_HEADER_FIELDS.PARTNER_ID]: {
+      required: true,
+    },
+
+    [PICKUP_HEADER_FIELDS.STATUS]: {
+      required: true,
+    },
+  },
+
+  READONLY: {
+    [SYSTEM_COLUMNS.PRIMARY_KEY]: true,
+
+    [AUDIT_COLUMNS.CREATED_AT]: true,
+
+    [AUDIT_COLUMNS.CREATED_BY]: true,
+  },
+
+  SEARCHABLE: [PICKUP_HEADER_FIELDS.NUMBER, PICKUP_HEADER_FIELDS.PARTNER_ID],
+
+  UI: {
+    TITLE: "Pickup",
+
+    ICON: "truck",
+
+    COLOR: "cyan",
+
+    SEARCH_PLACEHOLDER: "Cari pickup...",
+  },
+});
+
+/**
+ * =============================================================================
+ * PICKUP DETAIL
+ * =============================================================================
+ */
+
+const PICKUP_DETAIL_FIELDS = Object.freeze({
+  ID: SYSTEM_COLUMNS.PRIMARY_KEY,
+
+  PICKUP_ID: "PickupID",
+
+  PRODUCT_ID: "ProductID",
+
+  QTY: "Qty",
+
+  NOTES: "Notes",
+});
+
+const PICKUP_DETAIL_SCHEMA = createSchema({
+  NAME: "PickupDetail",
+
+  TABLE: "PickupDetails",
+
+  PRIMARY_KEY: PICKUP_DETAIL_FIELDS.ID,
+
+  DISPLAY_FIELD: PICKUP_DETAIL_FIELDS.ID,
+
+  ID_PREFIX: "PD",
+
+  FIELDS: PICKUP_DETAIL_FIELDS,
+
+  DEFAULT: {
+    [PICKUP_DETAIL_FIELDS.NOTES]: "",
+
+    [SYSTEM_COLUMNS.IS_DELETED]: false,
+
+    [SYSTEM_COLUMNS.IS_ACTIVE]: true,
+  },
+
+  VALIDATION: {
+    [PICKUP_DETAIL_FIELDS.PICKUP_ID]: {
+      required: true,
+    },
+
+    [PICKUP_DETAIL_FIELDS.PRODUCT_ID]: {
+      required: true,
+    },
+
+    [PICKUP_DETAIL_FIELDS.QTY]: {
+      required: true,
+
+      numeric: true,
+
+      min: 1,
+    },
+  },
+
+  READONLY: {
+    [SYSTEM_COLUMNS.PRIMARY_KEY]: true,
+
+    [AUDIT_COLUMNS.CREATED_AT]: true,
+
+    [AUDIT_COLUMNS.CREATED_BY]: true,
+  },
+
+  SEARCHABLE: [PICKUP_DETAIL_FIELDS.PICKUP_ID, PICKUP_DETAIL_FIELDS.PRODUCT_ID],
+
+  UI: {
+    TITLE: "Pickup Detail",
+
+    ICON: "package",
+
+    COLOR: "cyan",
+
+    SEARCH_PLACEHOLDER: "Cari detail pickup...",
   },
 });
 
@@ -591,7 +768,9 @@ const SCHEMA = Object.freeze({
 
   PARTNER: PARTNER_SCHEMA,
 
-  PICKUP: PICKUP_SCHEMA,
+  PICKUP_HEADER: PICKUP_HEADER_SCHEMA,
+
+  PICKUP_DETAIL: PICKUP_DETAIL_SCHEMA,
 
   RETURN: RETURN_SCHEMA,
 

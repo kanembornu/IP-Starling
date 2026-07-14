@@ -441,3 +441,29 @@ function testGetDashboardDirect() {
 
   Logger.log(JSON.stringify(res, null, 2));
 }
+
+function testConfigPickup() {
+  Logger.log(PRODUCT_SCHEMA.HEADERS);
+
+  Logger.log(PARTNER_SCHEMA.HEADERS);
+
+  Logger.log(PICKUP_HEADER_SCHEMA.HEADERS);
+
+  Logger.log(PICKUP_DETAIL_SCHEMA.HEADERS);
+}
+
+function testDatabaseSetup() {
+  Logger.log("========== DATABASE SETUP ==========");
+
+  DatabaseSetup.setup();
+
+  Object.values(SCHEMA)
+  .filter((schema) => schema && schema.TABLE)
+  .forEach((schema) => {
+    Logger.log(
+      "%s : %s",
+      schema.TABLE,
+      Database.hasSheet(schema.TABLE)
+    );
+  });
+}
