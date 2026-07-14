@@ -467,3 +467,16 @@ function testDatabaseSetup() {
     );
   });
 }
+
+function testTransactionService() {
+  Logger.log("========== TRANSACTION SERVICE ==========");
+
+  const service = TransactionService.create({});
+
+  Logger.log(typeof service.findAll);
+  Logger.log(typeof service.findById);
+  Logger.log(typeof service.create);
+  Logger.log(typeof service.update);
+  Logger.log(typeof service.remove);
+  Logger.log(typeof service.restore);
+}
