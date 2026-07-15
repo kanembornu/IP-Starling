@@ -358,20 +358,70 @@ function testPartnerService() {
   Logger.log(JSON.stringify(service.statistics(), null, 2));
 }
 
-function testPickupService() {
+function testPickupServicePublicApi() {
+  const keys = Object.keys(PickupService()).sort();
+
+  const expectedKeys = [
+    "create",
+    "findAll",
+    "findById",
+    "remove",
+    "restore",
+    "update",
+  ];
+
+  if (JSON.stringify(keys) !== JSON.stringify(expectedKeys)) {
+    throw new Error("PickupService public API is invalid.");
+  }
+
+  Logger.log("PickupService public API passed.");
+}
+
+function testPickupServiceFindAll() {
+  const response = PickupService().findAll();
+
+  if (!response.success || !Array.isArray(response.data)) {
+    throw new Error("PickupService.findAll() response is invalid.");
+  }
+
+  Logger.log(response);
+}
+
+function testPickupServiceFindByIdValidation() {
+  const response = PickupService().findById(" ");
+
+  if (response.success || response.data !== null) {
+    throw new Error("PickupService.findById() must reject an empty ID.");
+  }
+
+  Logger.log(response);
+}
+
+function testPickupServiceHeaderDetailRead() {
   const service = PickupService();
 
-  Logger.log("===== FIND ALL =====");
-  Logger.log(JSON.stringify(service.findAll(), null, 2));
+  const headers = service.findAll();
 
-  Logger.log("===== SEARCH =====");
-  Logger.log(JSON.stringify(service.search("PR"), null, 2));
+  if (headers.data.length === 0) {
+    Logger.log("No pickup header data available; header-detail test skipped.");
 
-  Logger.log("===== DROPDOWN =====");
-  Logger.log(JSON.stringify(service.dropdown(), null, 2));
+    return;
+  }
 
-  Logger.log("===== STATISTICS =====");
-  Logger.log(JSON.stringify(service.statistics(), null, 2));
+  const id = headers.data[0][PICKUP_HEADER_SCHEMA.PRIMARY_KEY];
+
+  const response = service.findById(id);
+
+  if (
+    !response.success ||
+    !response.data ||
+    !response.data.header ||
+    !Array.isArray(response.data.details)
+  ) {
+    throw new Error("PickupService header-detail response is invalid.");
+  }
+
+  Logger.log(response);
 }
 
 function testReturnService() {
