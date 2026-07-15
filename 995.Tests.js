@@ -399,6 +399,158 @@ function testPickupServiceFindByIdValidation() {
   Logger.log(response);
 }
 
+function testPickupControllerPublicApi() {
+  const functions = [
+    getPickups,
+    getPickup,
+    createPickup,
+    updatePickup,
+    deletePickup,
+    restorePickup,
+  ];
+
+  if (functions.some((fn) => typeof fn !== "function")) {
+    throw new Error("Pickup Controller public API is invalid.");
+  }
+
+  Logger.log("Pickup Controller public API passed.");
+}
+
+function testPickupControllerGetPickups() {
+  const response = getPickups();
+
+  if (
+    !response ||
+    typeof response !== "object" ||
+    Array.isArray(response) ||
+    typeof response.success !== "boolean" ||
+    !Array.isArray(response.data)
+  ) {
+    throw new Error("getPickups() response is invalid.");
+  }
+
+  JSON.stringify(response);
+
+  Logger.log(response);
+}
+
+function testPickupControllerGetPickupValidation() {
+  const response = getPickup("");
+
+  if (response.success || response.data !== null || !response.message) {
+    throw new Error(
+      'getPickup("") must return the service validation response.',
+    );
+  }
+
+  Logger.log(response);
+}
+
+function testPickupControllerCreateValidation() {
+  const headerCount = RepositoryReader.count(PICKUP_HEADER_SCHEMA);
+  const detailCount = RepositoryReader.count(PICKUP_DETAIL_SCHEMA);
+  const response = createPickup(null);
+
+  if (response.success || response.data !== null) {
+    throw new Error("createPickup(null) must return a validation failure.");
+  }
+
+  if (
+    RepositoryReader.count(PICKUP_HEADER_SCHEMA) !== headerCount ||
+    RepositoryReader.count(PICKUP_DETAIL_SCHEMA) !== detailCount
+  ) {
+    throw new Error("createPickup(null) must not write data.");
+  }
+
+  Logger.log(response);
+}
+
+function testPickupControllerUpdateValidation() {
+  const headerCount = RepositoryReader.count(PICKUP_HEADER_SCHEMA);
+  const detailCount = RepositoryReader.count(PICKUP_DETAIL_SCHEMA);
+  const response = updatePickup("", null);
+
+  if (response.success || response.data !== null) {
+    throw new Error('updatePickup("", null) must return a validation failure.');
+  }
+
+  if (
+    RepositoryReader.count(PICKUP_HEADER_SCHEMA) !== headerCount ||
+    RepositoryReader.count(PICKUP_DETAIL_SCHEMA) !== detailCount
+  ) {
+    throw new Error("Invalid pickup update must not write data.");
+  }
+
+  Logger.log(response);
+}
+
+function testPickupControllerDeleteValidation() {
+  const headerCount = RepositoryReader.count(PICKUP_HEADER_SCHEMA);
+  const detailCount = RepositoryReader.count(PICKUP_DETAIL_SCHEMA);
+  const response = deletePickup("");
+
+  if (response.success || response.data !== null) {
+    throw new Error('deletePickup("") must return a validation failure.');
+  }
+
+  if (
+    RepositoryReader.count(PICKUP_HEADER_SCHEMA) !== headerCount ||
+    RepositoryReader.count(PICKUP_DETAIL_SCHEMA) !== detailCount
+  ) {
+    throw new Error("Invalid pickup deletion must not change data.");
+  }
+
+  Logger.log(response);
+}
+
+function testPickupControllerRestoreValidation() {
+  const headerCount = RepositoryReader.count(PICKUP_HEADER_SCHEMA);
+  const detailCount = RepositoryReader.count(PICKUP_DETAIL_SCHEMA);
+  const response = restorePickup("");
+
+  if (response.success || response.data !== null) {
+    throw new Error('restorePickup("") must return a validation failure.');
+  }
+
+  if (
+    RepositoryReader.count(PICKUP_HEADER_SCHEMA) !== headerCount ||
+    RepositoryReader.count(PICKUP_DETAIL_SCHEMA) !== detailCount
+  ) {
+    throw new Error("Invalid pickup restoration must not change data.");
+  }
+
+  Logger.log(response);
+}
+
+function testPickupControllerSerialization() {
+  const response = getPickups();
+  const values = [response];
+
+  while (values.length > 0) {
+    const value = values.pop();
+
+    if (value instanceof Date || typeof value === "function") {
+      throw new Error("Pickup Controller response contains an unsafe value.");
+    }
+
+    if (!value || typeof value !== "object") {
+      continue;
+    }
+
+    Object.keys(value).forEach((key) => {
+      values.push(value[key]);
+    });
+  }
+
+  try {
+    JSON.stringify(response);
+  } catch (error) {
+    throw new Error("Pickup Controller response must be JSON serializable.");
+  }
+
+  Logger.log(response);
+}
+
 function testPickupServiceHeaderDetailRead() {
   const service = PickupService();
 
@@ -453,7 +605,9 @@ function findActivePickupTestPartner() {
   });
 
   if (!partner) {
-    Logger.log("SKIPPED: Active Partner data is required for this Pickup test.");
+    Logger.log(
+      "SKIPPED: Active Partner data is required for this Pickup test.",
+    );
 
     return null;
   }
@@ -548,8 +702,7 @@ function testPickupCreateMissingProductId() {
     header: {
       [PICKUP_HEADER_FIELDS.DATE]: new Date(),
 
-      [PICKUP_HEADER_FIELDS.PARTNER_ID]:
-        partner[PARTNER_SCHEMA.PRIMARY_KEY],
+      [PICKUP_HEADER_FIELDS.PARTNER_ID]: partner[PARTNER_SCHEMA.PRIMARY_KEY],
     },
 
     details: [
@@ -571,8 +724,7 @@ function testPickupCreateInvalidProductId() {
     header: {
       [PICKUP_HEADER_FIELDS.DATE]: new Date(),
 
-      [PICKUP_HEADER_FIELDS.PARTNER_ID]:
-        partner[PARTNER_SCHEMA.PRIMARY_KEY],
+      [PICKUP_HEADER_FIELDS.PARTNER_ID]: partner[PARTNER_SCHEMA.PRIMARY_KEY],
     },
 
     details: [
@@ -603,8 +755,7 @@ function testPickupCreateInvalidQty() {
       header: {
         [PICKUP_HEADER_FIELDS.DATE]: new Date(),
 
-        [PICKUP_HEADER_FIELDS.PARTNER_ID]:
-          partner[PARTNER_SCHEMA.PRIMARY_KEY],
+        [PICKUP_HEADER_FIELDS.PARTNER_ID]: partner[PARTNER_SCHEMA.PRIMARY_KEY],
       },
 
       details: [
@@ -636,8 +787,7 @@ function testPickupCreateDuplicateProductId() {
     header: {
       [PICKUP_HEADER_FIELDS.DATE]: new Date(),
 
-      [PICKUP_HEADER_FIELDS.PARTNER_ID]:
-        partner[PARTNER_SCHEMA.PRIMARY_KEY],
+      [PICKUP_HEADER_FIELDS.PARTNER_ID]: partner[PARTNER_SCHEMA.PRIMARY_KEY],
     },
 
     details: [
@@ -675,8 +825,7 @@ function testPickupCreateValidSingleItem() {
     header: {
       [PICKUP_HEADER_FIELDS.DATE]: new Date(),
 
-      [PICKUP_HEADER_FIELDS.PARTNER_ID]:
-        partner[PARTNER_SCHEMA.PRIMARY_KEY],
+      [PICKUP_HEADER_FIELDS.PARTNER_ID]: partner[PARTNER_SCHEMA.PRIMARY_KEY],
 
       [PICKUP_HEADER_FIELDS.NOTES]: "[TEST] Pickup single-item manual cleanup",
     },
@@ -730,8 +879,7 @@ function testPickupCreateValidMultiItem() {
     header: {
       [PICKUP_HEADER_FIELDS.DATE]: new Date(),
 
-      [PICKUP_HEADER_FIELDS.PARTNER_ID]:
-        partner[PARTNER_SCHEMA.PRIMARY_KEY],
+      [PICKUP_HEADER_FIELDS.PARTNER_ID]: partner[PARTNER_SCHEMA.PRIMARY_KEY],
 
       [PICKUP_HEADER_FIELDS.NOTES]: "[TEST] Pickup multi-item manual cleanup",
     },
@@ -862,7 +1010,10 @@ function testPickupUpdateMissingDocument() {
   const transaction = createPickupUpdateTestTransaction(1);
 
   if (transaction) {
-    assertPickupUpdateFailure(transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY], null);
+    assertPickupUpdateFailure(
+      transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY],
+      null,
+    );
   }
 }
 
@@ -870,9 +1021,12 @@ function testPickupUpdateMissingHeader() {
   const transaction = createPickupUpdateTestTransaction(1);
 
   if (transaction) {
-    assertPickupUpdateFailure(transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY], {
-      details: [{}],
-    });
+    assertPickupUpdateFailure(
+      transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY],
+      {
+        details: [{}],
+      },
+    );
   }
 }
 
@@ -880,10 +1034,13 @@ function testPickupUpdateEmptyDetails() {
   const transaction = createPickupUpdateTestTransaction(1);
 
   if (transaction) {
-    assertPickupUpdateFailure(transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY], {
-      header: {},
-      details: [],
-    });
+    assertPickupUpdateFailure(
+      transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY],
+      {
+        header: {},
+        details: [],
+      },
+    );
   }
 }
 
@@ -892,12 +1049,16 @@ function testPickupUpdateMissingTanggal() {
 
   if (transaction) {
     const detail = transaction.details[0];
-    assertPickupUpdateFailure(transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY], {
-      header: {
-        [PICKUP_HEADER_FIELDS.PARTNER_ID]: transaction.header[PICKUP_HEADER_FIELDS.PARTNER_ID],
+    assertPickupUpdateFailure(
+      transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY],
+      {
+        header: {
+          [PICKUP_HEADER_FIELDS.PARTNER_ID]:
+            transaction.header[PICKUP_HEADER_FIELDS.PARTNER_ID],
+        },
+        details: [detail],
       },
-      details: [detail],
-    });
+    );
   }
 }
 
@@ -906,12 +1067,15 @@ function testPickupUpdateMissingPartnerId() {
 
   if (transaction) {
     const detail = transaction.details[0];
-    assertPickupUpdateFailure(transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY], {
-      header: {
-        [PICKUP_HEADER_FIELDS.DATE]: new Date(),
+    assertPickupUpdateFailure(
+      transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY],
+      {
+        header: {
+          [PICKUP_HEADER_FIELDS.DATE]: new Date(),
+        },
+        details: [detail],
       },
-      details: [detail],
-    });
+    );
   }
 }
 
@@ -920,8 +1084,14 @@ function testPickupUpdateInvalidPartnerId() {
 
   if (transaction) {
     const detail = transaction.details[0];
-    assertPickupUpdateFailure(transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY],
-      pickupUpdateDocument("PARTNER_TEST_INVALID", detail[PICKUP_DETAIL_FIELDS.PRODUCT_ID], 1));
+    assertPickupUpdateFailure(
+      transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY],
+      pickupUpdateDocument(
+        "PARTNER_TEST_INVALID",
+        detail[PICKUP_DETAIL_FIELDS.PRODUCT_ID],
+        1,
+      ),
+    );
   }
 }
 
@@ -929,13 +1099,17 @@ function testPickupUpdateMissingProductId() {
   const transaction = createPickupUpdateTestTransaction(1);
 
   if (transaction) {
-    assertPickupUpdateFailure(transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY], {
-      header: {
-        [PICKUP_HEADER_FIELDS.DATE]: new Date(),
-        [PICKUP_HEADER_FIELDS.PARTNER_ID]: transaction.header[PICKUP_HEADER_FIELDS.PARTNER_ID],
+    assertPickupUpdateFailure(
+      transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY],
+      {
+        header: {
+          [PICKUP_HEADER_FIELDS.DATE]: new Date(),
+          [PICKUP_HEADER_FIELDS.PARTNER_ID]:
+            transaction.header[PICKUP_HEADER_FIELDS.PARTNER_ID],
+        },
+        details: [{ [PICKUP_DETAIL_FIELDS.QTY]: 1 }],
       },
-      details: [{ [PICKUP_DETAIL_FIELDS.QTY]: 1 }],
-    });
+    );
   }
 }
 
@@ -943,8 +1117,14 @@ function testPickupUpdateInvalidProductId() {
   const transaction = createPickupUpdateTestTransaction(1);
 
   if (transaction) {
-    assertPickupUpdateFailure(transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY],
-      pickupUpdateDocument(transaction.header[PICKUP_HEADER_FIELDS.PARTNER_ID], "PRODUCT_TEST_INVALID", 1));
+    assertPickupUpdateFailure(
+      transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY],
+      pickupUpdateDocument(
+        transaction.header[PICKUP_HEADER_FIELDS.PARTNER_ID],
+        "PRODUCT_TEST_INVALID",
+        1,
+      ),
+    );
   }
 }
 
@@ -953,8 +1133,14 @@ function testPickupUpdateInvalidQty() {
 
   if (transaction) {
     const detail = transaction.details[0];
-    assertPickupUpdateFailure(transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY],
-      pickupUpdateDocument(transaction.header[PICKUP_HEADER_FIELDS.PARTNER_ID], detail[PICKUP_DETAIL_FIELDS.PRODUCT_ID], 0));
+    assertPickupUpdateFailure(
+      transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY],
+      pickupUpdateDocument(
+        transaction.header[PICKUP_HEADER_FIELDS.PARTNER_ID],
+        detail[PICKUP_DETAIL_FIELDS.PRODUCT_ID],
+        0,
+      ),
+    );
   }
 }
 
@@ -969,7 +1155,10 @@ function testPickupUpdateDuplicateProductId() {
       1,
     );
     document.details.push(Object.assign({}, document.details[0]));
-    assertPickupUpdateFailure(transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY], document);
+    assertPickupUpdateFailure(
+      transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY],
+      document,
+    );
   }
 }
 
@@ -983,12 +1172,16 @@ function assertPickupUpdateReplacement(initialCount, replacementCount) {
 
   const headerId = transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY];
   const pickupNo = transaction.header[PICKUP_HEADER_FIELDS.NUMBER];
-  const oldDetailIds = transaction.details.map((detail) => detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]);
+  const oldDetailIds = transaction.details.map(
+    (detail) => detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY],
+  );
   const document = {
     header: {
       [PICKUP_HEADER_FIELDS.DATE]: new Date(),
-      [PICKUP_HEADER_FIELDS.PARTNER_ID]: transaction.header[PICKUP_HEADER_FIELDS.PARTNER_ID],
-      [PICKUP_HEADER_FIELDS.NOTES]: "[TEST] Pickup update replacement manual cleanup",
+      [PICKUP_HEADER_FIELDS.PARTNER_ID]:
+        transaction.header[PICKUP_HEADER_FIELDS.PARTNER_ID],
+      [PICKUP_HEADER_FIELDS.NOTES]:
+        "[TEST] Pickup update replacement manual cleanup",
     },
     details: products.slice(0, replacementCount).map((product, index) => ({
       [PICKUP_DETAIL_FIELDS.PRODUCT_ID]: product[PRODUCT_SCHEMA.PRIMARY_KEY],
@@ -1006,16 +1199,22 @@ function assertPickupUpdateReplacement(initialCount, replacementCount) {
     return total + Number(detail[PICKUP_DETAIL_FIELDS.QTY]);
   }, 0);
   const active = PickupService().findById(headerId);
-  const newDetailIds = response.data.details.map((detail) => detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]);
+  const newDetailIds = response.data.details.map(
+    (detail) => detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY],
+  );
 
   if (
     response.data.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] !== headerId ||
     response.data.header[PICKUP_HEADER_FIELDS.NUMBER] !== pickupNo ||
-    response.data.header[PICKUP_HEADER_FIELDS.TOTAL_ITEM] !== replacementCount ||
+    response.data.header[PICKUP_HEADER_FIELDS.TOTAL_ITEM] !==
+      replacementCount ||
     response.data.header[PICKUP_HEADER_FIELDS.TOTAL_QTY] !== expectedQty ||
     !active.success ||
     active.data.details.length !== replacementCount ||
-    active.data.details.some((detail) => oldDetailIds.indexOf(detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]) !== -1) ||
+    active.data.details.some(
+      (detail) =>
+        oldDetailIds.indexOf(detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]) !== -1,
+    ) ||
     newDetailIds.some((id) => oldDetailIds.indexOf(id) !== -1)
   ) {
     throw new Error("Pickup update replacement result is invalid.");
@@ -1047,9 +1246,13 @@ function testPickupUpdateReplacesActiveDetails() {
 }
 
 function findPickupRecordIncludingDeleted(schema, id) {
-  return RepositoryBase.mapRows(schema, RepositoryReader.raw(schema)).find((item) => {
-    return item[schema.PRIMARY_KEY] === id;
-  }) || null;
+  return (
+    RepositoryBase.mapRows(schema, RepositoryReader.raw(schema)).find(
+      (item) => {
+        return item[schema.PRIMARY_KEY] === id;
+      },
+    ) || null
+  );
 }
 
 function findPickupDetailsIncludingDeleted(pickupId) {
@@ -1064,15 +1267,24 @@ function findPickupDetailsIncludingDeleted(pickupId) {
 function assertPickupRemoved(transaction) {
   const headerId = transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY];
   const pickupNo = transaction.header[PICKUP_HEADER_FIELDS.NUMBER];
-  const detailIds = transaction.details.map((detail) => detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]);
+  const detailIds = transaction.details.map(
+    (detail) => detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY],
+  );
   const response = PickupService().remove(headerId);
-  const storedHeader = findPickupRecordIncludingDeleted(PICKUP_HEADER_SCHEMA, headerId);
+  const storedHeader = findPickupRecordIncludingDeleted(
+    PICKUP_HEADER_SCHEMA,
+    headerId,
+  );
   const storedDetails = findPickupDetailsIncludingDeleted(headerId);
 
   if (
     !response.success ||
     PickupService().findById(headerId).success ||
-    PickupService().findAll().data.some((header) => header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] === headerId) ||
+    PickupService()
+      .findAll()
+      .data.some(
+        (header) => header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] === headerId,
+      ) ||
     RepositoryReader.find(PICKUP_DETAIL_SCHEMA, {
       [PICKUP_DETAIL_FIELDS.PICKUP_ID]: headerId,
     }).length !== 0 ||
@@ -1081,9 +1293,10 @@ function assertPickupRemoved(transaction) {
     storedHeader[PICKUP_HEADER_FIELDS.NUMBER] !== pickupNo ||
     storedHeader[PICKUP_HEADER_SCHEMA.SYSTEM.IS_DELETED] !== true ||
     storedDetails.length !== detailIds.length ||
-    storedDetails.some((detail) =>
-      detail[PICKUP_DETAIL_SCHEMA.SYSTEM.IS_DELETED] !== true ||
-      detailIds.indexOf(detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]) === -1,
+    storedDetails.some(
+      (detail) =>
+        detail[PICKUP_DETAIL_SCHEMA.SYSTEM.IS_DELETED] !== true ||
+        detailIds.indexOf(detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]) === -1,
     )
   ) {
     throw new Error("Pickup remove result is invalid.");
@@ -1103,11 +1316,14 @@ function assertPickupRestored(identity) {
   if (
     !response.success ||
     !active.success ||
-    active.data.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] !== identity.headerId ||
+    active.data.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] !==
+      identity.headerId ||
     active.data.header[PICKUP_HEADER_FIELDS.NUMBER] !== identity.pickupNo ||
     active.data.details.length !== identity.detailIds.length ||
-    active.data.details.some((detail) =>
-      identity.detailIds.indexOf(detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]) === -1,
+    active.data.details.some(
+      (detail) =>
+        identity.detailIds.indexOf(detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]) ===
+        -1,
     )
   ) {
     throw new Error("Pickup restore result is invalid.");
@@ -1162,7 +1378,10 @@ function testPickupRemoveDoesNotAffectOtherPickup() {
 
   assertPickupRemoved(target);
 
-  if (!PickupService().findById(other.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]).success) {
+  if (
+    !PickupService().findById(other.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY])
+      .success
+  ) {
     throw new Error("Pickup remove affected another transaction.");
   }
 }
@@ -1177,8 +1396,13 @@ function testPickupRemoveAlreadyDeleted() {
   const identity = assertPickupRemoved(transaction);
   const response = PickupService().remove(identity.headerId);
 
-  if (!response.success || response.data.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] !== identity.headerId) {
-    throw new Error("Pickup remove must follow the idempotent writer convention.");
+  if (
+    !response.success ||
+    response.data.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] !== identity.headerId
+  ) {
+    throw new Error(
+      "Pickup remove must follow the idempotent writer convention.",
+    );
   }
 }
 
@@ -1228,7 +1452,10 @@ function testPickupRestoreDoesNotAffectOtherPickup() {
 
   assertPickupRestored(assertPickupRemoved(target));
 
-  if (!PickupService().findById(other.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]).success) {
+  if (
+    !PickupService().findById(other.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY])
+      .success
+  ) {
     throw new Error("Pickup restore affected another transaction.");
   }
 }
@@ -1244,8 +1471,14 @@ function testPickupRestoreAlreadyActive() {
     transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY],
   );
 
-  if (!response.success || response.data.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] !== transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]) {
-    throw new Error("Pickup restore must follow the idempotent writer convention.");
+  if (
+    !response.success ||
+    response.data.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] !==
+      transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]
+  ) {
+    throw new Error(
+      "Pickup restore must follow the idempotent writer convention.",
+    );
   }
 }
 
@@ -1344,14 +1577,10 @@ function testDatabaseSetup() {
   DatabaseSetup.setup();
 
   Object.values(SCHEMA)
-  .filter((schema) => schema && schema.TABLE)
-  .forEach((schema) => {
-    Logger.log(
-      "%s : %s",
-      schema.TABLE,
-      Database.hasSheet(schema.TABLE)
-    );
-  });
+    .filter((schema) => schema && schema.TABLE)
+    .forEach((schema) => {
+      Logger.log("%s : %s", schema.TABLE, Database.hasSheet(schema.TABLE));
+    });
 }
 
 function createPickupTransactionServiceForTest() {

@@ -86,28 +86,38 @@ function restorePartner(id) {
 // Pickups
 //=============================================================================
 
+function _pickupControllerResponse(operation) {
+  try {
+    return JSON.parse(JSON.stringify(operation()));
+  } catch (error) {
+    return JSON.parse(
+      JSON.stringify(Response.error("Terjadi kesalahan saat memproses pickup.")),
+    );
+  }
+}
+
 function getPickups() {
-  return PickupService().findAll();
+  return _pickupControllerResponse(() => PickupService().findAll());
 }
 
 function getPickup(id) {
-  return PickupService().findById(id);
+  return _pickupControllerResponse(() => PickupService().findById(id));
 }
 
 function createPickup(data) {
-  return PickupService().create(data);
+  return _pickupControllerResponse(() => PickupService().create(data));
 }
 
 function updatePickup(id, data) {
-  return PickupService().update(id, data);
+  return _pickupControllerResponse(() => PickupService().update(id, data));
 }
 
 function deletePickup(id) {
-  return PickupService().remove(id);
+  return _pickupControllerResponse(() => PickupService().remove(id));
 }
 
 function restorePickup(id) {
-  return PickupService().restore(id);
+  return _pickupControllerResponse(() => PickupService().restore(id));
 }
 
 //=============================================================================

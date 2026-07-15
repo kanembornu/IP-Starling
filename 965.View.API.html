@@ -109,11 +109,11 @@
     //===========================================================================
 
     const Pickup = Object.freeze({
-      list() {
+      findAll() {
         return run("getPickups");
       },
 
-      get(id) {
+      findById(id) {
         return run("getPickup", id);
       },
 
@@ -131,6 +131,14 @@
 
       restore(id) {
         return run("restorePickup", id);
+      },
+
+      list() {
+        return this.findAll();
+      },
+
+      get(id) {
+        return this.findById(id);
       },
     });
 
