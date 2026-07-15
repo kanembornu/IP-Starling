@@ -1,0 +1,275 @@
+<script>
+  /**
+   * =============================================================================
+   * FILE        : 974.View.Pickups.Presenter.html
+   * VERSION     : 1.0.0
+   * DESCRIPTION : Pickup Header List Presenter
+   * =============================================================================
+   */
+
+  const PickupsPresenter = (() => {
+    //===========================================================================
+    // Fields
+    //===========================================================================
+
+    const FIELD = Object.freeze({
+      ID: "ID",
+
+      PICKUP_NO: "PickupNo",
+
+      DATE: "Tanggal",
+
+      PARTNER_ID: "PartnerID",
+
+      TOTAL_ITEM: "TotalItem",
+
+      TOTAL_QTY: "TotalQty",
+
+      STATUS: "Status",
+
+      NOTES: "Notes",
+
+      IS_ACTIVE: "IsActive",
+    });
+
+    let pickups = [];
+
+    //===========================================================================
+    // Public Render
+    //===========================================================================
+
+    function render(data) {
+      pickups = normalize(data);
+
+      updateHeaders();
+
+      bindToolbar();
+
+      renderList(pickups);
+    }
+
+    //===========================================================================
+    // Data
+    //===========================================================================
+
+    function normalize(data) {
+      if (Array.isArray(data)) {
+        return data;
+      }
+
+      if (Array.isArray(data?.data)) {
+        return data.data;
+      }
+
+      return [];
+    }
+
+    //===========================================================================
+    // List
+    //===========================================================================
+
+    function renderList(list = []) {
+      renderInfo(list.length);
+
+      if (!list.length) {
+        renderEmpty();
+
+        return;
+      }
+
+      Render.mount(
+        "tbl-pickups-body",
+
+        list.map(renderRow).join(""),
+      );
+    }
+
+    function renderRow(pickup = {}) {
+      return Components.tableRow([
+        Components.tableCell(
+          text(pickup[FIELD.PICKUP_NO] || pickup[FIELD.ID]),
+
+          "font-medium text-slate-800",
+        ),
+
+        Components.tableCell(Format.date(pickup[FIELD.DATE])),
+
+        Components.tableCell(text(pickup[FIELD.PARTNER_ID])),
+
+        Components.tableCell(
+          Format.number(pickup[FIELD.TOTAL_ITEM]),
+
+          "text-right",
+        ),
+
+        Components.tableCell(
+          Format.number(pickup[FIELD.TOTAL_QTY]),
+
+          "text-right",
+        ),
+
+        Components.tableCell(renderStatus(pickup), "text-center"),
+
+        Components.tableCell("-", "text-center text-slate-400"),
+      ]);
+    }
+
+    //===========================================================================
+    // Empty and Info
+    //===========================================================================
+
+    function renderEmpty() {
+      Render.mount(
+        "tbl-pickups-body",
+
+        `
+        <tr>
+          <td colspan="7">
+            ${Components.empty("No pickups available.")}
+          </td>
+        </tr>
+      `,
+      );
+    }
+
+    function renderInfo(total = 0) {
+      Render.mount(
+        "lbl-pickup-info",
+
+        `${Format.number(total)} Pickup`,
+      );
+    }
+
+    //===========================================================================
+    // Status
+    //===========================================================================
+
+    function renderStatus(pickup = {}) {
+      const status = pickup[FIELD.STATUS];
+
+      if (!Utils.isEmpty(status)) {
+        return Components.badge(text(status));
+      }
+
+      return Components.badge(
+        Format.status(isActive(pickup[FIELD.IS_ACTIVE])),
+
+        isActive(pickup[FIELD.IS_ACTIVE]),
+      );
+    }
+
+    function isActive(value) {
+      if (typeof value === "string") {
+        return value.toLowerCase() === "true";
+      }
+
+      return Boolean(value);
+    }
+
+    //===========================================================================
+    // Toolbar
+    //===========================================================================
+
+    function bindToolbar() {
+      const search = DOM.$("inp-pickup-search");
+
+      if (search && !search.dataset.pickupBound) {
+        search.dataset.pickupBound = "true";
+
+        search.addEventListener("input", () => {
+          renderList(filter(search.value));
+        });
+      }
+
+      const refresh = DOM.$("btn-pickup-refresh");
+
+      if (refresh && !refresh.dataset.pickupBound) {
+        refresh.dataset.pickupBound = "true";
+
+        refresh.addEventListener("click", () => {
+          App.refresh();
+        });
+      }
+    }
+
+    function filter(keyword = "") {
+      const value = String(keyword || "")
+        .trim()
+        .toLowerCase();
+
+      if (!value) {
+        return pickups;
+      }
+
+      const fields = [
+        FIELD.PICKUP_NO,
+
+        FIELD.ID,
+
+        FIELD.PARTNER_ID,
+
+        FIELD.STATUS,
+
+        FIELD.NOTES,
+      ];
+
+      return pickups.filter((pickup) => {
+        return fields.some((field) => {
+          return String(pickup[field] || "")
+            .toLowerCase()
+            .includes(value);
+        });
+      });
+    }
+
+    //===========================================================================
+    // Table Header
+    //===========================================================================
+
+    function updateHeaders() {
+      const headers = document.querySelectorAll("#tbl-pickups thead th");
+
+      const labels = [
+        "Pickup No / ID",
+
+        "Date",
+
+        "Partner",
+
+        "Total Item",
+
+        "Total Qty",
+
+        "Status",
+
+        "Action",
+      ];
+
+      headers.forEach((header, index) => {
+        if (labels[index]) {
+          header.textContent = labels[index];
+        }
+      });
+    }
+
+    //===========================================================================
+    // Text
+    //===========================================================================
+
+    function text(value) {
+      if (Utils.isEmpty(value)) {
+        return "-";
+      }
+
+      return Utils.escapeHTML(value);
+    }
+
+    //===========================================================================
+    // Public API
+    //===========================================================================
+
+    return Object.freeze({
+      render,
+    });
+  })();
+</script>
