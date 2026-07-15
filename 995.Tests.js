@@ -468,17 +468,92 @@ function testDatabaseSetup() {
   });
 }
 
-function testTransactionService() {
-  Logger.log("========== TRANSACTION SERVICE ==========");
+function createPickupTransactionServiceForTest() {
+  return TransactionService.create({
+    headerSchema: PICKUP_HEADER_SCHEMA,
 
-  const service = TransactionService.create({});
+    detailSchema: PICKUP_DETAIL_SCHEMA,
 
-  Logger.log(typeof service.findAll);
-  Logger.log(typeof service.findById);
-  Logger.log(typeof service.create);
-  Logger.log(typeof service.update);
-  Logger.log(typeof service.remove);
-  Logger.log(typeof service.restore);
+    detailForeignKey: PICKUP_DETAIL_FIELDS.PICKUP_ID,
+  });
+}
+
+function testTransactionServicePublicApi() {
+  const service = createPickupTransactionServiceForTest();
+
+  const factoryKeys = Object.keys(TransactionService);
+
+  const serviceKeys = Object.keys(service).sort();
+
+  const expectedServiceKeys = [
+    "create",
+    "findAll",
+    "findById",
+    "remove",
+    "restore",
+    "update",
+  ];
+
+  if (factoryKeys.length !== 1 || factoryKeys[0] !== "create") {
+    throw new Error("TransactionService public factory API is invalid.");
+  }
+
+  if (JSON.stringify(serviceKeys) !== JSON.stringify(expectedServiceKeys)) {
+    throw new Error("TransactionService instance API is invalid.");
+  }
+
+  Logger.log("TransactionService public API passed.");
+}
+
+function testTransactionServiceFindAll() {
+  const service = createPickupTransactionServiceForTest();
+
+  const response = service.findAll();
+
+  if (!response.success || !Array.isArray(response.data)) {
+    throw new Error("TransactionService.findAll() response is invalid.");
+  }
+
+  Logger.log(response);
+}
+
+function testTransactionServiceFindByIdValidation() {
+  const service = createPickupTransactionServiceForTest();
+
+  const response = service.findById(" ");
+
+  if (response.success || response.data !== null) {
+    throw new Error("TransactionService.findById() must reject an empty ID.");
+  }
+
+  Logger.log(response);
+}
+
+function testTransactionServiceFindByIdResponseShape() {
+  const service = createPickupTransactionServiceForTest();
+
+  const headers = service.findAll();
+
+  if (headers.data.length === 0) {
+    Logger.log("No pickup header data available; response shape test skipped.");
+
+    return;
+  }
+
+  const id = headers.data[0][PICKUP_HEADER_SCHEMA.PRIMARY_KEY];
+
+  const response = service.findById(id);
+
+  if (
+    !response.success ||
+    !response.data ||
+    !response.data.header ||
+    !Array.isArray(response.data.details)
+  ) {
+    throw new Error("TransactionService.findById() response shape is invalid.");
+  }
+
+  Logger.log(response);
 }
 
 function testSchemaRelation() {

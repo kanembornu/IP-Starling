@@ -7,11 +7,6 @@
  *
  * Generic framework for Header-Detail transaction.
  *
- * Used by:
- * - Pickup
- * - Return
- * - Purchasing
- *
  * =============================================================================
  */
 
@@ -23,22 +18,42 @@ const TransactionService = (() => {
    */
   function create(config = {}) {
     const {
-      beforeCreate = null,
+      headerSchema,
 
-      beforeUpdate = null,
+      detailSchema,
 
-      beforeDelete = null,
+      detailForeignKey,
 
-      beforeRestore = null,
+      reader = RepositoryReader,
 
-      afterCreate = null,
+      writer = RepositoryWriter,
 
-      afterUpdate = null,
+      hooks = {},
+    } = config;
 
-      afterDelete = null,
+    if (!headerSchema) {
+      throw new Error("TransactionService requires headerSchema.");
+    }
 
-      afterRestore = null,
-    } = hooks;
+    if (!detailSchema) {
+      throw new Error("TransactionService requires detailSchema.");
+    }
+
+    if (typeof detailForeignKey !== "string" || !detailForeignKey.trim()) {
+      throw new Error("TransactionService requires detailForeignKey.");
+    }
+
+    if (
+      !reader ||
+      typeof reader.findAll !== "function" ||
+      typeof reader.findById !== "function" ||
+      typeof reader.find !== "function"
+    ) {
+      throw new Error("TransactionService requires a compatible reader.");
+    }
+
+    const transactionHooks = hooks;
+    const transactionWriter = writer;
 
     /**
      * ------------------------------------------------------------------------
@@ -46,13 +61,7 @@ const TransactionService = (() => {
      * ------------------------------------------------------------------------
      */
     function findAll() {
-      const response = reader.findAll(headerSchema);
-
-      if (!response.success) {
-        return response;
-      }
-
-      return Response.success(response.data);
+      return Response.success(reader.findAll(headerSchema));
     }
 
     /**
@@ -61,81 +70,54 @@ const TransactionService = (() => {
      * ------------------------------------------------------------------------
      */
     function findById(id) {
+      if (id === null || id === undefined || String(id).trim() === "") {
+        return Response.error("ID wajib diisi.");
+      }
+
       const header = reader.findById(headerSchema, id);
 
-      if (!header.success) {
-        return header;
+      if (!header) {
+        return Response.error(`${headerSchema.NAME} tidak ditemukan.`);
       }
 
-      const details = reader.findAll(detailSchema);
-
-      if (!details.success) {
-        return details;
-      }
-
-      const fk = detailSchema.FIELDS.PICKUP_ID;
-
-      const rows = details.data.filter((item) => {
-        return item[fk] === id;
+      const details = reader.find(detailSchema, {
+        [detailForeignKey]: id,
       });
 
       return Response.success({
-        header: header.data,
+        header,
 
-        details: rows,
+        details,
       });
     }
 
     /**
      * ------------------------------------------------------------------------
-     * Create
+     * Write Operations
      * ------------------------------------------------------------------------
      */
-    function create(document) {
+    function createItem(document) {
       throw new Error("TransactionService.create() not implemented.");
     }
 
-    /**
-     * ------------------------------------------------------------------------
-     * Update
-     * ------------------------------------------------------------------------
-     */
     function update(id, document) {
       throw new Error("TransactionService.update() not implemented.");
     }
 
-    /**
-     * ------------------------------------------------------------------------
-     * Remove
-     * ------------------------------------------------------------------------
-     */
     function remove(id) {
       throw new Error("TransactionService.remove() not implemented.");
     }
 
-    /**
-     * ------------------------------------------------------------------------
-     * Restore
-     * ------------------------------------------------------------------------
-     */
     function restore(id) {
       throw new Error("TransactionService.restore() not implemented.");
     }
 
     return Object.freeze({
-      headerSchema,
-
-      detailSchema,
-
-      reader,
-
-      writer,
-
       findAll,
 
       findById,
 
-      create,
+      create: createItem,
 
       update,
 
