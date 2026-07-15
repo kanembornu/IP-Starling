@@ -23,36 +23,67 @@ const TransactionService = (() => {
    */
   function create(config = {}) {
     const {
-      headerSchema = null,
-      detailSchema = null,
-
       beforeCreate = null,
+
       beforeUpdate = null,
+
       beforeDelete = null,
+
       beforeRestore = null,
 
       afterCreate = null,
+
       afterUpdate = null,
+
       afterDelete = null,
+
       afterRestore = null,
-    } = config;
+    } = hooks;
 
     /**
      * ------------------------------------------------------------------------
-     * Find All
+     * Find All Header
      * ------------------------------------------------------------------------
      */
     function findAll() {
-      throw new Error("TransactionService.findAll() not implemented.");
+      const response = reader.findAll(headerSchema);
+
+      if (!response.success) {
+        return response;
+      }
+
+      return Response.success(response.data);
     }
 
     /**
      * ------------------------------------------------------------------------
-     * Find By Id
+     * Find Transaction
      * ------------------------------------------------------------------------
      */
     function findById(id) {
-      throw new Error("TransactionService.findById() not implemented.");
+      const header = reader.findById(headerSchema, id);
+
+      if (!header.success) {
+        return header;
+      }
+
+      const details = reader.findAll(detailSchema);
+
+      if (!details.success) {
+        return details;
+      }
+
+      const fk = detailSchema.FIELDS.PICKUP_ID;
+
+      const rows = details.data.filter((item) => {
+        return item[fk] === id;
+      });
+
+      return Response.success({
+        header: header.data,
+
+        details: rows,
+      });
     }
 
     /**
@@ -93,23 +124,23 @@ const TransactionService = (() => {
 
     return Object.freeze({
       headerSchema,
+
       detailSchema,
 
-      beforeCreate,
-      beforeUpdate,
-      beforeDelete,
-      beforeRestore,
+      reader,
 
-      afterCreate,
-      afterUpdate,
-      afterDelete,
-      afterRestore,
+      writer,
 
       findAll,
+
       findById,
+
       create,
+
       update,
+
       remove,
+
       restore,
     });
   }

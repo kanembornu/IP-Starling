@@ -480,3 +480,19 @@ function testTransactionService() {
   Logger.log(typeof service.remove);
   Logger.log(typeof service.restore);
 }
+
+function testSchemaRelation() {
+
+  Logger.log(
+    PICKUP_DETAIL_SCHEMA.RELATION
+  );
+
+  Logger.log(
+    RETURN_DETAIL_SCHEMA.RELATION
+  );
+
+  Logger.log(
+    PURCHASING_DETAIL_SCHEMA.RELATION
+  );
+
+}
