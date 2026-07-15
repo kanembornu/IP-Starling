@@ -268,7 +268,9 @@ function testSchema() {
 
   Logger.log(PARTNER_SCHEMA);
 
-  Logger.log(PICKUP_SCHEMA);
+  Logger.log(PICKUP_HEADER_SCHEMA);
+
+  Logger.log(PICKUP_DETAIL_SCHEMA);
 
   Logger.log(RETURN_SCHEMA);
 
@@ -422,6 +424,359 @@ function testPickupServiceHeaderDetailRead() {
   }
 
   Logger.log(response);
+}
+
+function assertPickupCreateFailure(document) {
+  const headerCount = RepositoryReader.count(PICKUP_HEADER_SCHEMA);
+
+  const detailCount = RepositoryReader.count(PICKUP_DETAIL_SCHEMA);
+
+  const response = PickupService().create(document);
+
+  if (response.success) {
+    throw new Error("Pickup creation should have failed.");
+  }
+
+  if (
+    RepositoryReader.count(PICKUP_HEADER_SCHEMA) !== headerCount ||
+    RepositoryReader.count(PICKUP_DETAIL_SCHEMA) !== detailCount
+  ) {
+    throw new Error("Invalid pickup creation must not write data.");
+  }
+
+  Logger.log(response);
+}
+
+function findActivePickupTestPartner() {
+  const partner = RepositoryReader.findAll(PARTNER_SCHEMA).find((item) => {
+    return item[PARTNER_SCHEMA.SYSTEM.IS_ACTIVE] === true;
+  });
+
+  if (!partner) {
+    Logger.log("SKIPPED: Active Partner data is required for this Pickup test.");
+
+    return null;
+  }
+
+  return partner;
+}
+
+function findActivePickupTestProducts(count) {
+  const ids = Object.create(null);
+
+  const products = RepositoryReader.findAll(PRODUCT_SCHEMA).filter((item) => {
+    const id = item[PRODUCT_SCHEMA.PRIMARY_KEY];
+
+    if (item[PRODUCT_SCHEMA.SYSTEM.IS_ACTIVE] !== true || ids[id]) {
+      return false;
+    }
+
+    ids[id] = true;
+
+    return true;
+  });
+
+  if (products.length < count) {
+    Logger.log(
+      `SKIPPED: ${count} distinct active Product record(s) are required for this Pickup test.`,
+    );
+
+    return null;
+  }
+
+  return products;
+}
+
+function testPickupCreateMissingDocument() {
+  assertPickupCreateFailure(null);
+}
+
+function testPickupCreateMissingHeader() {
+  assertPickupCreateFailure({
+    details: [{}],
+  });
+}
+
+function testPickupCreateEmptyDetails() {
+  assertPickupCreateFailure({
+    header: {},
+
+    details: [],
+  });
+}
+
+function testPickupCreateMissingTanggal() {
+  assertPickupCreateFailure({
+    header: {
+      [PICKUP_HEADER_FIELDS.PARTNER_ID]: "PARTNER_TEST",
+    },
+
+    details: [{}],
+  });
+}
+
+function testPickupCreateMissingPartnerId() {
+  assertPickupCreateFailure({
+    header: {
+      [PICKUP_HEADER_FIELDS.DATE]: new Date(),
+    },
+
+    details: [{}],
+  });
+}
+
+function testPickupCreateInvalidPartnerId() {
+  assertPickupCreateFailure({
+    header: {
+      [PICKUP_HEADER_FIELDS.DATE]: new Date(),
+
+      [PICKUP_HEADER_FIELDS.PARTNER_ID]: "PARTNER_TEST_INVALID",
+    },
+
+    details: [{}],
+  });
+}
+
+function testPickupCreateMissingProductId() {
+  const partner = findActivePickupTestPartner();
+
+  if (!partner) {
+    return;
+  }
+
+  assertPickupCreateFailure({
+    header: {
+      [PICKUP_HEADER_FIELDS.DATE]: new Date(),
+
+      [PICKUP_HEADER_FIELDS.PARTNER_ID]:
+        partner[PARTNER_SCHEMA.PRIMARY_KEY],
+    },
+
+    details: [
+      {
+        [PICKUP_DETAIL_FIELDS.QTY]: 1,
+      },
+    ],
+  });
+}
+
+function testPickupCreateInvalidProductId() {
+  const partner = findActivePickupTestPartner();
+
+  if (!partner) {
+    return;
+  }
+
+  assertPickupCreateFailure({
+    header: {
+      [PICKUP_HEADER_FIELDS.DATE]: new Date(),
+
+      [PICKUP_HEADER_FIELDS.PARTNER_ID]:
+        partner[PARTNER_SCHEMA.PRIMARY_KEY],
+    },
+
+    details: [
+      {
+        [PICKUP_DETAIL_FIELDS.PRODUCT_ID]: "PRODUCT_TEST_INVALID",
+
+        [PICKUP_DETAIL_FIELDS.QTY]: 1,
+      },
+    ],
+  });
+}
+
+function testPickupCreateInvalidQty() {
+  const partner = findActivePickupTestPartner();
+
+  if (!partner) {
+    return;
+  }
+
+  const products = findActivePickupTestProducts(1);
+
+  if (!products) {
+    return;
+  }
+
+  [0, -1].forEach((qty) => {
+    assertPickupCreateFailure({
+      header: {
+        [PICKUP_HEADER_FIELDS.DATE]: new Date(),
+
+        [PICKUP_HEADER_FIELDS.PARTNER_ID]:
+          partner[PARTNER_SCHEMA.PRIMARY_KEY],
+      },
+
+      details: [
+        {
+          [PICKUP_DETAIL_FIELDS.PRODUCT_ID]:
+            products[0][PRODUCT_SCHEMA.PRIMARY_KEY],
+
+          [PICKUP_DETAIL_FIELDS.QTY]: qty,
+        },
+      ],
+    });
+  });
+}
+
+function testPickupCreateDuplicateProductId() {
+  const partner = findActivePickupTestPartner();
+
+  if (!partner) {
+    return;
+  }
+
+  const products = findActivePickupTestProducts(1);
+
+  if (!products) {
+    return;
+  }
+
+  assertPickupCreateFailure({
+    header: {
+      [PICKUP_HEADER_FIELDS.DATE]: new Date(),
+
+      [PICKUP_HEADER_FIELDS.PARTNER_ID]:
+        partner[PARTNER_SCHEMA.PRIMARY_KEY],
+    },
+
+    details: [
+      {
+        [PICKUP_DETAIL_FIELDS.PRODUCT_ID]:
+          products[0][PRODUCT_SCHEMA.PRIMARY_KEY],
+
+        [PICKUP_DETAIL_FIELDS.QTY]: 1,
+      },
+
+      {
+        [PICKUP_DETAIL_FIELDS.PRODUCT_ID]:
+          products[0][PRODUCT_SCHEMA.PRIMARY_KEY],
+
+        [PICKUP_DETAIL_FIELDS.QTY]: 1,
+      },
+    ],
+  });
+}
+
+function testPickupCreateValidSingleItem() {
+  const partner = findActivePickupTestPartner();
+
+  if (!partner) {
+    return;
+  }
+
+  const products = findActivePickupTestProducts(1);
+
+  if (!products) {
+    return;
+  }
+
+  const response = PickupService().create({
+    header: {
+      [PICKUP_HEADER_FIELDS.DATE]: new Date(),
+
+      [PICKUP_HEADER_FIELDS.PARTNER_ID]:
+        partner[PARTNER_SCHEMA.PRIMARY_KEY],
+
+      [PICKUP_HEADER_FIELDS.NOTES]: "[TEST] Pickup single-item manual cleanup",
+    },
+
+    details: [
+      {
+        [PICKUP_DETAIL_FIELDS.PRODUCT_ID]:
+          products[0][PRODUCT_SCHEMA.PRIMARY_KEY],
+
+        [PICKUP_DETAIL_FIELDS.QTY]: 2,
+
+        [PICKUP_DETAIL_FIELDS.NOTES]: "[TEST] Pickup single-item detail",
+      },
+    ],
+  });
+
+  if (
+    !response.success ||
+    !response.data ||
+    !response.data.header ||
+    response.data.details.length !== 1 ||
+    response.data.header[PICKUP_HEADER_FIELDS.NUMBER] !==
+      response.data.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] ||
+    response.data.header[PICKUP_HEADER_FIELDS.TOTAL_ITEM] !== 1 ||
+    response.data.header[PICKUP_HEADER_FIELDS.TOTAL_QTY] !== 2 ||
+    response.data.details[0][PICKUP_DETAIL_FIELDS.PICKUP_ID] !==
+      response.data.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]
+  ) {
+    throw new Error("Single-item pickup creation response is invalid.");
+  }
+
+  Logger.log(
+    `Pickup test created header ${response.data.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]} and detail ${response.data.details[0][PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]}.`,
+  );
+}
+
+function testPickupCreateValidMultiItem() {
+  const partner = findActivePickupTestPartner();
+
+  if (!partner) {
+    return;
+  }
+
+  const products = findActivePickupTestProducts(2);
+
+  if (!products) {
+    return;
+  }
+
+  const response = PickupService().create({
+    header: {
+      [PICKUP_HEADER_FIELDS.DATE]: new Date(),
+
+      [PICKUP_HEADER_FIELDS.PARTNER_ID]:
+        partner[PARTNER_SCHEMA.PRIMARY_KEY],
+
+      [PICKUP_HEADER_FIELDS.NOTES]: "[TEST] Pickup multi-item manual cleanup",
+    },
+
+    details: [
+      {
+        [PICKUP_DETAIL_FIELDS.PRODUCT_ID]:
+          products[0][PRODUCT_SCHEMA.PRIMARY_KEY],
+
+        [PICKUP_DETAIL_FIELDS.QTY]: 2,
+
+        [PICKUP_DETAIL_FIELDS.NOTES]: "[TEST] Pickup multi-item detail one",
+      },
+
+      {
+        [PICKUP_DETAIL_FIELDS.PRODUCT_ID]:
+          products[1][PRODUCT_SCHEMA.PRIMARY_KEY],
+
+        [PICKUP_DETAIL_FIELDS.QTY]: 3,
+
+        [PICKUP_DETAIL_FIELDS.NOTES]: "[TEST] Pickup multi-item detail two",
+      },
+    ],
+  });
+
+  if (
+    !response.success ||
+    !response.data ||
+    !response.data.header ||
+    response.data.details.length !== 2 ||
+    response.data.header[PICKUP_HEADER_FIELDS.TOTAL_ITEM] !== 2 ||
+    response.data.header[PICKUP_HEADER_FIELDS.TOTAL_QTY] !== 5 ||
+    !response.data.details.every((detail) => {
+      return (
+        detail[PICKUP_DETAIL_FIELDS.PICKUP_ID] ===
+        response.data.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]
+      );
+    })
+  ) {
+    throw new Error("Multi-item pickup creation response is invalid.");
+  }
+
+  Logger.log(
+    `Pickup test created header ${response.data.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]} and details ${response.data.details.map((detail) => detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]).join(", ")}.`,
+  );
 }
 
 function testReturnService() {
@@ -604,20 +959,4 @@ function testTransactionServiceFindByIdResponseShape() {
   }
 
   Logger.log(response);
-}
-
-function testSchemaRelation() {
-
-  Logger.log(
-    PICKUP_DETAIL_SCHEMA.RELATION
-  );
-
-  Logger.log(
-    RETURN_DETAIL_SCHEMA.RELATION
-  );
-
-  Logger.log(
-    PURCHASING_DETAIL_SCHEMA.RELATION
-  );
-
 }
