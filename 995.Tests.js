@@ -779,6 +779,273 @@ function testPickupCreateValidMultiItem() {
   );
 }
 
+function createPickupUpdateTestTransaction(detailCount) {
+  const partner = findActivePickupTestPartner();
+  const products = findActivePickupTestProducts(detailCount);
+
+  if (!partner || !products) {
+    return null;
+  }
+
+  const response = PickupService().create({
+    header: {
+      [PICKUP_HEADER_FIELDS.DATE]: new Date(),
+      [PICKUP_HEADER_FIELDS.PARTNER_ID]: partner[PARTNER_SCHEMA.PRIMARY_KEY],
+      [PICKUP_HEADER_FIELDS.NOTES]: "[TEST] Pickup update manual cleanup",
+    },
+    details: products.slice(0, detailCount).map((product, index) => ({
+      [PICKUP_DETAIL_FIELDS.PRODUCT_ID]: product[PRODUCT_SCHEMA.PRIMARY_KEY],
+      [PICKUP_DETAIL_FIELDS.QTY]: index + 1,
+      [PICKUP_DETAIL_FIELDS.NOTES]: "[TEST] Pickup update source detail",
+    })),
+  });
+
+  if (!response.success) {
+    throw new Error("Pickup update test transaction could not be created.");
+  }
+
+  Logger.log(
+    `Pickup update test created header ${response.data.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]} and details ${response.data.details.map((detail) => detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]).join(", ")}. Manual cleanup required.`,
+  );
+
+  return response.data;
+}
+
+function assertPickupUpdateFailure(id, document) {
+  const headerCount = RepositoryReader.count(PICKUP_HEADER_SCHEMA);
+  const detailCount = RepositoryReader.count(PICKUP_DETAIL_SCHEMA);
+  const response = PickupService().update(id, document);
+
+  if (response.success) {
+    throw new Error("Pickup update should have failed.");
+  }
+
+  if (
+    RepositoryReader.count(PICKUP_HEADER_SCHEMA) !== headerCount ||
+    RepositoryReader.count(PICKUP_DETAIL_SCHEMA) !== detailCount
+  ) {
+    throw new Error("Invalid pickup update must not write data.");
+  }
+
+  Logger.log(response);
+}
+
+function pickupUpdateDocument(partnerId, productId, qty) {
+  return {
+    header: {
+      [PICKUP_HEADER_FIELDS.DATE]: new Date(),
+      [PICKUP_HEADER_FIELDS.PARTNER_ID]: partnerId,
+      [PICKUP_HEADER_FIELDS.NOTES]: "[TEST] Pickup update replacement",
+    },
+    details: [
+      {
+        [PICKUP_DETAIL_FIELDS.PRODUCT_ID]: productId,
+        [PICKUP_DETAIL_FIELDS.QTY]: qty,
+        [PICKUP_DETAIL_FIELDS.NOTES]: "[TEST] Pickup update replacement detail",
+      },
+    ],
+  };
+}
+
+function testPickupUpdateMissingId() {
+  assertPickupUpdateFailure(" ", null);
+}
+
+function testPickupUpdateUnknownId() {
+  assertPickupUpdateFailure("PH_TEST_UNKNOWN", {
+    header: {},
+    details: [],
+  });
+}
+
+function testPickupUpdateMissingDocument() {
+  const transaction = createPickupUpdateTestTransaction(1);
+
+  if (transaction) {
+    assertPickupUpdateFailure(transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY], null);
+  }
+}
+
+function testPickupUpdateMissingHeader() {
+  const transaction = createPickupUpdateTestTransaction(1);
+
+  if (transaction) {
+    assertPickupUpdateFailure(transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY], {
+      details: [{}],
+    });
+  }
+}
+
+function testPickupUpdateEmptyDetails() {
+  const transaction = createPickupUpdateTestTransaction(1);
+
+  if (transaction) {
+    assertPickupUpdateFailure(transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY], {
+      header: {},
+      details: [],
+    });
+  }
+}
+
+function testPickupUpdateMissingTanggal() {
+  const transaction = createPickupUpdateTestTransaction(1);
+
+  if (transaction) {
+    const detail = transaction.details[0];
+    assertPickupUpdateFailure(transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY], {
+      header: {
+        [PICKUP_HEADER_FIELDS.PARTNER_ID]: transaction.header[PICKUP_HEADER_FIELDS.PARTNER_ID],
+      },
+      details: [detail],
+    });
+  }
+}
+
+function testPickupUpdateMissingPartnerId() {
+  const transaction = createPickupUpdateTestTransaction(1);
+
+  if (transaction) {
+    const detail = transaction.details[0];
+    assertPickupUpdateFailure(transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY], {
+      header: {
+        [PICKUP_HEADER_FIELDS.DATE]: new Date(),
+      },
+      details: [detail],
+    });
+  }
+}
+
+function testPickupUpdateInvalidPartnerId() {
+  const transaction = createPickupUpdateTestTransaction(1);
+
+  if (transaction) {
+    const detail = transaction.details[0];
+    assertPickupUpdateFailure(transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY],
+      pickupUpdateDocument("PARTNER_TEST_INVALID", detail[PICKUP_DETAIL_FIELDS.PRODUCT_ID], 1));
+  }
+}
+
+function testPickupUpdateMissingProductId() {
+  const transaction = createPickupUpdateTestTransaction(1);
+
+  if (transaction) {
+    assertPickupUpdateFailure(transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY], {
+      header: {
+        [PICKUP_HEADER_FIELDS.DATE]: new Date(),
+        [PICKUP_HEADER_FIELDS.PARTNER_ID]: transaction.header[PICKUP_HEADER_FIELDS.PARTNER_ID],
+      },
+      details: [{ [PICKUP_DETAIL_FIELDS.QTY]: 1 }],
+    });
+  }
+}
+
+function testPickupUpdateInvalidProductId() {
+  const transaction = createPickupUpdateTestTransaction(1);
+
+  if (transaction) {
+    assertPickupUpdateFailure(transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY],
+      pickupUpdateDocument(transaction.header[PICKUP_HEADER_FIELDS.PARTNER_ID], "PRODUCT_TEST_INVALID", 1));
+  }
+}
+
+function testPickupUpdateInvalidQty() {
+  const transaction = createPickupUpdateTestTransaction(1);
+
+  if (transaction) {
+    const detail = transaction.details[0];
+    assertPickupUpdateFailure(transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY],
+      pickupUpdateDocument(transaction.header[PICKUP_HEADER_FIELDS.PARTNER_ID], detail[PICKUP_DETAIL_FIELDS.PRODUCT_ID], 0));
+  }
+}
+
+function testPickupUpdateDuplicateProductId() {
+  const transaction = createPickupUpdateTestTransaction(1);
+
+  if (transaction) {
+    const detail = transaction.details[0];
+    const document = pickupUpdateDocument(
+      transaction.header[PICKUP_HEADER_FIELDS.PARTNER_ID],
+      detail[PICKUP_DETAIL_FIELDS.PRODUCT_ID],
+      1,
+    );
+    document.details.push(Object.assign({}, document.details[0]));
+    assertPickupUpdateFailure(transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY], document);
+  }
+}
+
+function assertPickupUpdateReplacement(initialCount, replacementCount) {
+  const transaction = createPickupUpdateTestTransaction(initialCount);
+  const products = findActivePickupTestProducts(replacementCount);
+
+  if (!transaction || !products) {
+    return;
+  }
+
+  const headerId = transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY];
+  const pickupNo = transaction.header[PICKUP_HEADER_FIELDS.NUMBER];
+  const oldDetailIds = transaction.details.map((detail) => detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]);
+  const document = {
+    header: {
+      [PICKUP_HEADER_FIELDS.DATE]: new Date(),
+      [PICKUP_HEADER_FIELDS.PARTNER_ID]: transaction.header[PICKUP_HEADER_FIELDS.PARTNER_ID],
+      [PICKUP_HEADER_FIELDS.NOTES]: "[TEST] Pickup update replacement manual cleanup",
+    },
+    details: products.slice(0, replacementCount).map((product, index) => ({
+      [PICKUP_DETAIL_FIELDS.PRODUCT_ID]: product[PRODUCT_SCHEMA.PRIMARY_KEY],
+      [PICKUP_DETAIL_FIELDS.QTY]: index + 2,
+      [PICKUP_DETAIL_FIELDS.NOTES]: "[TEST] Pickup update replacement detail",
+    })),
+  };
+  const response = PickupService().update(headerId, document);
+
+  if (!response.success) {
+    throw new Error("Pickup update replacement failed.");
+  }
+
+  const expectedQty = document.details.reduce((total, detail) => {
+    return total + Number(detail[PICKUP_DETAIL_FIELDS.QTY]);
+  }, 0);
+  const active = PickupService().findById(headerId);
+  const newDetailIds = response.data.details.map((detail) => detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]);
+
+  if (
+    response.data.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] !== headerId ||
+    response.data.header[PICKUP_HEADER_FIELDS.NUMBER] !== pickupNo ||
+    response.data.header[PICKUP_HEADER_FIELDS.TOTAL_ITEM] !== replacementCount ||
+    response.data.header[PICKUP_HEADER_FIELDS.TOTAL_QTY] !== expectedQty ||
+    !active.success ||
+    active.data.details.length !== replacementCount ||
+    active.data.details.some((detail) => oldDetailIds.indexOf(detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]) !== -1) ||
+    newDetailIds.some((id) => oldDetailIds.indexOf(id) !== -1)
+  ) {
+    throw new Error("Pickup update replacement result is invalid.");
+  }
+
+  Logger.log(
+    `Pickup update test header ${headerId}; old details ${oldDetailIds.join(", ")}; replacement details ${newDetailIds.join(", ")}. Manual cleanup required.`,
+  );
+}
+
+function testPickupUpdateSingleToMultiItem() {
+  assertPickupUpdateReplacement(1, 2);
+}
+
+function testPickupUpdateMultiToSingleItem() {
+  assertPickupUpdateReplacement(2, 1);
+}
+
+function testPickupUpdatePreservesHeaderIdentity() {
+  assertPickupUpdateReplacement(1, 1);
+}
+
+function testPickupUpdateRecalculatesTotals() {
+  assertPickupUpdateReplacement(1, 2);
+}
+
+function testPickupUpdateReplacesActiveDetails() {
+  assertPickupUpdateReplacement(2, 1);
+}
+
 function testReturnService() {
   const service = ReturnService();
 

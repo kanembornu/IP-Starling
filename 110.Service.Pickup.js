@@ -99,6 +99,35 @@ function PickupService() {
         header[PICKUP_HEADER_FIELDS.NUMBER] =
           header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY];
       },
+
+      beforeUpdate(document) {
+        const validation = this.beforeCreate(document);
+
+        if (validation && validation.success === false) {
+          return validation;
+        }
+
+        return {
+          header: {
+            [PICKUP_HEADER_FIELDS.DATE]:
+              validation.header[PICKUP_HEADER_FIELDS.DATE],
+
+            [PICKUP_HEADER_FIELDS.PARTNER_ID]:
+              validation.header[PICKUP_HEADER_FIELDS.PARTNER_ID],
+
+            [PICKUP_HEADER_FIELDS.TOTAL_ITEM]:
+              validation.header[PICKUP_HEADER_FIELDS.TOTAL_ITEM],
+
+            [PICKUP_HEADER_FIELDS.TOTAL_QTY]:
+              validation.header[PICKUP_HEADER_FIELDS.TOTAL_QTY],
+
+            [PICKUP_HEADER_FIELDS.NOTES]:
+              validation.header[PICKUP_HEADER_FIELDS.NOTES],
+          },
+
+          details: validation.details,
+        };
+      },
     },
   });
 }

@@ -56,7 +56,9 @@ const TransactionService = (() => {
       !writer ||
       typeof writer.insert !== "function" ||
       typeof writer.insertMany !== "function" ||
-      typeof writer.softDelete !== "function"
+      typeof writer.update !== "function" ||
+      typeof writer.softDelete !== "function" ||
+      typeof writer.restore !== "function"
     ) {
       throw new Error("TransactionService requires a compatible writer.");
     }
@@ -155,6 +157,45 @@ const TransactionService = (() => {
       } catch (error) {
         return false;
       }
+    }
+
+    function restoreUpdate(header, previousDetails, replacementDetails) {
+      let restored = true;
+
+      replacementDetails.forEach((detail) => {
+        try {
+          const detailId = detail[detailSchema.PRIMARY_KEY];
+
+          if (
+            reader.findById(detailSchema, detailId) &&
+            !writer.softDelete(detailSchema, detailId)
+          ) {
+            restored = false;
+          }
+        } catch (error) {
+          restored = false;
+        }
+      });
+
+      previousDetails.forEach((detail) => {
+        try {
+          if (!writer.restore(detailSchema, detail[detailSchema.PRIMARY_KEY])) {
+            restored = false;
+          }
+        } catch (error) {
+          restored = false;
+        }
+      });
+
+      try {
+        if (!writer.update(headerSchema, header[headerSchema.PRIMARY_KEY], header)) {
+          restored = false;
+        }
+      } catch (error) {
+        restored = false;
+      }
+
+      return restored;
     }
 
     /**
@@ -305,7 +346,138 @@ const TransactionService = (() => {
     }
 
     function update(id, document) {
-      throw new Error("TransactionService.update() not implemented.");
+      if (id === null || id === undefined || String(id).trim() === "") {
+        return Response.error("ID wajib diisi.");
+      }
+
+      const existingHeader = reader.findById(headerSchema, id);
+
+      if (!existingHeader || existingHeader[headerSchema.SYSTEM.IS_ACTIVE] !== true) {
+        return Response.error(`${headerSchema.NAME} tidak ditemukan atau tidak aktif.`);
+      }
+
+      let validation = validateDocument(document);
+
+      if (validation) {
+        return validation;
+      }
+
+      let transaction = {
+        header: Object.assign({}, document.header),
+
+        details: document.details.map((detail) => Object.assign({}, detail)),
+      };
+
+      transaction = runHook("beforeUpdate", transaction, existingHeader);
+
+      if (isResponse(transaction)) {
+        return transaction;
+      }
+
+      validation = validateDocument(transaction);
+
+      if (validation) {
+        return validation;
+      }
+
+      const headerChanges = sanitizeRecord(headerSchema, transaction.header);
+
+      delete headerChanges[headerSchema.PRIMARY_KEY];
+
+      Object.keys(headerSchema.READONLY || {}).forEach((field) => {
+        delete headerChanges[field];
+      });
+
+      delete headerChanges[headerSchema.SYSTEM.IS_DELETED];
+      delete headerChanges[headerSchema.SYSTEM.IS_ACTIVE];
+
+      const now = Utils.now();
+      const user = Utils.currentUser();
+
+      headerChanges[headerSchema.SYSTEM.UPDATED_AT] = now;
+      headerChanges[headerSchema.SYSTEM.UPDATED_BY] = user;
+
+      const updatedHeader = Object.assign({}, existingHeader, headerChanges);
+
+      validation = validateRecord(headerSchema, updatedHeader);
+
+      if (validation) {
+        return validation;
+      }
+
+      for (let index = 0; index < transaction.details.length; index++) {
+        const detail = Object.assign({}, transaction.details[index], {
+          [detailForeignKey]: id,
+        });
+
+        validation = validateRecord(detailSchema, detail);
+
+        if (validation) {
+          return validation;
+        }
+      }
+
+      const previousDetails = reader.find(detailSchema, {
+        [detailForeignKey]: id,
+      });
+
+      const replacementDetails = transaction.details.map((detail) => {
+        return buildInsertRecord(
+          detailSchema,
+
+          Object.assign({}, detail, {
+            [detailForeignKey]: id,
+          }),
+
+          IDGenerator.generate(detailSchema),
+        );
+      });
+
+      try {
+        if (!writer.update(headerSchema, id, headerChanges)) {
+          return Response.error("Gagal memperbarui header transaksi.");
+        }
+      } catch (error) {
+        return Response.error("Gagal memperbarui header transaksi.");
+      }
+
+      const deletedDetailIds = [];
+
+      try {
+        for (let index = 0; index < previousDetails.length; index++) {
+          const detailId = previousDetails[index][detailSchema.PRIMARY_KEY];
+
+          if (!writer.softDelete(detailSchema, detailId)) {
+            throw new Error("Gagal menonaktifkan detail transaksi.");
+          }
+
+          deletedDetailIds.push(detailId);
+        }
+
+        if (!writer.insertMany(detailSchema, replacementDetails)) {
+          throw new Error("Gagal menyimpan detail transaksi.");
+        }
+      } catch (error) {
+        const deletedDetails = previousDetails.filter((detail) => {
+          return deletedDetailIds.indexOf(detail[detailSchema.PRIMARY_KEY]) !== -1;
+        });
+
+        if (restoreUpdate(existingHeader, deletedDetails, replacementDetails)) {
+          return Response.error(
+            "Gagal mengganti detail transaksi. Perubahan transaksi dibatalkan.",
+          );
+        }
+
+        return Response.error(
+          "Gagal mengganti detail transaksi. Rollback tidak dapat dijamin sepenuhnya; periksa transaksi secara manual.",
+        );
+      }
+
+      return Response.success({
+        header: updatedHeader,
+
+        details: replacementDetails,
+      });
     }
 
     function remove(id) {
