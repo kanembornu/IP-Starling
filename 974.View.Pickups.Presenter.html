@@ -34,6 +34,8 @@
 
     let pickups = [];
 
+    let detailRequest = 0;
+
     //===========================================================================
     // Public Render
     //===========================================================================
@@ -44,6 +46,8 @@
       updateHeaders();
 
       bindToolbar();
+
+      bindActions();
 
       renderList(pickups);
     }
@@ -110,8 +114,32 @@
 
         Components.tableCell(renderStatus(pickup), "text-center"),
 
-        Components.tableCell("-", "text-center text-slate-400"),
+        Components.tableCell(renderActions(pickup[FIELD.ID]), "text-center"),
       ]);
+    }
+
+    //===========================================================================
+    // Actions
+    //===========================================================================
+
+    function renderActions(id) {
+      if (Utils.isEmpty(id)) {
+        return "-";
+      }
+
+      return `
+        <button
+          type="button"
+          data-pickup-action="view"
+          data-pickup-id="${text(id)}"
+          title="View"
+          class="inline-flex items-center gap-2 px-3 py-2 rounded-lg transition bg-slate-100 hover:bg-slate-200 text-slate-700"
+        >
+          ${Components.icon("fa-eye")}
+
+          <span>View</span>
+        </button>
+      `;
     }
 
     //===========================================================================
@@ -192,6 +220,180 @@
       }
     }
 
+    function bindActions() {
+      const body = DOM.$("tbl-pickups-body");
+
+      if (!body || body.dataset.pickupActionsBound) {
+        return;
+      }
+
+      body.dataset.pickupActionsBound = "true";
+
+      body.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-pickup-action]");
+
+        if (!button || !body.contains(button)) {
+          return;
+        }
+
+        if (button.dataset.pickupAction === "view") {
+          view(button.dataset.pickupId);
+        }
+      });
+    }
+
+    //===========================================================================
+    // Detail View
+    //===========================================================================
+
+    async function view(id) {
+      if (Utils.isEmpty(id)) {
+        Components.toast("Pickup ID is unavailable.", "error");
+
+        return;
+      }
+
+      const request = ++detailRequest;
+
+      Modal.open({
+        title: "Pickup Detail",
+
+        width: "lg",
+
+        body: Components.loading("Loading pickup..."),
+
+        footer: renderCloseAction(),
+      });
+
+      bindCloseAction();
+
+      let response;
+
+      try {
+        response = await Api.Pickup.findById(id);
+      } catch (error) {
+        if (request !== detailRequest) {
+          return;
+        }
+
+        showDetailError("Load pickup failed.");
+
+        return;
+      }
+
+      if (request !== detailRequest) {
+        return;
+      }
+
+      if (!isDetailResponse(response)) {
+        showDetailError(response?.message || "Pickup detail is unavailable.");
+
+        return;
+      }
+
+      Modal.body(renderDetail(response.data.header, response.data.details));
+    }
+
+    function isDetailResponse(response) {
+      return Boolean(
+        response?.success &&
+          response.data &&
+          typeof response.data.header === "object" &&
+          !Array.isArray(response.data.header) &&
+          Array.isArray(response.data.details),
+      );
+    }
+
+    function showDetailError(message) {
+      Components.toast(message, "error");
+
+      Modal.body(Components.empty(message));
+    }
+
+    function renderDetail(header = {}, details = []) {
+      return `
+        <div class="space-y-6">
+          <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2 text-sm">
+            ${detailField("Pickup No / ID", header[FIELD.PICKUP_NO] || header[FIELD.ID])}
+            ${detailField("Tanggal", Format.date(header[FIELD.DATE]))}
+            ${detailField("Partner", header[FIELD.PARTNER_ID])}
+            ${detailField("Status", header[FIELD.STATUS])}
+            ${detailField("Total Item", Format.number(header[FIELD.TOTAL_ITEM]))}
+            ${detailField("Total Qty", Format.number(header[FIELD.TOTAL_QTY]))}
+            ${
+              Utils.isEmpty(header[FIELD.NOTES])
+                ? ""
+                : detailField("Notes", header[FIELD.NOTES], "sm:col-span-2")
+            }
+          </dl>
+
+          <div>
+            <h3 class="mb-3 text-sm font-semibold text-slate-800">Details</h3>
+
+            ${renderDetails(details)}
+          </div>
+        </div>
+      `;
+    }
+
+    function detailField(label, value, classes = "") {
+      return `
+        <div class="${classes}">
+          <dt class="text-slate-500">${label}</dt>
+          <dd class="mt-1 font-medium text-slate-800 break-words">${text(value)}</dd>
+        </div>
+      `;
+    }
+
+    function renderDetails(details = []) {
+      if (!details.length) {
+        return Components.empty("No pickup details available.");
+      }
+
+      return `
+        <div class="overflow-x-auto border border-slate-200 rounded-lg">
+          <table class="min-w-full text-sm">
+            <thead class="bg-slate-50 text-left text-slate-600">
+              <tr>
+                <th class="px-4 py-3 font-medium">Product</th>
+                <th class="px-4 py-3 font-medium text-right">Qty</th>
+                <th class="px-4 py-3 font-medium">Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${details.map(renderDetailRow).join("")}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderDetailRow(detail = {}) {
+      return `
+        <tr class="border-t border-slate-200">
+          <td class="px-4 py-3 text-slate-700">${text(detail.ProductID)}</td>
+          <td class="px-4 py-3 text-right text-slate-700">${text(detail.Qty)}</td>
+          <td class="px-4 py-3 text-slate-700">${text(detail.Notes)}</td>
+        </tr>
+      `;
+    }
+
+    function renderCloseAction() {
+      return `
+        <button
+          type="button"
+          id="btn-pickup-detail-close"
+          class="px-5 py-2 rounded-lg border border-slate-300 hover:bg-slate-100"
+        >
+          Close
+        </button>
+      `;
+    }
+
+    function bindCloseAction() {
+      DOM.$("btn-pickup-detail-close")?.addEventListener("click", Modal.close);
+    }
+
     function filter(keyword = "") {
       const value = String(keyword || "")
         .trim()
@@ -270,6 +472,8 @@
 
     return Object.freeze({
       render,
+
+      view,
     });
   })();
 </script>
