@@ -2,8 +2,8 @@
   /**
    * =============================================================================
    * FILE        : 974.View.Pickups.Presenter.html
-   * VERSION     : 1.0.0
-   * DESCRIPTION : Pickup Header List Presenter
+   * VERSION     : 1.1.0
+   * DESCRIPTION : Pickup Header-Detail Presenter
    * =============================================================================
    */
 
@@ -35,6 +35,16 @@
     let pickups = [];
 
     let detailRequest = 0;
+
+    let masterProducts = null;
+
+    let masterPartners = null;
+
+    let createForm = null;
+
+    let createSubmitting = false;
+
+    let nextDetailId = 1;
 
     //===========================================================================
     // Public Render
@@ -218,6 +228,14 @@
           App.refresh();
         });
       }
+
+      const add = DOM.$("btn-pickup-add");
+
+      if (add && !add.dataset.pickupBound) {
+        add.dataset.pickupBound = "true";
+
+        add.addEventListener("click", openCreate);
+      }
     }
 
     function bindActions() {
@@ -394,6 +412,445 @@
       DOM.$("btn-pickup-detail-close")?.addEventListener("click", Modal.close);
     }
 
+    //===========================================================================
+    // Create
+    //===========================================================================
+
+    async function openCreate() {
+      if (createSubmitting) {
+        return;
+      }
+
+      const masterData = await loadMasterData();
+
+      if (!masterData) {
+        return;
+      }
+
+      resetCreateForm();
+
+      Modal.open({
+        title: "Add Pickup",
+        width: "xl",
+        body: renderCreateForm(),
+        footer: renderCreateFooter(),
+      });
+
+      bindCreateForm();
+
+      DOM.$("inp-pickup-create-date")?.focus();
+    }
+
+    async function loadMasterData() {
+      if (masterProducts && masterPartners) {
+        return true;
+      }
+
+      let productsResponse;
+
+      let partnersResponse;
+
+      try {
+        [productsResponse, partnersResponse] = await Promise.all([
+          masterProducts ? Promise.resolve({ success: true, data: masterProducts }) : Api.Product.list(),
+          masterPartners ? Promise.resolve({ success: true, data: masterPartners }) : Api.Partner.list(),
+        ]);
+      } catch (error) {
+        Toast.error("Master data for Pickup could not be loaded.");
+
+        return false;
+      }
+
+      if (!productsResponse?.success || !partnersResponse?.success) {
+        Toast.error(
+          productsResponse?.message || partnersResponse?.message || "Master data for Pickup could not be loaded.",
+        );
+
+        return false;
+      }
+
+      masterProducts = selectableRecords(productsResponse.data);
+
+      masterPartners = selectableRecords(partnersResponse.data);
+
+      if (!masterProducts.length || !masterPartners.length) {
+        Toast.error("Active Product and Partner data are required to create a Pickup.");
+
+        return false;
+      }
+
+      return true;
+    }
+
+    function selectableRecords(data) {
+      const records = Array.isArray(data) ? data : [];
+
+      return records.filter((record) => {
+        return isActive(record?.IsActive) && !isDeleted(record?.Deleted);
+      });
+    }
+
+    function isDeleted(value) {
+      return value === true || String(value).toLowerCase() === "true";
+    }
+
+    function resetCreateForm() {
+      nextDetailId = 1;
+
+      createSubmitting = false;
+
+      createForm = {
+        header: {
+          Tanggal: "",
+          PartnerID: "",
+          Notes: "",
+        },
+        details: [newDetail()],
+      };
+    }
+
+    function newDetail() {
+      return {
+        localId: String(nextDetailId++),
+        ProductID: "",
+        Qty: "",
+        Notes: "",
+      };
+    }
+
+    function renderCreateForm() {
+      return `
+        <div id="pickup-create-form" class="space-y-6">
+          <section class="space-y-4">
+            <h3 class="text-sm font-semibold text-slate-800">Header</h3>
+
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              ${renderCreateDate()}
+              ${renderCreatePartner()}
+            </div>
+
+            <div>
+              <label for="inp-pickup-create-notes" class="mb-1 block text-sm font-medium text-slate-700">Notes</label>
+              <textarea id="inp-pickup-create-notes" data-pickup-create-field="Notes" rows="3" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Optional notes">${escape(createForm.header.Notes)}</textarea>
+            </div>
+          </section>
+
+          <section class="space-y-3">
+            <div class="flex items-center justify-between gap-3">
+              <h3 class="text-sm font-semibold text-slate-800">Items</h3>
+              <button type="button" data-pickup-create-action="add-detail" class="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-100">
+                ${Components.icon("fa-plus")} <span class="ml-1">Add Item</span>
+              </button>
+            </div>
+
+            <div id="pickup-create-details" class="space-y-3"></div>
+
+            <div class="flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-600">
+              <span>Total Item: <strong id="lbl-pickup-create-total-item" class="text-slate-800"></strong></span>
+              <span>Total Qty: <strong id="lbl-pickup-create-total-qty" class="text-slate-800"></strong></span>
+            </div>
+          </section>
+        </div>
+      `;
+    }
+
+    function renderCreateDate() {
+      return `
+        <div>
+          <label for="inp-pickup-create-date" class="mb-1 block text-sm font-medium text-slate-700">Tanggal</label>
+          <input id="inp-pickup-create-date" data-pickup-create-field="Tanggal" type="date" value="${escape(createForm.header.Tanggal)}" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+      `;
+    }
+
+    function renderCreatePartner() {
+      return `
+        <div>
+          <label for="inp-pickup-create-partner" class="mb-1 block text-sm font-medium text-slate-700">Partner</label>
+          <select id="inp-pickup-create-partner" data-pickup-create-field="PartnerID" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="">-- Select Partner --</option>
+            ${masterPartners.map((partner) => renderOption(partner, createForm.header.PartnerID)).join("")}
+          </select>
+        </div>
+      `;
+    }
+
+    function renderCreateDetails() {
+      const container = DOM.$("pickup-create-details");
+
+      if (!container || !createForm) {
+        return;
+      }
+
+      container.innerHTML = createForm.details.map(renderCreateDetail).join("");
+
+      renderCreateTotals();
+    }
+
+    function renderCreateDetail(detail) {
+      const cannotRemove = createForm.details.length === 1;
+
+      return `
+        <div data-pickup-detail-id="${escape(detail.localId)}" class="rounded-lg border border-slate-200 p-4">
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,2fr)_auto] md:items-end">
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">Product</label>
+              <select data-pickup-detail-field="ProductID" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">-- Select Product --</option>
+                ${masterProducts.map((product) => renderOption(product, detail.ProductID)).join("")}
+              </select>
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">Qty</label>
+              <input data-pickup-detail-field="Qty" type="number" min="0" step="any" value="${escape(detail.Qty)}" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0" />
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">Notes</label>
+              <input data-pickup-detail-field="Notes" type="text" value="${escape(detail.Notes)}" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Optional notes" />
+            </div>
+            <button type="button" data-pickup-create-action="remove-detail" title="${cannotRemove ? "At least one item is required" : "Remove item"}" ${cannotRemove ? "disabled" : ""} class="rounded-lg border border-red-200 px-3 py-2 text-red-700 hover:bg-red-50 ${cannotRemove ? "cursor-not-allowed opacity-50" : ""}">
+              ${Components.icon("fa-trash")} <span class="ml-1">Remove</span>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderOption(record, selectedId) {
+      const id = record?.ID;
+
+      const name = record?.Nama || id;
+
+      return `<option value="${escape(id)}" ${String(id) === String(selectedId) ? "selected" : ""}>${escape(name)} (${escape(id)})</option>`;
+    }
+
+    function renderCreateTotals() {
+      const totalQty = createForm.details.reduce((total, detail) => {
+        const qty = Number(detail.Qty);
+
+        return Number.isFinite(qty) && qty > 0 ? total + qty : total;
+      }, 0);
+
+      DOM.text(DOM.$("lbl-pickup-create-total-item"), String(createForm.details.length));
+      DOM.text(DOM.$("lbl-pickup-create-total-qty"), String(totalQty));
+    }
+
+    function renderCreateFooter() {
+      return `
+        <button type="button" data-pickup-create-action="cancel" class="rounded-lg border border-slate-300 px-5 py-2 hover:bg-slate-100">Cancel</button>
+        <button type="button" id="btn-pickup-create-save" data-pickup-create-action="save" class="rounded-lg bg-blue-600 px-5 py-2 text-white hover:bg-blue-700">Save Pickup</button>
+      `;
+    }
+
+    function bindCreateForm() {
+      renderCreateDetails();
+
+      const form = DOM.$("pickup-create-form");
+
+      if (!form) {
+        return;
+      }
+
+      form.addEventListener("input", handleCreateInput);
+      form.addEventListener("change", handleCreateInput);
+      form.addEventListener("click", handleCreateClick);
+
+      const footer = DOM.$("modal-footer");
+
+      if (footer && !footer.dataset.pickupCreateBound) {
+        footer.dataset.pickupCreateBound = "true";
+        footer.addEventListener("click", handleCreateFooterClick);
+      }
+
+      const close = DOM.$("btn-modal-close");
+
+      if (close && !close.dataset.pickupCreateBound) {
+        close.dataset.pickupCreateBound = "true";
+        close.addEventListener("click", () => {
+          if (createForm && !createSubmitting) {
+            closeCreate();
+          }
+        });
+      }
+    }
+
+    function handleCreateInput(event) {
+      const field = event.target.dataset.pickupCreateField;
+
+      if (field) {
+        createForm.header[field] = event.target.value;
+
+        return;
+      }
+
+      const detailField = event.target.dataset.pickupDetailField;
+
+      const detail = findDetail(event.target.closest("[data-pickup-detail-id]")?.dataset.pickupDetailId);
+
+      if (!detailField || !detail) {
+        return;
+      }
+
+      detail[detailField] = event.target.value;
+
+      if (detailField === "Qty") {
+        renderCreateTotals();
+      }
+    }
+
+    function handleCreateClick(event) {
+      const action = event.target.closest("[data-pickup-create-action]")?.dataset.pickupCreateAction;
+
+      if (action === "add-detail") {
+        createForm.details.push(newDetail());
+        renderCreateDetails();
+
+        return;
+      }
+
+      if (action === "remove-detail") {
+        const detail = event.target.closest("[data-pickup-detail-id]");
+        removeDetail(detail?.dataset.pickupDetailId);
+      }
+    }
+
+    function handleCreateFooterClick(event) {
+      const action = event.target.closest("[data-pickup-create-action]")?.dataset.pickupCreateAction;
+
+      if (action === "cancel") {
+        closeCreate();
+
+        return;
+      }
+
+      if (action === "save") {
+        submitCreate();
+      }
+    }
+
+    function removeDetail(localId) {
+      if (createForm.details.length === 1 || !localId) {
+        return;
+      }
+
+      createForm.details = createForm.details.filter((detail) => detail.localId !== localId);
+      renderCreateDetails();
+    }
+
+    function findDetail(localId) {
+      return createForm?.details.find((detail) => detail.localId === localId);
+    }
+
+    async function submitCreate() {
+      if (createSubmitting || !createForm) {
+        return;
+      }
+
+      const validation = validateCreate();
+
+      if (!validation.valid) {
+        Toast.warning(validation.message);
+        validation.element?.focus();
+
+        return;
+      }
+
+      createSubmitting = true;
+      setCreateLoading(true);
+
+      try {
+        const response = await Api.Pickup.create(validation.document);
+
+        if (!response?.success) {
+          Toast.error(response?.message || "Pickup could not be created.");
+
+          return;
+        }
+
+        Toast.success(response.message || "Pickup created.");
+        closeCreate();
+        await App.refresh();
+      } catch (error) {
+        Toast.error("Pickup could not be created. Please try again.");
+      } finally {
+        createSubmitting = false;
+        setCreateLoading(false);
+      }
+    }
+
+    function validateCreate() {
+      const header = {
+        Tanggal: String(createForm.header.Tanggal || "").trim(),
+        PartnerID: String(createForm.header.PartnerID || "").trim(),
+        Notes: String(createForm.header.Notes || "").trim(),
+      };
+
+      if (!header.Tanggal) {
+        return invalidCreate("Tanggal is required.", DOM.$("inp-pickup-create-date"));
+      }
+
+      if (!header.PartnerID) {
+        return invalidCreate("Partner is required.", DOM.$("inp-pickup-create-partner"));
+      }
+
+      if (!createForm.details.length) {
+        return invalidCreate("At least one item is required.");
+      }
+
+      const productIds = new Set();
+      const details = [];
+
+      for (const detail of createForm.details) {
+        const productId = String(detail.ProductID || "").trim();
+        const qty = Number(detail.Qty);
+        const row = document.querySelector(`[data-pickup-detail-id="${detail.localId}"]`);
+
+        if (!productId) {
+          return invalidCreate("Each item needs a Product.", row?.querySelector('[data-pickup-detail-field="ProductID"]'));
+        }
+
+        if (!Number.isFinite(qty)) {
+          return invalidCreate("Each Qty must be numeric.", row?.querySelector('[data-pickup-detail-field="Qty"]'));
+        }
+
+        if (qty <= 0) {
+          return invalidCreate("Each Qty must be greater than zero.", row?.querySelector('[data-pickup-detail-field="Qty"]'));
+        }
+
+        if (productIds.has(productId)) {
+          return invalidCreate("Duplicate Products are not allowed.", row?.querySelector('[data-pickup-detail-field="ProductID"]'));
+        }
+
+        productIds.add(productId);
+        details.push({ ProductID: productId, Qty: qty, Notes: String(detail.Notes || "").trim() });
+      }
+
+      return { valid: true, document: { header, details } };
+    }
+
+    function invalidCreate(message, element = null) {
+      return { valid: false, message, element };
+    }
+
+    function setCreateLoading(loading) {
+      const button = DOM.$("btn-pickup-create-save");
+
+      if (!button) {
+        return;
+      }
+
+      button.disabled = loading;
+      button.classList.toggle("opacity-50", loading);
+      button.classList.toggle("cursor-not-allowed", loading);
+      button.textContent = loading ? "Saving..." : "Save Pickup";
+    }
+
+    function closeCreate() {
+      createForm = null;
+      createSubmitting = false;
+      Modal.close();
+    }
+
     function filter(keyword = "") {
       const value = String(keyword || "")
         .trim()
@@ -466,6 +923,10 @@
       return Utils.escapeHTML(value);
     }
 
+    function escape(value) {
+      return Utils.escapeHTML(String(value ?? ""));
+    }
+
     //===========================================================================
     // Public API
     //===========================================================================
@@ -474,6 +935,10 @@
       render,
 
       view,
+
+      openCreate,
+
+      submitCreate,
     });
   })();
 </script>
