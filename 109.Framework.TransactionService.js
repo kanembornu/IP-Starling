@@ -45,6 +45,7 @@ const TransactionService = (() => {
 
     if (
       !reader ||
+      typeof reader.raw !== "function" ||
       typeof reader.findAll !== "function" ||
       typeof reader.findById !== "function" ||
       typeof reader.find !== "function"
@@ -189,6 +190,68 @@ const TransactionService = (() => {
 
       try {
         if (!writer.update(headerSchema, header[headerSchema.PRIMARY_KEY], header)) {
+          restored = false;
+        }
+      } catch (error) {
+        restored = false;
+      }
+
+      return restored;
+    }
+
+    function findIncludingDeleted(schema, criteria = {}) {
+      return RepositoryBase.mapRows(schema, reader.raw(schema)).filter((item) => {
+        return Object.keys(criteria).every((key) => item[key] === criteria[key]);
+      });
+    }
+
+    function findByIdIncludingDeleted(schema, id) {
+      return (
+        findIncludingDeleted(schema, {
+          [schema.PRIMARY_KEY]: id,
+        })[0] || null
+      );
+    }
+
+    function rollbackRemove(header, details) {
+      let restored = true;
+
+      details.forEach((detail) => {
+        try {
+          if (!writer.restore(detailSchema, detail[detailSchema.PRIMARY_KEY])) {
+            restored = false;
+          }
+        } catch (error) {
+          restored = false;
+        }
+      });
+
+      try {
+        if (!writer.restore(headerSchema, header[headerSchema.PRIMARY_KEY])) {
+          restored = false;
+        }
+      } catch (error) {
+        restored = false;
+      }
+
+      return restored;
+    }
+
+    function rollbackRestore(header, details) {
+      let restored = true;
+
+      details.forEach((detail) => {
+        try {
+          if (!writer.softDelete(detailSchema, detail[detailSchema.PRIMARY_KEY])) {
+            restored = false;
+          }
+        } catch (error) {
+          restored = false;
+        }
+      });
+
+      try {
+        if (!writer.softDelete(headerSchema, header[headerSchema.PRIMARY_KEY])) {
           restored = false;
         }
       } catch (error) {
@@ -481,11 +544,141 @@ const TransactionService = (() => {
     }
 
     function remove(id) {
-      throw new Error("TransactionService.remove() not implemented.");
+      if (id === null || id === undefined || String(id).trim() === "") {
+        return Response.error("ID wajib diisi.");
+      }
+
+      const header = findByIdIncludingDeleted(headerSchema, id);
+
+      if (!header) {
+        return Response.error(`${headerSchema.NAME} tidak ditemukan.`);
+      }
+
+      const details = findIncludingDeleted(detailSchema, {
+        [detailForeignKey]: id,
+      });
+
+      if (header[headerSchema.SYSTEM.IS_DELETED] === true) {
+        return Response.success({
+          header,
+
+          details,
+        });
+      }
+
+      try {
+        if (!writer.softDelete(headerSchema, id)) {
+          return Response.error("Gagal menghapus header transaksi.");
+        }
+      } catch (error) {
+        return Response.error("Gagal menghapus header transaksi.");
+      }
+
+      const deletedDetails = [];
+
+      try {
+        for (let index = 0; index < details.length; index++) {
+          const detail = details[index];
+
+          if (detail[detailSchema.SYSTEM.IS_DELETED] === true) {
+            continue;
+          }
+
+          if (!writer.softDelete(detailSchema, detail[detailSchema.PRIMARY_KEY])) {
+            throw new Error("Gagal menghapus detail transaksi.");
+          }
+
+          deletedDetails.push(detail);
+        }
+      } catch (error) {
+        if (rollbackRemove(header, deletedDetails)) {
+          return Response.error(
+            "Gagal menghapus detail transaksi. Perubahan transaksi dibatalkan.",
+          );
+        }
+
+        return Response.error(
+          "Gagal menghapus detail transaksi. Rollback tidak dapat dijamin sepenuhnya; periksa transaksi secara manual.",
+        );
+      }
+
+      return Response.success({
+        header: findByIdIncludingDeleted(headerSchema, id),
+
+        details: findIncludingDeleted(detailSchema, {
+          [detailForeignKey]: id,
+        }),
+      });
     }
 
     function restore(id) {
-      throw new Error("TransactionService.restore() not implemented.");
+      if (id === null || id === undefined || String(id).trim() === "") {
+        return Response.error("ID wajib diisi.");
+      }
+
+      const header = findByIdIncludingDeleted(headerSchema, id);
+
+      if (!header) {
+        return Response.error(`${headerSchema.NAME} tidak ditemukan.`);
+      }
+
+      const details = findIncludingDeleted(detailSchema, {
+        [detailForeignKey]: id,
+      });
+
+      if (header[headerSchema.SYSTEM.IS_DELETED] !== true) {
+        return Response.success({
+          header,
+
+          details: details.filter((detail) => {
+            return detail[detailSchema.SYSTEM.IS_DELETED] !== true;
+          }),
+        });
+      }
+
+      try {
+        if (!writer.restore(headerSchema, id)) {
+          return Response.error("Gagal memulihkan header transaksi.");
+        }
+      } catch (error) {
+        return Response.error("Gagal memulihkan header transaksi.");
+      }
+
+      const restoredDetails = [];
+
+      try {
+        for (let index = 0; index < details.length; index++) {
+          const detail = details[index];
+
+          if (detail[detailSchema.SYSTEM.IS_DELETED] !== true) {
+            continue;
+          }
+
+          if (!writer.restore(detailSchema, detail[detailSchema.PRIMARY_KEY])) {
+            throw new Error("Gagal memulihkan detail transaksi.");
+          }
+
+          restoredDetails.push(detail);
+        }
+      } catch (error) {
+        if (rollbackRestore(header, restoredDetails)) {
+          return Response.error(
+            "Gagal memulihkan detail transaksi. Perubahan transaksi dibatalkan.",
+          );
+        }
+
+        return Response.error(
+          "Gagal memulihkan detail transaksi. Rollback tidak dapat dijamin sepenuhnya; periksa transaksi secara manual.",
+        );
+      }
+
+      return Response.success({
+        header: reader.findById(headerSchema, id),
+
+        details: reader.find(detailSchema, {
+          [detailForeignKey]: id,
+        }),
+      });
     }
 
     return Object.freeze({

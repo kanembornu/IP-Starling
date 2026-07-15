@@ -1046,6 +1046,220 @@ function testPickupUpdateReplacesActiveDetails() {
   assertPickupUpdateReplacement(2, 1);
 }
 
+function findPickupRecordIncludingDeleted(schema, id) {
+  return RepositoryBase.mapRows(schema, RepositoryReader.raw(schema)).find((item) => {
+    return item[schema.PRIMARY_KEY] === id;
+  }) || null;
+}
+
+function findPickupDetailsIncludingDeleted(pickupId) {
+  return RepositoryBase.mapRows(
+    PICKUP_DETAIL_SCHEMA,
+    RepositoryReader.raw(PICKUP_DETAIL_SCHEMA),
+  ).filter((detail) => {
+    return detail[PICKUP_DETAIL_FIELDS.PICKUP_ID] === pickupId;
+  });
+}
+
+function assertPickupRemoved(transaction) {
+  const headerId = transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY];
+  const pickupNo = transaction.header[PICKUP_HEADER_FIELDS.NUMBER];
+  const detailIds = transaction.details.map((detail) => detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]);
+  const response = PickupService().remove(headerId);
+  const storedHeader = findPickupRecordIncludingDeleted(PICKUP_HEADER_SCHEMA, headerId);
+  const storedDetails = findPickupDetailsIncludingDeleted(headerId);
+
+  if (
+    !response.success ||
+    PickupService().findById(headerId).success ||
+    PickupService().findAll().data.some((header) => header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] === headerId) ||
+    RepositoryReader.find(PICKUP_DETAIL_SCHEMA, {
+      [PICKUP_DETAIL_FIELDS.PICKUP_ID]: headerId,
+    }).length !== 0 ||
+    !storedHeader ||
+    storedHeader[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] !== headerId ||
+    storedHeader[PICKUP_HEADER_FIELDS.NUMBER] !== pickupNo ||
+    storedHeader[PICKUP_HEADER_SCHEMA.SYSTEM.IS_DELETED] !== true ||
+    storedDetails.length !== detailIds.length ||
+    storedDetails.some((detail) =>
+      detail[PICKUP_DETAIL_SCHEMA.SYSTEM.IS_DELETED] !== true ||
+      detailIds.indexOf(detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]) === -1,
+    )
+  ) {
+    throw new Error("Pickup remove result is invalid.");
+  }
+
+  return {
+    headerId,
+    pickupNo,
+    detailIds,
+  };
+}
+
+function assertPickupRestored(identity) {
+  const response = PickupService().restore(identity.headerId);
+  const active = PickupService().findById(identity.headerId);
+
+  if (
+    !response.success ||
+    !active.success ||
+    active.data.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] !== identity.headerId ||
+    active.data.header[PICKUP_HEADER_FIELDS.NUMBER] !== identity.pickupNo ||
+    active.data.details.length !== identity.detailIds.length ||
+    active.data.details.some((detail) =>
+      identity.detailIds.indexOf(detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]) === -1,
+    )
+  ) {
+    throw new Error("Pickup restore result is invalid.");
+  }
+
+  return active.data;
+}
+
+function testPickupRemoveMissingId() {
+  const response = PickupService().remove(" ");
+
+  if (response.success) {
+    throw new Error("Pickup remove must reject an empty ID.");
+  }
+
+  Logger.log(response);
+}
+
+function testPickupRemoveUnknownId() {
+  const response = PickupService().remove("PH_TEST_UNKNOWN");
+
+  if (response.success) {
+    throw new Error("Pickup remove must reject an unknown ID.");
+  }
+
+  Logger.log(response);
+}
+
+function testPickupRemoveHeaderAndDetails() {
+  const transaction = createPickupUpdateTestTransaction(1);
+
+  if (transaction) {
+    assertPickupRemoved(transaction);
+  }
+}
+
+function testPickupRemovePreservesIdentity() {
+  const transaction = createPickupUpdateTestTransaction(1);
+
+  if (transaction) {
+    assertPickupRemoved(transaction);
+  }
+}
+
+function testPickupRemoveDoesNotAffectOtherPickup() {
+  const target = createPickupUpdateTestTransaction(1);
+  const other = createPickupUpdateTestTransaction(1);
+
+  if (!target || !other) {
+    return;
+  }
+
+  assertPickupRemoved(target);
+
+  if (!PickupService().findById(other.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]).success) {
+    throw new Error("Pickup remove affected another transaction.");
+  }
+}
+
+function testPickupRemoveAlreadyDeleted() {
+  const transaction = createPickupUpdateTestTransaction(1);
+
+  if (!transaction) {
+    return;
+  }
+
+  const identity = assertPickupRemoved(transaction);
+  const response = PickupService().remove(identity.headerId);
+
+  if (!response.success || response.data.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] !== identity.headerId) {
+    throw new Error("Pickup remove must follow the idempotent writer convention.");
+  }
+}
+
+function testPickupRestoreMissingId() {
+  const response = PickupService().restore(" ");
+
+  if (response.success) {
+    throw new Error("Pickup restore must reject an empty ID.");
+  }
+
+  Logger.log(response);
+}
+
+function testPickupRestoreUnknownId() {
+  const response = PickupService().restore("PH_TEST_UNKNOWN");
+
+  if (response.success) {
+    throw new Error("Pickup restore must reject an unknown ID.");
+  }
+
+  Logger.log(response);
+}
+
+function testPickupRestoreHeaderAndDetails() {
+  const transaction = createPickupUpdateTestTransaction(1);
+
+  if (transaction) {
+    assertPickupRestored(assertPickupRemoved(transaction));
+  }
+}
+
+function testPickupRestorePreservesIdentity() {
+  const transaction = createPickupUpdateTestTransaction(1);
+
+  if (transaction) {
+    assertPickupRestored(assertPickupRemoved(transaction));
+  }
+}
+
+function testPickupRestoreDoesNotAffectOtherPickup() {
+  const target = createPickupUpdateTestTransaction(1);
+  const other = createPickupUpdateTestTransaction(1);
+
+  if (!target || !other) {
+    return;
+  }
+
+  assertPickupRestored(assertPickupRemoved(target));
+
+  if (!PickupService().findById(other.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]).success) {
+    throw new Error("Pickup restore affected another transaction.");
+  }
+}
+
+function testPickupRestoreAlreadyActive() {
+  const transaction = createPickupUpdateTestTransaction(1);
+
+  if (!transaction) {
+    return;
+  }
+
+  const response = PickupService().restore(
+    transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY],
+  );
+
+  if (!response.success || response.data.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] !== transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]) {
+    throw new Error("Pickup restore must follow the idempotent writer convention.");
+  }
+}
+
+function testPickupRemoveRestoreRoundTrip() {
+  const transaction = createPickupUpdateTestTransaction(2);
+
+  if (transaction) {
+    const restored = assertPickupRestored(assertPickupRemoved(transaction));
+    Logger.log(
+      `Pickup remove-restore test header ${restored.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]} and details ${restored.details.map((detail) => detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]).join(", ")}. Manual cleanup required.`,
+    );
+  }
+}
+
 function testReturnService() {
   const service = ReturnService();
 
