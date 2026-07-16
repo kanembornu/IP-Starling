@@ -1,38 +1,59 @@
 <script>
   /**
    * =============================================================================
-   * FILE        : 978.View.Returns.Presenter.html
-   * VERSION     : 1.0.0
-   * DESCRIPTION : Returns Presenter
+   * FILE        : 979.View.Returns.Presenter.html
+   * VERSION     : 1.1.0
+   * DESCRIPTION : Returns List Presenter
    * =============================================================================
    */
 
   const ReturnsPresenter = (() => {
-    //===========================================================================
-    // Fields
-    //===========================================================================
-
     const FIELD = Object.freeze({
       ID: "ID",
-
-      PICKUP: "PickupID",
-
+      PICKUP_ID: "PickupID",
+      PICKUP_DETAIL_ID: "PickupDetailID",
       DATE: "Tanggal",
-
       QTY: "Qty",
-
       NOTE: "Keterangan",
-
+      DELETED: "Deleted",
       IS_ACTIVE: "IsActive",
     });
+
+    let returns = [];
 
     //===========================================================================
     // Public Render
     //===========================================================================
 
-    function render(returns = []) {
-      const list = Array.isArray(returns) ? returns : [];
+    function render(data) {
+      returns = normalize(data);
 
+      bindToolbar();
+
+      renderList(filter(DOM.$("inp-return-search")?.value));
+    }
+
+    //===========================================================================
+    // Data
+    //===========================================================================
+
+    function normalize(data) {
+      if (Array.isArray(data)) {
+        return data;
+      }
+
+      if (Array.isArray(data?.data)) {
+        return data.data;
+      }
+
+      return [];
+    }
+
+    //===========================================================================
+    // List
+    //===========================================================================
+
+    function renderList(list = []) {
       renderInfo(list.length);
 
       if (!list.length) {
@@ -48,60 +69,28 @@
       );
     }
 
-    //===========================================================================
-    // Row
-    //===========================================================================
-
     function renderRow(ret = {}) {
-      const id = ret[FIELD.ID];
-
       return Components.tableRow([
-        Components.tableCell(
-          SharedPresenter.text(id),
+        Components.tableCell(text(ret[FIELD.ID]), "font-medium text-slate-800"),
 
-          "font-medium text-slate-800",
-        ),
+        Components.tableCell(text(ret[FIELD.PICKUP_ID])),
 
-        Components.tableCell(Format.date(purchase[FIELD.DATE])),
+        Components.tableCell(text(ret[FIELD.PICKUP_DETAIL_ID])),
 
-        Components.tableCell(SharedPresenter.text(purchase[FIELD.SUPPLIER])),
+        Components.tableCell(Format.date(ret[FIELD.DATE])),
 
-        Components.tableCell(SharedPresenter.text(purchase[FIELD.PRODUCT])),
+        Components.tableCell(Format.number(ret[FIELD.QTY]), "text-right"),
 
-        Components.tableCell(
-          Format.number(purchase[FIELD.QTY]),
+        Components.tableCell(text(ret[FIELD.NOTE])),
 
-          "text-right",
-        ),
+        Components.tableCell(renderStatus(ret), "text-center"),
 
-        Components.tableCell(
-          Format.currency(purchase[FIELD.PRICE]),
-
-          "text-right",
-        ),
-
-        Components.tableCell(
-          Format.currency(purchase[FIELD.TOTAL]),
-
-          "text-right",
-        ),
-
-        Components.tableCell(
-          SharedPresenter.renderStatus(purchase[FIELD.IS_ACTIVE]),
-
-          "text-center",
-        ),
-
-        Components.tableCell(
-          SharedPresenter.renderActions(id),
-
-          "text-center",
-        ),
+        Components.tableCell("-", "text-center"),
       ]);
     }
 
     //===========================================================================
-    // Empty
+    // Empty and Info
     //===========================================================================
 
     function renderEmpty() {
@@ -110,17 +99,13 @@
 
         `
         <tr>
-          <td colspan="9">
+          <td colspan="8">
             ${Components.empty("No returns available.")}
           </td>
         </tr>
       `,
       );
     }
-
-    //===========================================================================
-    // Info
-    //===========================================================================
 
     function renderInfo(total = 0) {
       Render.mount(
@@ -131,8 +116,103 @@
     }
 
     //===========================================================================
-    // Public API
+    // Status
     //===========================================================================
+
+    function renderStatus(ret = {}) {
+      if (isTrue(ret[FIELD.DELETED])) {
+        return Components.badge("Deleted", false);
+      }
+
+      const active = isActive(ret[FIELD.IS_ACTIVE]);
+
+      return Components.badge(Format.status(active), active);
+    }
+
+    function statusText(ret = {}) {
+      return isTrue(ret[FIELD.DELETED])
+        ? "Deleted"
+        : Format.status(isActive(ret[FIELD.IS_ACTIVE]));
+    }
+
+    function isActive(value) {
+      if (value === undefined || value === null || value === "") {
+        return true;
+      }
+
+      return isTrue(value);
+    }
+
+    function isTrue(value) {
+      if (typeof value === "string") {
+        return value.toLowerCase() === "true";
+      }
+
+      return Boolean(value);
+    }
+
+    //===========================================================================
+    // Toolbar
+    //===========================================================================
+
+    function bindToolbar() {
+      const search = DOM.$("inp-return-search");
+
+      if (search && !search.dataset.returnBound) {
+        search.dataset.returnBound = "true";
+
+        search.addEventListener("input", () => {
+          renderList(filter(search.value));
+        });
+      }
+
+      const refresh = DOM.$("btn-return-refresh");
+
+      if (refresh && !refresh.dataset.returnBound) {
+        refresh.dataset.returnBound = "true";
+
+        refresh.addEventListener("click", () => {
+          App.refresh();
+        });
+      }
+    }
+
+    //===========================================================================
+    // Search
+    //===========================================================================
+
+    function filter(keyword = "") {
+      const query = String(keyword).trim().toLowerCase();
+
+      if (!query) {
+        return returns;
+      }
+
+      return returns.filter((ret) => searchText(ret).includes(query));
+    }
+
+    function searchText(ret = {}) {
+      return [
+        ret[FIELD.ID],
+        ret[FIELD.PICKUP_ID],
+        ret[FIELD.PICKUP_DETAIL_ID],
+        ret[FIELD.DATE],
+        Format.date(ret[FIELD.DATE]),
+        ret[FIELD.NOTE],
+        statusText(ret),
+      ]
+        .filter((value) => value !== undefined && value !== null)
+        .join(" ")
+        .toLowerCase();
+    }
+
+    //===========================================================================
+    // Text
+    //===========================================================================
+
+    function text(value) {
+      return SharedPresenter.text(value);
+    }
 
     return Object.freeze({
       render,
