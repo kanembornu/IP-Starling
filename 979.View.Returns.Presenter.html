@@ -21,6 +21,8 @@
 
     let returns = [];
 
+    let detailRequest = 0;
+
     //===========================================================================
     // Public Render
     //===========================================================================
@@ -29,6 +31,8 @@
       returns = normalize(data);
 
       bindToolbar();
+
+      bindActions();
 
       renderList(filter(DOM.$("inp-return-search")?.value));
     }
@@ -85,8 +89,56 @@
 
         Components.tableCell(renderStatus(ret), "text-center"),
 
-        Components.tableCell("-", "text-center"),
+        Components.tableCell(renderActions(ret), "text-center"),
       ]);
+    }
+
+    //===========================================================================
+    // Actions
+    //===========================================================================
+
+    function renderActions(ret = {}) {
+      const id = ret[FIELD.ID];
+
+      if (Utils.isEmpty(id) || isTrue(ret[FIELD.DELETED]) || !isActive(ret[FIELD.IS_ACTIVE])) {
+        return "-";
+      }
+
+      return `
+        <button
+          type="button"
+          data-return-action="view"
+          data-return-id="${escape(id)}"
+          title="View"
+          class="inline-flex items-center gap-2 px-3 py-2 rounded-lg transition bg-slate-100 hover:bg-slate-200 text-slate-700"
+        >
+          ${Components.icon("fa-eye")}
+
+          <span>View</span>
+        </button>
+      `;
+    }
+
+    function bindActions() {
+      const body = DOM.$("tbl-returns-body");
+
+      if (!body || body.dataset.returnActionsBound) {
+        return;
+      }
+
+      body.dataset.returnActionsBound = "true";
+
+      body.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-return-action]");
+
+        if (!button || !body.contains(button)) {
+          return;
+        }
+
+        if (button.dataset.returnAction === "view") {
+          view(button.dataset.returnId);
+        }
+      });
     }
 
     //===========================================================================
@@ -207,6 +259,211 @@
     }
 
     //===========================================================================
+    // Detail View
+    //===========================================================================
+
+    async function view(id) {
+      if (Utils.isEmpty(id)) {
+        Toast.error("Return ID is unavailable.");
+
+        return;
+      }
+
+      const request = ++detailRequest;
+
+      Modal.open({
+        title: "Return Detail",
+
+        width: "lg",
+
+        body: Components.loading("Loading return..."),
+
+        footer: renderDetailFooter(),
+      });
+
+      bindDetailModal();
+
+      let response;
+
+      try {
+        response = await Api.Return.findById(id);
+      } catch (error) {
+        if (request !== detailRequest) {
+          return;
+        }
+
+        showDetailError("Load return failed.");
+
+        return;
+      }
+
+      if (request !== detailRequest) {
+        return;
+      }
+
+      if (!isDetailResponse(response)) {
+        showDetailError(response?.message || "Return detail is unavailable.");
+
+        return;
+      }
+
+      Modal.body(renderDetail(response.data));
+    }
+
+    function isDetailResponse(response) {
+      return Boolean(
+        response?.success &&
+          response.data &&
+          typeof response.data.return === "object" &&
+          !Array.isArray(response.data.return) &&
+          Object.prototype.hasOwnProperty.call(response.data, "availableQty"),
+      );
+    }
+
+    function showDetailError(message) {
+      Toast.error(message);
+
+      Modal.body(Components.empty(message));
+    }
+
+    function renderDetail(data = {}) {
+      return `
+        <div class="space-y-6">
+          ${renderReturnSection(data.return)}
+          ${renderPickupHeaderSection(data.pickupHeader)}
+          ${renderPickupDetailSection(data.pickupDetail, data.availableQty)}
+        </div>
+      `;
+    }
+
+    function renderReturnSection(ret) {
+      if (!isRecord(ret)) {
+        return renderMissingSection("Return", "Return data is unavailable.");
+      }
+
+      return `
+        <section>
+          <h3 class="mb-3 text-sm font-semibold text-slate-800">Return</h3>
+          <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2 text-sm">
+            ${detailField("Return ID", ret[FIELD.ID])}
+            ${detailField("Tanggal", Format.date(ret[FIELD.DATE]))}
+            ${detailField("Qty Returned", Format.number(ret[FIELD.QTY]))}
+            ${detailField("Status", statusText(ret))}
+            ${
+              Utils.isEmpty(ret[FIELD.NOTE])
+                ? ""
+                : detailField("Keterangan", ret[FIELD.NOTE], "sm:col-span-2")
+            }
+          </dl>
+        </section>
+      `;
+    }
+
+    function renderPickupHeaderSection(header) {
+      if (!isRecord(header)) {
+        return renderMissingSection("Pickup Header", "Pickup Header data is unavailable.");
+      }
+
+      return `
+        <section>
+          <h3 class="mb-3 text-sm font-semibold text-slate-800">Pickup Header</h3>
+          <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2 text-sm">
+            ${detailField("Pickup No / ID", header.PickupNo || header.ID)}
+            ${detailField("Tanggal", Format.date(header.Tanggal))}
+            ${detailField("Partner", header.PartnerID)}
+            ${detailField("Status", header.Status)}
+            ${detailField("Total Item", Format.number(header.TotalItem))}
+            ${detailField("Total Qty", Format.number(header.TotalQty))}
+          </dl>
+        </section>
+      `;
+    }
+
+    function renderPickupDetailSection(detail, availableQty) {
+      if (!isRecord(detail)) {
+        return renderMissingSection("Pickup Detail", "Pickup Detail data is unavailable.");
+      }
+
+      return `
+        <section>
+          <h3 class="mb-3 text-sm font-semibold text-slate-800">Pickup Detail</h3>
+          <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2 text-sm">
+            ${detailField("Pickup Detail ID", detail.ID)}
+            ${detailField("Product", detail.ProductID)}
+            ${detailField("Pickup Detail Qty", Format.number(detail.Qty))}
+            ${detailField("Available Return Qty", Format.number(availableQty))}
+            ${
+              Utils.isEmpty(detail.Notes)
+                ? ""
+                : detailField("Notes", detail.Notes, "sm:col-span-2")
+            }
+          </dl>
+        </section>
+      `;
+    }
+
+    function renderMissingSection(title, message) {
+      return `
+        <section>
+          <h3 class="mb-3 text-sm font-semibold text-slate-800">${title}</h3>
+          ${Components.empty(message)}
+        </section>
+      `;
+    }
+
+    function detailField(label, value, classes = "") {
+      return `
+        <div class="${classes}">
+          <dt class="text-slate-500">${label}</dt>
+          <dd class="mt-1 font-medium text-slate-800 break-words">${text(value)}</dd>
+        </div>
+      `;
+    }
+
+    function isRecord(value) {
+      return Boolean(value && typeof value === "object" && !Array.isArray(value));
+    }
+
+    function renderDetailFooter() {
+      return `
+        <button
+          type="button"
+          data-return-detail-action="close"
+          class="px-5 py-2 rounded-lg border border-slate-300 hover:bg-slate-100"
+        >
+          Close
+        </button>
+      `;
+    }
+
+    function bindDetailModal() {
+      const footer = DOM.$("modal-footer");
+
+      if (footer && !footer.dataset.returnDetailBound) {
+        footer.dataset.returnDetailBound = "true";
+        footer.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-return-detail-action]");
+
+          if (button?.dataset.returnDetailAction === "close") {
+            closeDetail();
+          }
+        });
+      }
+
+      const close = DOM.$("btn-modal-close");
+
+      if (close && !close.dataset.returnDetailBound) {
+        close.dataset.returnDetailBound = "true";
+        close.addEventListener("click", closeDetail);
+      }
+    }
+
+    function closeDetail() {
+      detailRequest += 1;
+      Modal.close();
+    }
+
+    //===========================================================================
     // Text
     //===========================================================================
 
@@ -214,8 +471,14 @@
       return SharedPresenter.text(value);
     }
 
+    function escape(value) {
+      return Utils.escapeHTML(String(value ?? ""));
+    }
+
     return Object.freeze({
       render,
+
+      view,
     });
   })();
 </script>
