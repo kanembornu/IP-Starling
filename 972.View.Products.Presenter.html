@@ -33,6 +33,8 @@
     function render(products = []) {
       const list = Array.isArray(products) ? products : [];
 
+      bindToolbar();
+
       renderInfo(list.length);
 
       if (!list.length) {
@@ -46,6 +48,32 @@
 
         list.map(renderRow).join(""),
       );
+    }
+
+    //===========================================================================
+    // Toolbar
+    //===========================================================================
+
+    function bindToolbar() {
+      const refresh = DOM.$("btn-product-refresh");
+
+      if (!refresh || refresh.dataset.productRefreshBound) {
+        return;
+      }
+
+      refresh.dataset.productRefreshBound = "true";
+      refresh.addEventListener("click", () => {
+        clearSearch();
+        App.refresh();
+      });
+    }
+
+    function clearSearch() {
+      const input = DOM.$("inp-product-search");
+
+      if (input) {
+        input.value = "";
+      }
     }
 
     //===========================================================================

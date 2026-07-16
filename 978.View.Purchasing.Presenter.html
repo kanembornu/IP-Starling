@@ -37,6 +37,8 @@
     function render(purchasing = []) {
       const list = Array.isArray(purchasing) ? purchasing : [];
 
+      bindToolbar();
+
       renderInfo(list.length);
 
       if (!list.length) {
@@ -50,6 +52,32 @@
 
         list.map(renderRow).join(""),
       );
+    }
+
+    //===========================================================================
+    // Toolbar
+    //===========================================================================
+
+    function bindToolbar() {
+      const refresh = DOM.$("btn-purchasing-refresh");
+
+      if (!refresh || refresh.dataset.purchasingRefreshBound) {
+        return;
+      }
+
+      refresh.dataset.purchasingRefreshBound = "true";
+      refresh.addEventListener("click", () => {
+        clearSearch();
+        App.refresh();
+      });
+    }
+
+    function clearSearch() {
+      const input = DOM.$("inp-purchasing-search");
+
+      if (input) {
+        input.value = "";
+      }
     }
 
     //===========================================================================

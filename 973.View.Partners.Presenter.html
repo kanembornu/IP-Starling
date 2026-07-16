@@ -33,6 +33,8 @@
     function render(partners = []) {
       const list = Array.isArray(partners) ? partners : [];
 
+      bindToolbar();
+
       renderInfo(list.length);
 
       if (!list.length) {
@@ -46,6 +48,32 @@
 
         list.map(renderRow).join(""),
       );
+    }
+
+    //===========================================================================
+    // Toolbar
+    //===========================================================================
+
+    function bindToolbar() {
+      const refresh = DOM.$("btn-partner-refresh");
+
+      if (!refresh || refresh.dataset.partnerRefreshBound) {
+        return;
+      }
+
+      refresh.dataset.partnerRefreshBound = "true";
+      refresh.addEventListener("click", () => {
+        clearSearch();
+        App.refresh();
+      });
+    }
+
+    function clearSearch() {
+      const input = DOM.$("inp-partner-search");
+
+      if (input) {
+        input.value = "";
+      }
     }
 
     //===========================================================================

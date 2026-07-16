@@ -253,6 +253,7 @@
         refresh.dataset.pickupBound = "true";
 
         refresh.addEventListener("click", () => {
+          clearSearch();
           App.refresh();
         });
       }
@@ -1087,6 +1088,14 @@
       pickupSubmitting = false;
       editingPickupId = null;
       Modal.close();
+    }
+
+    function clearSearch() {
+      const input = DOM.$("inp-pickup-search");
+
+      if (input) {
+        input.value = "";
+      }
     }
 
     function filter(keyword = "") {

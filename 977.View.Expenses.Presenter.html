@@ -33,6 +33,8 @@
     function render(expenses = []) {
       const list = Array.isArray(expenses) ? expenses : [];
 
+      bindToolbar();
+
       renderInfo(list.length);
 
       if (!list.length) {
@@ -46,6 +48,32 @@
 
         list.map(renderRow).join(""),
       );
+    }
+
+    //===========================================================================
+    // Toolbar
+    //===========================================================================
+
+    function bindToolbar() {
+      const refresh = DOM.$("btn-expense-refresh");
+
+      if (!refresh || refresh.dataset.expenseRefreshBound) {
+        return;
+      }
+
+      refresh.dataset.expenseRefreshBound = "true";
+      refresh.addEventListener("click", () => {
+        clearSearch();
+        App.refresh();
+      });
+    }
+
+    function clearSearch() {
+      const input = DOM.$("inp-expense-search");
+
+      if (input) {
+        input.value = "";
+      }
     }
 
     //===========================================================================
