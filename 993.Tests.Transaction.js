@@ -1218,3 +1218,376 @@ function testTransactionServiceFindByIdResponseShape() {
 
   Logger.log(response);
 }
+
+function returnTestFixture() {
+  const detail = RepositoryReader.findAll(PICKUP_DETAIL_SCHEMA).find((row) => {
+    return (
+      row[PICKUP_DETAIL_SCHEMA.SYSTEM.IS_ACTIVE] === true &&
+      Number(row[PICKUP_DETAIL_FIELDS.QTY]) > 0
+    );
+  });
+
+  if (!detail) {
+    Logger.log("SKIPPED: no active Pickup Detail is available for Return tests.");
+
+    return null;
+  }
+
+  const header = RepositoryReader.findById(
+    PICKUP_HEADER_SCHEMA,
+    detail[PICKUP_DETAIL_FIELDS.PICKUP_ID],
+  );
+
+  if (!header || header[PICKUP_HEADER_SCHEMA.SYSTEM.IS_ACTIVE] !== true) {
+    Logger.log("SKIPPED: Pickup Header for the Return test fixture is inactive.");
+
+    return null;
+  }
+
+  const used = RepositoryBase.mapRows(
+    RETURN_SCHEMA,
+    RepositoryReader.raw(RETURN_SCHEMA),
+  )
+    .filter((row) => {
+      return (
+        row[RETURN_SCHEMA.SYSTEM.IS_DELETED] !== true &&
+        row[RETURN_SCHEMA.SYSTEM.IS_ACTIVE] === true &&
+        row[RETURN_FIELDS.PICKUP_DETAIL_ID] ===
+          detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]
+      );
+    })
+    .reduce((total, row) => total + Number(row[RETURN_FIELDS.QTY] || 0), 0);
+
+  const available = Number(detail[PICKUP_DETAIL_FIELDS.QTY]) - used;
+
+  if (available < 1) {
+    Logger.log("SKIPPED: no available Pickup Detail quantity for Return tests.");
+
+    return null;
+  }
+
+  return { detail, available };
+}
+
+function createReturnTestRow(fixture, qty = 1) {
+  const response = ReturnService().create({
+    [RETURN_FIELDS.PICKUP_DETAIL_ID]:
+      fixture.detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY],
+
+    [RETURN_FIELDS.DATE]: "2026-07-17",
+
+    [RETURN_FIELDS.QTY]: qty,
+
+    [RETURN_FIELDS.NOTE]: "Return test fixture",
+  });
+
+  if (!response.success) {
+    throw new Error(`Unable to create Return test fixture: ${response.message}`);
+  }
+
+  Logger.log(`Return fixture requiring cleanup: ${response.data[RETURN_SCHEMA.PRIMARY_KEY]}`);
+
+  return response.data;
+}
+
+function normalizeReturnTestDate(value) {
+  const isDate = value instanceof Date;
+
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const parts = value.split("-").map(Number);
+    const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+
+    if (
+      date.getUTCFullYear() === parts[0] &&
+      date.getUTCMonth() === parts[1] - 1 &&
+      date.getUTCDate() === parts[2]
+    ) {
+      return value;
+    }
+  }
+
+  if (
+    !isDate &&
+    typeof value === "string" &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:?\d{2})$/.test(value)
+  ) {
+    value = new Date(value);
+  }
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return Utilities.formatDate(value, APP_CONFIG.TIMEZONE, "yyyy-MM-dd");
+  }
+
+  throw new Error(
+    `Unable to normalize Return Tanggal: value=${String(value)}, typeof=${typeof value}, isDate=${value instanceof Date}.`,
+  );
+}
+
+function cleanupReturnTestRow(row) {
+  if (!row) return;
+
+  const id = row[RETURN_SCHEMA.PRIMARY_KEY];
+  const response = ReturnService().remove(id);
+
+  if (!response.success) {
+    Logger.log(`Return fixture requires manual cleanup: ${id}`);
+    throw new Error(`Unable to clean up Return test fixture ${id}: ${response.message}`);
+  }
+}
+
+function testReturnSchemaTableAndPrefix() {
+  if (RETURN_SCHEMA.TABLE !== "Returns" || RETURN_SCHEMA.ID_PREFIX !== "RT") {
+    throw new Error("Return schema table or ID prefix is invalid.");
+  }
+}
+
+function testReturnSchemaHeaders() {
+  const expected = ["ID", "PickupID", "PickupDetailID", "Tanggal", "Qty", "Keterangan", "Deleted", "IsActive", "CreatedAt", "CreatedBy", "UpdatedAt", "UpdatedBy"];
+
+  if (JSON.stringify(RETURN_SCHEMA.HEADERS) !== JSON.stringify(expected)) {
+    throw new Error("Return schema headers are invalid.");
+  }
+}
+
+function testReturnSchemaFields() {
+  if (
+    RETURN_FIELDS.PICKUP_DETAIL_ID !== "PickupDetailID" ||
+    Object.prototype.hasOwnProperty.call(RETURN_FIELDS, "PRODUCT_ID")
+  ) {
+    throw new Error("Return schema fields are invalid.");
+  }
+}
+
+function testReturnSchemaValidationMetadata() {
+  const rules = RETURN_SCHEMA.VALIDATION;
+
+  if (
+    !rules[RETURN_FIELDS.PICKUP_ID].required ||
+    !rules[RETURN_FIELDS.PICKUP_DETAIL_ID].required ||
+    !rules[RETURN_FIELDS.DATE].required ||
+    !rules[RETURN_FIELDS.QTY].required ||
+    !rules[RETURN_FIELDS.QTY].numeric ||
+    rules[RETURN_FIELDS.QTY].min !== 1 ||
+    rules[RETURN_FIELDS.NOTE].required
+  ) {
+    throw new Error("Return schema validation metadata is invalid.");
+  }
+}
+
+function testReturnSchemaRegistry() {
+  if (SCHEMA.RETURN !== RETURN_SCHEMA) {
+    throw new Error("Return schema registry is invalid.");
+  }
+}
+
+function testReturnServicePublicApi() {
+  const keys = Object.keys(ReturnService()).sort();
+  const expected = ["create", "findAll", "findById", "remove", "restore", "update"];
+
+  if (JSON.stringify(keys) !== JSON.stringify(expected)) {
+    throw new Error("ReturnService public API is invalid.");
+  }
+}
+
+function testReturnCreateMissingDocument() {
+  if (ReturnService().create(null).success) throw new Error("Return create must reject a missing document.");
+}
+
+function testReturnCreateMissingPickupDetailId() {
+  if (ReturnService().create({ Tanggal: "2026-07-17", Qty: 1 }).success) throw new Error("Return create must require PickupDetailID.");
+}
+
+function testReturnCreateMissingTanggal() {
+  const fixture = returnTestFixture();
+  if (!fixture) return;
+  if (ReturnService().create({ PickupDetailID: fixture.detail.ID, Qty: 1 }).success) throw new Error("Return create must require Tanggal.");
+}
+
+function testReturnCreateInvalidQty() {
+  const fixture = returnTestFixture();
+  if (!fixture) return;
+  if (ReturnService().create({ PickupDetailID: fixture.detail.ID, Tanggal: "2026-07-17", Qty: 0 }).success) throw new Error("Return create must reject invalid Qty.");
+}
+
+function testReturnCreateUnknownPickupDetail() {
+  if (ReturnService().create({ PickupDetailID: "PD_UNKNOWN", Tanggal: "2026-07-17", Qty: 1 }).success) throw new Error("Return create must reject an unknown Pickup Detail.");
+}
+
+function testReturnUpdateMissingId() {
+  if (ReturnService().update("", {}).success) throw new Error("Return update must require ID.");
+}
+
+function testReturnRemoveMissingId() {
+  if (ReturnService().remove("").success) throw new Error("Return remove must require ID.");
+}
+
+function testReturnRestoreMissingId() {
+  if (ReturnService().restore("").success) throw new Error("Return restore must require ID.");
+}
+
+function testReturnCreateValid() {
+  const fixture = returnTestFixture();
+  if (!fixture) return;
+  const row = createReturnTestRow(fixture);
+
+  try {
+    if (row[RETURN_SCHEMA.SYSTEM.IS_DELETED] !== false) throw new Error("Created Return must not be deleted.");
+    if (row[RETURN_SCHEMA.SYSTEM.IS_ACTIVE] !== true) throw new Error("Created Return must be active.");
+    if (!row[RETURN_SCHEMA.PRIMARY_KEY]) throw new Error("Created Return must have an ID.");
+    if (row[RETURN_FIELDS.PICKUP_ID] !== fixture.detail[PICKUP_DETAIL_FIELDS.PICKUP_ID]) throw new Error("Created Return has an invalid PickupID.");
+    if (row[RETURN_FIELDS.PICKUP_DETAIL_ID] !== fixture.detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]) throw new Error("Created Return has an invalid PickupDetailID.");
+    if (normalizeReturnTestDate(row[RETURN_FIELDS.DATE]) !== "2026-07-17") throw new Error("Created Return has an invalid Tanggal.");
+    if (Number(row[RETURN_FIELDS.QTY]) !== 1) throw new Error("Created Return has an invalid Qty.");
+  } finally {
+    cleanupReturnTestRow(row);
+  }
+}
+
+function testReturnCreateDerivesPickupId() {
+  const fixture = returnTestFixture();
+  if (!fixture) return;
+  const row = createReturnTestRow(fixture);
+
+  try {
+    if (row[RETURN_FIELDS.PICKUP_ID] !== fixture.detail[PICKUP_DETAIL_FIELDS.PICKUP_ID]) throw new Error("Return did not derive PickupID.");
+  } finally {
+    cleanupReturnTestRow(row);
+  }
+}
+
+function testReturnCreateRejectsOverQuantity() {
+  const fixture = returnTestFixture();
+  if (!fixture) return;
+  const response = ReturnService().create({ PickupDetailID: fixture.detail.ID, Tanggal: "2026-07-17", Qty: fixture.available + 1 });
+  if (response.success) throw new Error("Return create must reject over quantity.");
+}
+
+function testReturnCreateUsesCumulativeQuantity() {
+  const fixture = returnTestFixture();
+  if (!fixture) return;
+  const first = createReturnTestRow(fixture, fixture.available);
+
+  try {
+    const response = ReturnService().create({ PickupDetailID: fixture.detail.ID, Tanggal: "2026-07-17", Qty: 1 });
+    if (response.success) throw new Error("Return create must enforce cumulative quantity.");
+  } finally {
+    cleanupReturnTestRow(first);
+  }
+}
+
+function testReturnUpdateValid() {
+  const fixture = returnTestFixture();
+  if (!fixture) return;
+  const row = createReturnTestRow(fixture);
+
+  try {
+    const response = ReturnService().update(row.ID, { Tanggal: "2026-07-18", Qty: 1, Keterangan: "Updated" });
+    if (!response.success) throw new Error("Return update should succeed.");
+  } finally {
+    cleanupReturnTestRow(row);
+  }
+}
+
+function testReturnUpdatePreservesRelation() {
+  const fixture = returnTestFixture();
+  if (!fixture) return;
+  const row = createReturnTestRow(fixture);
+
+  try {
+    const response = ReturnService().update(row.ID, { PickupID: "PH_CHANGED", PickupDetailID: "PD_CHANGED", Qty: 1 });
+    if (!response.success || response.data.PickupID !== row.PickupID || response.data.PickupDetailID !== row.PickupDetailID) throw new Error("Return update changed immutable relations.");
+  } finally {
+    cleanupReturnTestRow(row);
+  }
+}
+
+function testReturnUpdateExcludesCurrentQty() {
+  const fixture = returnTestFixture();
+  if (!fixture) return;
+  const row = createReturnTestRow(fixture, fixture.available);
+
+  try {
+    const response = ReturnService().update(row.ID, { Qty: fixture.available });
+    if (!response.success) throw new Error("Return update double-counted its own Qty.");
+  } finally {
+    cleanupReturnTestRow(row);
+  }
+}
+
+function testReturnUpdateRejectsOverQuantity() {
+  const fixture = returnTestFixture();
+  if (!fixture) return;
+  const row = createReturnTestRow(fixture);
+
+  try {
+    const response = ReturnService().update(row.ID, { Qty: fixture.available + 1 });
+    if (response.success) throw new Error("Return update must reject over quantity.");
+  } finally {
+    cleanupReturnTestRow(row);
+  }
+}
+
+function testReturnRemoveReleasesQuantity() {
+  const fixture = returnTestFixture();
+  if (!fixture) return;
+  const row = createReturnTestRow(fixture, fixture.available);
+  let replacement = null;
+  let removed = false;
+
+  try {
+    const response = ReturnService().remove(row.ID);
+    if (!response.success) throw new Error("Return remove should release quantity.");
+    removed = true;
+    replacement = createReturnTestRow(fixture, fixture.available);
+  } finally {
+    cleanupReturnTestRow(replacement);
+    if (!removed) cleanupReturnTestRow(row);
+  }
+}
+
+function testReturnRestoreValid() {
+  const fixture = returnTestFixture();
+  if (!fixture) return;
+  const row = createReturnTestRow(fixture);
+
+  try {
+    ReturnService().remove(row.ID);
+    const response = ReturnService().restore(row.ID);
+    if (!response.success) throw new Error("Return restore should succeed.");
+  } finally {
+    cleanupReturnTestRow(row);
+  }
+}
+
+function testReturnRestoreRejectsOverQuantity() {
+  const fixture = returnTestFixture();
+  if (!fixture) return;
+  const deleted = createReturnTestRow(fixture, fixture.available);
+  let active = null;
+  let deletedRowRemoved = false;
+
+  try {
+    const removed = ReturnService().remove(deleted.ID);
+    if (!removed.success) throw new Error("Return remove should succeed before restore validation.");
+    deletedRowRemoved = true;
+    active = createReturnTestRow(fixture, fixture.available);
+    const response = ReturnService().restore(deleted.ID);
+    if (response.success) throw new Error("Return restore must reject over quantity.");
+  } finally {
+    cleanupReturnTestRow(active);
+    if (!deletedRowRemoved) cleanupReturnTestRow(deleted);
+  }
+}
+
+function testReturnFindByIdResolvedData() {
+  const fixture = returnTestFixture();
+  if (!fixture) return;
+  const row = createReturnTestRow(fixture);
+
+  try {
+    const response = ReturnService().findById(row.ID);
+    if (!response.success || !response.data.return || !response.data.pickupHeader || !response.data.pickupDetail || typeof response.data.availableQty !== "number") throw new Error("Return findById response is invalid.");
+  } finally {
+    cleanupReturnTestRow(row);
+  }
+}

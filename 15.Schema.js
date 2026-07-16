@@ -422,6 +422,8 @@ const RETURN_FIELDS = Object.freeze({
 
   PICKUP_ID: "PickupID",
 
+  PICKUP_DETAIL_ID: "PickupDetailID",
+
   DATE: "Tanggal",
 
   QTY: "Qty",
@@ -453,6 +455,10 @@ const RETURN_SCHEMA = createSchema({
       required: true,
     },
 
+    [RETURN_FIELDS.PICKUP_DETAIL_ID]: {
+      required: true,
+    },
+
     [RETURN_FIELDS.DATE]: {
       required: true,
     },
@@ -478,9 +484,19 @@ const RETURN_SCHEMA = createSchema({
     [AUDIT_COLUMNS.CREATED_AT]: true,
 
     [AUDIT_COLUMNS.CREATED_BY]: true,
+
+    [RETURN_FIELDS.PICKUP_ID]: true,
+
+    [RETURN_FIELDS.PICKUP_DETAIL_ID]: true,
   },
 
-  SEARCHABLE: [RETURN_FIELDS.PICKUP_ID, RETURN_FIELDS.NOTE],
+  SEARCHABLE: [
+    RETURN_FIELDS.PICKUP_ID,
+
+    RETURN_FIELDS.PICKUP_DETAIL_ID,
+
+    RETURN_FIELDS.NOTE,
+  ],
 
   UI: {
     TITLE: "Retur Product",

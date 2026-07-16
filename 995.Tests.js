@@ -132,10 +132,53 @@ function runPickupControllerTests() {
   ]);
 }
 
+function runReturnSchemaTests() {
+  runTestSuite("Return schema tests", [
+    testReturnSchemaTableAndPrefix,
+    testReturnSchemaHeaders,
+    testReturnSchemaFields,
+    testReturnSchemaValidationMetadata,
+    testReturnSchemaRegistry,
+  ]);
+}
+
+function runReturnValidationTests() {
+  runTestSuite("Return validation tests", [
+    testReturnServicePublicApi,
+    testReturnCreateMissingDocument,
+    testReturnCreateMissingPickupDetailId,
+    testReturnCreateMissingTanggal,
+    testReturnCreateInvalidQty,
+    testReturnCreateUnknownPickupDetail,
+    testReturnUpdateMissingId,
+    testReturnRemoveMissingId,
+    testReturnRestoreMissingId,
+  ]);
+}
+
+function runReturnWriteTests() {
+  runTestSuite("Return write tests", [
+    testReturnCreateValid,
+    testReturnCreateDerivesPickupId,
+    testReturnCreateRejectsOverQuantity,
+    testReturnCreateUsesCumulativeQuantity,
+    testReturnUpdateValid,
+    testReturnUpdatePreservesRelation,
+    testReturnUpdateExcludesCurrentQty,
+    testReturnUpdateRejectsOverQuantity,
+    testReturnRemoveReleasesQuantity,
+    testReturnRestoreValid,
+    testReturnRestoreRejectsOverQuantity,
+    testReturnFindByIdResolvedData,
+  ]);
+}
+
 function runAllSafeTests() {
   runCoreRegressionTests();
   runMasterDataRegressionTests();
   runTransactionReadTests();
   runPickupCreateValidationTests();
   runPickupControllerTests();
+  runReturnSchemaTests();
+  runReturnValidationTests();
 }
