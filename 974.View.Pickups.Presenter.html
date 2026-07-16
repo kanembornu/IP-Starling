@@ -36,6 +36,8 @@
 
     let detailRequest = 0;
 
+    let pendingDeleteId = null;
+
     let masterProducts = null;
 
     let masterPartners = null;
@@ -163,6 +165,18 @@
 
           <span>View</span>
         </button>
+
+        <button
+          type="button"
+          data-pickup-action="delete"
+          data-pickup-id="${text(id)}"
+          title="Delete"
+          class="inline-flex items-center gap-2 px-3 py-2 rounded-lg transition bg-red-100 hover:bg-red-200 text-red-700"
+        >
+          ${Components.icon("fa-trash")}
+
+          <span>Delete</span>
+        </button>
       `;
     }
 
@@ -275,6 +289,80 @@
         if (button.dataset.pickupAction === "edit") {
           openEdit(button.dataset.pickupId);
         }
+
+        if (button.dataset.pickupAction === "delete") {
+          confirmDelete(button.dataset.pickupId);
+        }
+      });
+    }
+
+    //===========================================================================
+    // Delete
+    //===========================================================================
+
+    async function confirmDelete(id) {
+      const pickup = findPickup(id);
+
+      if (!pickup || Utils.isEmpty(id) || pendingDeleteId) {
+        if (Utils.isEmpty(id)) {
+          Toast.error("Pickup ID is unavailable.");
+        }
+
+        return;
+      }
+
+      const headerId = String(id);
+      const label = pickup[FIELD.PICKUP_NO] || pickup[FIELD.ID] || headerId;
+
+      pendingDeleteId = headerId;
+
+      try {
+        const confirmed = await Dialog.confirm({
+          title: "Delete Pickup",
+          message: `
+            <p>Delete Pickup <strong>${escape(label)}</strong>?</p>
+            <p class="mt-2">It will be removed from the active list using a soft delete. Related Pickup Details are handled by the backend.</p>
+          `,
+        });
+
+        if (!confirmed) {
+          return;
+        }
+
+        setDeleteLoading(headerId, true);
+
+        const response = await Api.Pickup.remove(headerId);
+
+        if (!response?.success) {
+          Toast.error(response?.message || "Pickup could not be deleted.");
+
+          return;
+        }
+
+        await App.refresh();
+        Toast.success(response.message || "Pickup deleted.");
+      } catch (error) {
+        Toast.error(error?.message || "Pickup could not be deleted. Please try again.");
+      } finally {
+        setDeleteLoading(headerId, false);
+        pendingDeleteId = null;
+      }
+    }
+
+    function findPickup(id) {
+      return pickups.find((pickup) => String(pickup?.[FIELD.ID]) === String(id));
+    }
+
+    function setDeleteLoading(id, loading) {
+      document.querySelectorAll('[data-pickup-action="delete"]').forEach((button) => {
+        if (String(button.dataset.pickupId) !== String(id)) {
+          return;
+        }
+
+        button.disabled = loading;
+        button.classList.toggle("opacity-50", loading);
+        button.classList.toggle("cursor-not-allowed", loading);
+        button.title = loading ? "Deleting..." : "Delete";
       });
     }
 

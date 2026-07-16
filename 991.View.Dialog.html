@@ -61,6 +61,16 @@
             resolve(true);
           },
         );
+
+        const close = DOM.$("btn-modal-close");
+
+        if (close) {
+          close.onclick = () => {
+            Modal.close();
+
+            resolve(false);
+          };
+        }
       });
     }
 
