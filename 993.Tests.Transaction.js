@@ -189,6 +189,146 @@ function testPickupControllerSerialization() {
   Logger.log(response);
 }
 
+function testReturnControllerPublicApi() {
+  const functions = [
+    getReturns,
+    getReturn,
+    createReturn,
+    updateReturn,
+    deleteReturn,
+    restoreReturn,
+  ];
+
+  if (functions.some((fn) => typeof fn !== "function")) {
+    throw new Error("Return Controller public API is invalid.");
+  }
+
+  Logger.log("Return Controller public API passed.");
+}
+
+function testReturnControllerGetReturns() {
+  const response = getReturns();
+
+  if (
+    !response ||
+    typeof response !== "object" ||
+    Array.isArray(response) ||
+    typeof response.success !== "boolean" ||
+    !Array.isArray(response.data)
+  ) {
+    throw new Error("getReturns() response is invalid.");
+  }
+
+  JSON.stringify(response);
+
+  Logger.log(response);
+}
+
+function testReturnControllerGetReturnValidation() {
+  const response = getReturn("");
+
+  if (response.success || response.data !== null || !response.message) {
+    throw new Error(
+      'getReturn("") must return the service validation response.',
+    );
+  }
+
+  Logger.log(response);
+}
+
+function testReturnControllerCreateValidation() {
+  const count = RepositoryReader.count(RETURN_SCHEMA);
+  const response = createReturn(null);
+
+  if (response.success || response.data !== null) {
+    throw new Error("createReturn(null) must return a validation failure.");
+  }
+
+  if (RepositoryReader.count(RETURN_SCHEMA) !== count) {
+    throw new Error("createReturn(null) must not write data.");
+  }
+
+  Logger.log(response);
+}
+
+function testReturnControllerUpdateValidation() {
+  const count = RepositoryReader.count(RETURN_SCHEMA);
+  const response = updateReturn("", null);
+
+  if (response.success || response.data !== null) {
+    throw new Error('updateReturn("", null) must return a validation failure.');
+  }
+
+  if (RepositoryReader.count(RETURN_SCHEMA) !== count) {
+    throw new Error("Invalid return update must not write data.");
+  }
+
+  Logger.log(response);
+}
+
+function testReturnControllerDeleteValidation() {
+  const count = RepositoryReader.count(RETURN_SCHEMA);
+  const response = deleteReturn("");
+
+  if (response.success || response.data !== null) {
+    throw new Error('deleteReturn("") must return a validation failure.');
+  }
+
+  if (RepositoryReader.count(RETURN_SCHEMA) !== count) {
+    throw new Error("Invalid return deletion must not change data.");
+  }
+
+  Logger.log(response);
+}
+
+function testReturnControllerRestoreValidation() {
+  const count = RepositoryReader.count(RETURN_SCHEMA);
+  const response = restoreReturn("");
+
+  if (response.success || response.data !== null) {
+    throw new Error('restoreReturn("") must return a validation failure.');
+  }
+
+  if (RepositoryReader.count(RETURN_SCHEMA) !== count) {
+    throw new Error("Invalid return restoration must not change data.");
+  }
+
+  Logger.log(response);
+}
+
+function testReturnControllerSerialization() {
+  const response = getReturns();
+  const values = [response];
+
+  if (typeof response === "string") {
+    throw new Error("Return Controller response must not be a JSON string.");
+  }
+
+  while (values.length > 0) {
+    const value = values.pop();
+
+    if (value instanceof Date || typeof value === "function") {
+      throw new Error("Return Controller response contains an unsafe value.");
+    }
+
+    if (!value || typeof value !== "object") {
+      continue;
+    }
+
+    Object.keys(value).forEach((key) => {
+      values.push(value[key]);
+    });
+  }
+
+  try {
+    JSON.stringify(response);
+  } catch (error) {
+    throw new Error("Return Controller response must be JSON serializable.");
+  }
+
+  Logger.log(response);
+}
+
 function testPickupServiceHeaderDetailRead() {
   const service = PickupService();
 

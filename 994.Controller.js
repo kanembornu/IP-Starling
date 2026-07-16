@@ -124,28 +124,38 @@ function restorePickup(id) {
 // Returns
 //=============================================================================
 
+function _returnControllerResponse(operation) {
+  try {
+    return JSON.parse(JSON.stringify(operation()));
+  } catch (error) {
+    return JSON.parse(
+      JSON.stringify(Response.error("Terjadi kesalahan saat memproses retur.")),
+    );
+  }
+}
+
 function getReturns() {
-  return ReturnService().findAll();
+  return _returnControllerResponse(() => ReturnService().findAll());
 }
 
 function getReturn(id) {
-  return ReturnService().findById(id);
+  return _returnControllerResponse(() => ReturnService().findById(id));
 }
 
 function createReturn(data) {
-  return ReturnService().create(data);
+  return _returnControllerResponse(() => ReturnService().create(data));
 }
 
 function updateReturn(id, data) {
-  return ReturnService().update(id, data);
+  return _returnControllerResponse(() => ReturnService().update(id, data));
 }
 
 function deleteReturn(id) {
-  return ReturnService().remove(id);
+  return _returnControllerResponse(() => ReturnService().remove(id));
 }
 
 function restoreReturn(id) {
-  return ReturnService().restore(id);
+  return _returnControllerResponse(() => ReturnService().restore(id));
 }
 
 //=============================================================================

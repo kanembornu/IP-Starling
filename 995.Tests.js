@@ -132,6 +132,19 @@ function runPickupControllerTests() {
   ]);
 }
 
+function runReturnControllerTests() {
+  runTestSuite("Return controller tests", [
+    testReturnControllerPublicApi,
+    testReturnControllerGetReturns,
+    testReturnControllerGetReturnValidation,
+    testReturnControllerCreateValidation,
+    testReturnControllerUpdateValidation,
+    testReturnControllerDeleteValidation,
+    testReturnControllerRestoreValidation,
+    testReturnControllerSerialization,
+  ]);
+}
+
 function runReturnSchemaTests() {
   runTestSuite("Return schema tests", [
     testReturnSchemaTableAndPrefix,
@@ -179,6 +192,7 @@ function runAllSafeTests() {
   runTransactionReadTests();
   runPickupCreateValidationTests();
   runPickupControllerTests();
+  runReturnControllerTests();
   runReturnSchemaTests();
   runReturnValidationTests();
 }

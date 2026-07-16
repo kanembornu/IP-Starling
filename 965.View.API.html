@@ -147,11 +147,11 @@
     //===========================================================================
 
     const Return = Object.freeze({
-      list() {
+      findAll() {
         return run("getReturns");
       },
 
-      get(id) {
+      findById(id) {
         return run("getReturn", id);
       },
 
@@ -169,6 +169,14 @@
 
       restore(id) {
         return run("restoreReturn", id);
+      },
+
+      list() {
+        return this.findAll();
+      },
+
+      get(id) {
+        return this.findById(id);
       },
     });
 
