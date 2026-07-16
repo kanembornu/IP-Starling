@@ -2,7 +2,7 @@
   /**
    * =============================================================================
    * FILE        : 979.View.Returns.Presenter.html
-   * VERSION     : 1.1.0
+   * VERSION     : 1.2.0
    * DESCRIPTION : Returns List Presenter
    * =============================================================================
    */
@@ -22,6 +22,16 @@
     let returns = [];
 
     let detailRequest = 0;
+
+    let pickupHeaders = null;
+
+    const pickupDetailsByHeader = new Map();
+
+    let returnForm = null;
+
+    let returnSubmitting = false;
+
+    let pickupLoadRequest = 0;
 
     //===========================================================================
     // Public Render
@@ -224,14 +234,31 @@
         refresh.dataset.returnBound = "true";
 
         refresh.addEventListener("click", () => {
+          clearSearch();
           App.refresh();
         });
+      }
+
+      const add = DOM.$("btn-return-add");
+
+      if (add && !add.dataset.returnBound) {
+        add.dataset.returnBound = "true";
+
+        add.addEventListener("click", openCreate);
       }
     }
 
     //===========================================================================
     // Search
     //===========================================================================
+
+    function clearSearch() {
+      const input = DOM.$("inp-return-search");
+
+      if (input) {
+        input.value = "";
+      }
+    }
 
     function filter(keyword = "") {
       const query = String(keyword).trim().toLowerCase();
@@ -464,6 +491,426 @@
     }
 
     //===========================================================================
+    // Create Return
+    //===========================================================================
+
+    async function openCreate() {
+      if (returnSubmitting) {
+        return;
+      }
+
+      const headers = await loadPickupHeaders();
+
+      if (!headers) {
+        return;
+      }
+
+      resetReturnForm();
+      openReturnForm();
+    }
+
+    async function loadPickupHeaders() {
+      if (pickupHeaders) {
+        return pickupHeaders;
+      }
+
+      let response;
+
+      try {
+        response = await Api.Pickup.findAll();
+      } catch (error) {
+        Toast.error("Pickup headers could not be loaded.");
+        return null;
+      }
+
+      if (!response?.success) {
+        Toast.error(response?.message || "Pickup headers could not be loaded.");
+        return null;
+      }
+
+      pickupHeaders = selectableRecords(response.data);
+
+      if (!pickupHeaders.length) {
+        Toast.warning("No active Pickup headers are available for Return.");
+        return null;
+      }
+
+      return pickupHeaders;
+    }
+
+    function selectableRecords(data) {
+      const records = Array.isArray(data) ? data : [];
+
+      return records.filter((record) => isActive(record?.IsActive) && !isTrue(record?.Deleted));
+    }
+
+    function resetReturnForm() {
+      pickupLoadRequest += 1;
+      returnSubmitting = false;
+      returnForm = {
+        Tanggal: "",
+        PickupID: "",
+        PickupDetailID: "",
+        Qty: "",
+        Keterangan: "",
+        details: [],
+        loadingDetails: false,
+      };
+    }
+
+    function openReturnForm() {
+      Modal.open({
+        title: "Add Return",
+        width: "lg",
+        body: renderReturnForm(),
+        footer: renderReturnFooter(),
+      });
+
+      bindReturnForm();
+      DOM.$("inp-return-form-date")?.focus();
+    }
+
+    function renderReturnForm() {
+      const selectedDetail = selectedPickupDetail();
+
+      return `
+        <div id="return-form" class="space-y-5">
+          <div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+            Select a Pickup and its item. Return availability is validated by the server when saved.
+          </div>
+
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            ${renderReturnDate()}
+            ${renderPickupSelect()}
+          </div>
+
+          ${renderPickupDetailSelect()}
+
+          ${renderReturnContext(selectedDetail)}
+
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label for="inp-return-form-qty" class="mb-1 block text-sm font-medium text-slate-700">Qty Return</label>
+              <input id="inp-return-form-qty" data-return-form-field="Qty" type="number" min="0" step="any" value="${escape(returnForm?.Qty)}" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0" />
+            </div>
+          </div>
+
+          <div>
+            <label for="inp-return-form-note" class="mb-1 block text-sm font-medium text-slate-700">Keterangan</label>
+            <textarea id="inp-return-form-note" data-return-form-field="Keterangan" rows="3" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Optional notes">${escape(returnForm?.Keterangan)}</textarea>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderReturnDate() {
+      return `
+        <div>
+          <label for="inp-return-form-date" class="mb-1 block text-sm font-medium text-slate-700">Tanggal</label>
+          <input id="inp-return-form-date" data-return-form-field="Tanggal" type="date" value="${escape(returnForm?.Tanggal)}" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+      `;
+    }
+
+    function renderPickupSelect() {
+      return `
+        <div>
+          <label for="sel-return-form-pickup" class="mb-1 block text-sm font-medium text-slate-700">Pickup</label>
+          <select id="sel-return-form-pickup" data-return-form-field="PickupID" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="">-- Select Pickup --</option>
+            ${(pickupHeaders || []).map(renderPickupOption).join("")}
+          </select>
+        </div>
+      `;
+    }
+
+    function renderPickupOption(header = {}) {
+      const id = String(header.ID || "");
+      const label = header.PickupNo || id;
+      const selected = id === String(returnForm?.PickupID || "") ? "selected" : "";
+
+      return `<option value="${escape(id)}" ${selected}>${escape(label)}</option>`;
+    }
+
+    function renderPickupDetailSelect() {
+      const disabled = !returnForm?.PickupID || returnForm.loadingDetails;
+      const message = returnForm?.loadingDetails
+        ? "Loading Pickup Details..."
+        : returnForm?.PickupID
+          ? "-- Select Pickup Detail / Product --"
+          : "-- Select Pickup first --";
+
+      return `
+        <div>
+          <label for="sel-return-form-detail" class="mb-1 block text-sm font-medium text-slate-700">Pickup Detail / Product</label>
+          <select id="sel-return-form-detail" data-return-form-field="PickupDetailID" ${disabled ? "disabled" : ""} class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100">
+            <option value="">${message}</option>
+            ${(returnForm?.details || []).map(renderPickupDetailOption).join("")}
+          </select>
+        </div>
+      `;
+    }
+
+    function renderPickupDetailOption(detail = {}) {
+      const id = String(detail.ID || "");
+      const product = detail.ProductID || id;
+      const selected = id === String(returnForm?.PickupDetailID || "") ? "selected" : "";
+
+      return `<option value="${escape(id)}" ${selected}>${escape(product)} (${escape(id)})</option>`;
+    }
+
+    function renderReturnContext(detail) {
+      if (!detail) {
+        return `
+          <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            Choose a Pickup Detail to see its Product and quantity context.
+          </div>
+        `;
+      }
+
+      return `
+        <dl class="grid grid-cols-1 gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm sm:grid-cols-2">
+          ${detailField("Product", detail.ProductID || detail.ID)}
+          ${detailField("Pickup Detail ID", detail.ID)}
+          ${detailField("Pickup Detail Qty", Format.number(detail.Qty))}
+          ${detailField("Already Returned Qty", "Not available for a new selection")}
+          ${detailField("Available Qty", "Validated by server on submit", "sm:col-span-2")}
+        </dl>
+      `;
+    }
+
+    function renderReturnFooter() {
+      return `
+        <button type="button" data-return-form-action="cancel" class="rounded-lg border border-slate-300 px-5 py-2 hover:bg-slate-100">Cancel</button>
+        <button type="button" id="btn-return-form-save" data-return-form-action="save" class="rounded-lg bg-blue-600 px-5 py-2 text-white hover:bg-blue-700">Save Return</button>
+      `;
+    }
+
+    function bindReturnForm() {
+      const form = DOM.$("return-form");
+
+      if (form) {
+        form.addEventListener("input", handleReturnFormInput);
+        form.addEventListener("change", handleReturnFormInput);
+      }
+
+      const footer = DOM.$("modal-footer");
+
+      if (footer && !footer.dataset.returnFormBound) {
+        footer.dataset.returnFormBound = "true";
+        footer.addEventListener("click", handleReturnFooterClick);
+      }
+
+      const close = DOM.$("btn-modal-close");
+
+      if (close && !close.dataset.returnFormBound) {
+        close.dataset.returnFormBound = "true";
+        close.addEventListener("click", () => {
+          if (returnForm && !returnSubmitting) {
+            closeCreate();
+          }
+        });
+      }
+    }
+
+    function handleReturnFormInput(event) {
+      const field = event.target.dataset.returnFormField;
+
+      if (!field || !returnForm) {
+        return;
+      }
+
+      if (field === "PickupID") {
+        changePickup(event.target.value);
+        return;
+      }
+
+      returnForm[field] = event.target.value;
+
+      if (field === "PickupDetailID") {
+        returnForm.Qty = "";
+        Modal.body(renderReturnForm());
+        bindReturnForm();
+      }
+    }
+
+    async function changePickup(id) {
+      if (!returnForm || returnSubmitting) {
+        return;
+      }
+
+      const request = ++pickupLoadRequest;
+
+      returnForm.PickupID = String(id || "");
+      returnForm.PickupDetailID = "";
+      returnForm.Qty = "";
+      returnForm.details = [];
+      returnForm.loadingDetails = Boolean(returnForm.PickupID);
+      Modal.body(renderReturnForm());
+      bindReturnForm();
+
+      if (!returnForm.PickupID) {
+        return;
+      }
+
+      const details = await loadPickupDetails(returnForm.PickupID);
+
+      if (!returnForm || request !== pickupLoadRequest) {
+        return;
+      }
+
+      returnForm.loadingDetails = false;
+      returnForm.details = details || [];
+      Modal.body(renderReturnForm());
+      bindReturnForm();
+
+      if (!details) {
+        Toast.error("Pickup Details could not be loaded.");
+      } else if (!details.length) {
+        Toast.warning("The selected Pickup has no active Details.");
+      }
+    }
+
+    async function loadPickupDetails(id) {
+      if (pickupDetailsByHeader.has(id)) {
+        return pickupDetailsByHeader.get(id);
+      }
+
+      let response;
+
+      try {
+        response = await Api.Pickup.findById(id);
+      } catch (error) {
+        return null;
+      }
+
+      if (!response?.success || !Array.isArray(response.data?.details)) {
+        return null;
+      }
+
+      const details = selectableRecords(response.data.details);
+      pickupDetailsByHeader.set(id, details);
+
+      return details;
+    }
+
+    function selectedPickupDetail() {
+      return (returnForm?.details || []).find((detail) => {
+        return String(detail?.ID) === String(returnForm?.PickupDetailID || "");
+      });
+    }
+
+    function handleReturnFooterClick(event) {
+      const action = event.target.closest("[data-return-form-action]")?.dataset.returnFormAction;
+
+      if (action === "cancel") {
+        if (!returnSubmitting) {
+          closeCreate();
+        }
+        return;
+      }
+
+      if (action === "save") {
+        submitCreate();
+      }
+    }
+
+    async function submitCreate() {
+      if (returnSubmitting || !returnForm) {
+        return;
+      }
+
+      const validation = validateReturn();
+
+      if (!validation.valid) {
+        Toast.warning(validation.message);
+        validation.element?.focus();
+        return;
+      }
+
+      returnSubmitting = true;
+      setReturnLoading(true);
+
+      try {
+        const response = await Api.Return.create(validation.document);
+
+        if (!response?.success) {
+          Toast.error(response?.message || "Return could not be created.");
+          return;
+        }
+
+        Toast.success(response.message || "Return created.");
+        closeCreate();
+        await App.refresh();
+      } catch (error) {
+        Toast.error(error?.message || "Return could not be created. Please try again.");
+      } finally {
+        returnSubmitting = false;
+        setReturnLoading(false);
+      }
+    }
+
+    function validateReturn() {
+      const tanggal = String(returnForm.Tanggal || "").trim();
+      const pickupId = String(returnForm.PickupID || "").trim();
+      const pickupDetailId = String(returnForm.PickupDetailID || "").trim();
+      const qty = Number(returnForm.Qty);
+
+      if (!tanggal) {
+        return invalidReturn("Tanggal is required.", DOM.$("inp-return-form-date"));
+      }
+
+      if (!pickupId) {
+        return invalidReturn("Pickup is required.", DOM.$("sel-return-form-pickup"));
+      }
+
+      if (!pickupDetailId) {
+        return invalidReturn("Pickup Detail is required.", DOM.$("sel-return-form-detail"));
+      }
+
+      if (!Number.isFinite(qty)) {
+        return invalidReturn("Qty must be numeric.", DOM.$("inp-return-form-qty"));
+      }
+
+      if (qty <= 0) {
+        return invalidReturn("Qty must be greater than zero.", DOM.$("inp-return-form-qty"));
+      }
+
+      return {
+        valid: true,
+        document: {
+          PickupDetailID: pickupDetailId,
+          Tanggal: tanggal,
+          Qty: qty,
+          Keterangan: String(returnForm.Keterangan || "").trim(),
+        },
+      };
+    }
+
+    function invalidReturn(message, element = null) {
+      return { valid: false, message, element };
+    }
+
+    function setReturnLoading(loading) {
+      const button = DOM.$("btn-return-form-save");
+
+      if (!button) {
+        return;
+      }
+
+      button.disabled = loading;
+      button.classList.toggle("opacity-50", loading);
+      button.classList.toggle("cursor-not-allowed", loading);
+      button.textContent = loading ? "Saving..." : "Save Return";
+    }
+
+    function closeCreate() {
+      pickupLoadRequest += 1;
+      returnForm = null;
+      Modal.close();
+    }
+
+    //===========================================================================
     // Text
     //===========================================================================
 
@@ -479,6 +926,10 @@
       render,
 
       view,
+
+      openCreate,
+
+      submitCreate,
     });
   })();
 </script>
