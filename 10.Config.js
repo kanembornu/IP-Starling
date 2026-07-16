@@ -121,8 +121,6 @@ const ID_PREFIX = Object.freeze({
 
   PARTNER: "PT",
 
-  PICKUP: "PU",
-
   PICKUP_HEADER: "PH",
 
   PICKUP_DETAIL: "PD",
