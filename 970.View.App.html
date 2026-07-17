@@ -79,6 +79,22 @@
     }
 
     //===========================================================================
+    // Cached Master Data
+    //===========================================================================
+
+    function getProducts() {
+      return Array.isArray(state.products)
+        ? Utils.deepClone(state.products)
+        : [];
+    }
+
+    function getPartners() {
+      return Array.isArray(state.partners)
+        ? Utils.deepClone(state.partners)
+        : [];
+    }
+
+    //===========================================================================
     // Refresh
     //===========================================================================
 
@@ -409,6 +425,9 @@
       refresh,
       currentPage,
       search,
+
+      getProducts,
+      getPartners,
 
       loadProducts,
       openCreateProduct,
