@@ -41,6 +41,12 @@
 
     let modalMode = null;
 
+    let pendingDelete = null;
+
+    let deleteSubmitting = false;
+
+    let deleteRequest = 0;
+
     //===========================================================================
     // Public Render
     //===========================================================================
@@ -146,6 +152,18 @@
 
           <span>Edit</span>
         </button>
+
+        <button
+          type="button"
+          data-return-action="delete"
+          data-return-id="${escape(id)}"
+          title="Deactivate"
+          class="ml-2 inline-flex items-center gap-2 px-3 py-2 rounded-lg transition bg-red-600 hover:bg-red-700 text-white"
+        >
+          ${Components.icon("fa-trash")}
+
+          <span>Delete</span>
+        </button>
       `;
     }
 
@@ -172,7 +190,112 @@
         if (button.dataset.returnAction === "edit") {
           openEdit(button.dataset.returnId);
         }
+
+        if (button.dataset.returnAction === "delete") {
+          confirmDelete(button.dataset.returnId);
+        }
       });
+    }
+
+    //===========================================================================
+    // Delete
+    //===========================================================================
+
+    async function confirmDelete(id) {
+      const ret = findReturn(id);
+
+      if (Utils.isEmpty(id)) {
+        Toast.error("Return ID is unavailable.");
+        return;
+      }
+
+      if (!ret || isTrue(ret[FIELD.DELETED]) || !isActive(ret[FIELD.IS_ACTIVE])) {
+        Toast.error("This Return is no longer available for deletion.");
+        return;
+      }
+
+      if (deleteSubmitting) {
+        return;
+      }
+
+      pendingDelete = {
+        id: String(ret[FIELD.ID]),
+        pickupId: ret[FIELD.PICKUP_ID],
+        qty: ret[FIELD.QTY],
+      };
+      const request = ++deleteRequest;
+      modalMode = "delete";
+
+      try {
+        const confirmed = await Dialog.confirm({
+          title: "Deactivate Return",
+          confirmText: "Delete / Deactivate",
+          loadingText: "Deactivating...",
+          message: renderDeleteMessage(pendingDelete),
+          onConfirm: submitDelete,
+        });
+
+        if (confirmed) {
+          pendingDelete = null;
+          modalMode = null;
+          await App.refresh();
+        }
+      } finally {
+        if (request === deleteRequest) {
+          pendingDelete = null;
+          deleteSubmitting = false;
+          modalMode = null;
+        }
+      }
+    }
+
+    function findReturn(id) {
+      return returns.find((ret) => String(ret?.[FIELD.ID]) === String(id));
+    }
+
+    function renderDeleteMessage(context) {
+      return `
+        <div class="space-y-3">
+          <p>Delete / deactivate Return <strong>${escape(context.id)}</strong>?</p>
+          <dl class="grid grid-cols-1 gap-2 rounded-lg bg-slate-50 p-3 text-sm">
+            ${detailField("Pickup", context.pickupId)}
+            ${detailField("Qty", Format.number(context.qty))}
+          </dl>
+          <p class="text-sm text-slate-600">This uses a soft delete. The Return will be removed from the active list, but it will not be permanently deleted.</p>
+        </div>
+      `;
+    }
+
+    async function submitDelete() {
+      if (deleteSubmitting) {
+        return false;
+      }
+
+      const id = String(pendingDelete?.id || "").trim();
+
+      if (!id) {
+        Toast.error("Return ID is unavailable.");
+        return false;
+      }
+
+      deleteSubmitting = true;
+
+      try {
+        const response = await Api.Return.remove(id);
+
+        if (!response?.success) {
+          Toast.error(response?.message || "Return could not be deactivated.");
+          return false;
+        }
+
+        Toast.success(response.message || "Return deactivated.");
+        return true;
+      } catch (error) {
+        Toast.error(error?.message || "Return could not be deactivated. Please try again.");
+        return false;
+      } finally {
+        deleteSubmitting = false;
+      }
     }
 
     //===========================================================================
@@ -1260,6 +1383,10 @@
       openEdit,
 
       submitEdit,
+
+      confirmDelete,
+
+      submitDelete,
     });
   })();
 </script>

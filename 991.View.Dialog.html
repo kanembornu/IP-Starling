@@ -10,6 +10,8 @@
   const Dialog = (() => {
     async function confirm(options = {}) {
       return new Promise((resolve) => {
+        let submitting = false;
+
         Modal.open({
           title: options.title || "Confirmation",
 
@@ -26,16 +28,18 @@
 
           <button
             id="dialog-cancel"
+            type="button"
             class="px-4 py-2 border rounded-lg"
           >
-            Cancel
+            ${options.cancelText || "Cancel"}
           </button>
 
           <button
             id="dialog-ok"
+            type="button"
             class="px-4 py-2 bg-red-600 text-white rounded-lg"
           >
-            OK
+            ${options.confirmText || "OK"}
           </button>
 
         </div>
@@ -46,6 +50,10 @@
           "click",
 
           () => {
+            if (submitting) {
+              return;
+            }
+
             Modal.close();
 
             resolve(false);
@@ -55,7 +63,29 @@
         DOM.$("dialog-ok").addEventListener(
           "click",
 
-          () => {
+          async () => {
+            if (submitting) {
+              return;
+            }
+
+            if (typeof options.onConfirm === "function") {
+              submitting = true;
+              setLoading(true, options.loadingText || "Processing...");
+
+              let confirmed = false;
+
+              try {
+                confirmed = (await options.onConfirm()) === true;
+              } finally {
+                submitting = false;
+                setLoading(false, options.confirmText || "OK");
+              }
+
+              if (!confirmed) {
+                return;
+              }
+            }
+
             Modal.close();
 
             resolve(true);
@@ -66,10 +96,30 @@
 
         if (close) {
           close.onclick = () => {
+            if (submitting) {
+              return;
+            }
+
             Modal.close();
 
             resolve(false);
           };
+        }
+
+        function setLoading(loading, label) {
+          const confirmButton = DOM.$("dialog-ok");
+          const cancelButton = DOM.$("dialog-cancel");
+
+          if (confirmButton) {
+            confirmButton.disabled = loading;
+            confirmButton.classList.toggle("opacity-50", loading);
+            confirmButton.classList.toggle("cursor-not-allowed", loading);
+            confirmButton.textContent = label;
+          }
+
+          if (cancelButton) {
+            cancelButton.disabled = loading;
+          }
         }
       });
     }
