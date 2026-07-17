@@ -193,6 +193,10 @@
         return run("getPurchasing");
       },
 
+      findDeleted() {
+        return run("getDeletedPurchasing");
+      },
+
       findById(id) {
         return run("getPurchasingById", id);
       },

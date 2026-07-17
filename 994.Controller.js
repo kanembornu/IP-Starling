@@ -181,6 +181,10 @@ function getPurchasing() {
   return _purchasingControllerResponse(() => PurchasingService().findAll());
 }
 
+function getDeletedPurchasing() {
+  return _purchasingControllerResponse(() => PurchasingService().findDeleted());
+}
+
 function getPurchasingById(id) {
   return _purchasingControllerResponse(() => PurchasingService().findById(id));
 }
