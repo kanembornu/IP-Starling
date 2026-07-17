@@ -78,6 +78,16 @@
 
     let deleteSubmitting = false;
 
+    let trashRows = [];
+
+    let trashQuery = "";
+
+    let trashRequest = 0;
+
+    let pendingRestore = null;
+
+    let restoreSubmitting = false;
+
     function render(purchasing = []) {
       const list = normalizeList(purchasing);
 
@@ -121,6 +131,8 @@
 
       const add = DOM.$("btn-purchasing-add");
 
+      const trash = DOM.$("btn-purchasing-trash");
+
       if (search && !search.dataset.purchasingSearchBound) {
         search.dataset.purchasingSearchBound = "true";
         search.addEventListener("input", renderVisibleRows);
@@ -138,6 +150,246 @@
         add.dataset.purchasingAddBound = "true";
         add.addEventListener("click", openCreate);
       }
+
+      if (trash && !trash.dataset.purchasingTrashBound) {
+        trash.dataset.purchasingTrashBound = "true";
+        trash.addEventListener("click", openTrash);
+      }
+    }
+
+    //===========================================================================
+    // Trash and Restore
+    //===========================================================================
+
+    async function openTrash() {
+      const request = ++trashRequest;
+      trashRows = [];
+      trashQuery = "";
+      pendingRestore = null;
+      Modal.open({
+        title: "Purchasing Trash",
+        width: "xl",
+        body: Components.loading("Loading deleted purchasing..."),
+        footer: trashCloseFooter(),
+      });
+      bindTrashModal();
+
+      try {
+        const response = await Api.Purchasing.findDeleted();
+        if (request !== trashRequest) return;
+        if (!response?.success || !Array.isArray(response.data)) {
+          showTrashError(response?.message || "Purchasing Trash could not be loaded.");
+          return;
+        }
+        trashRows = response.data.filter(isDeletedRow);
+        renderTrash();
+      } catch (error) {
+        if (request === trashRequest) {
+          showTrashError("Purchasing Trash could not be loaded. Please try again.");
+        }
+      }
+    }
+
+    function trashCloseFooter() {
+      return '<button type="button" data-purchasing-trash-action="close" class="rounded-lg border border-slate-300 px-5 py-2 hover:bg-slate-100">Close</button>';
+    }
+
+    function bindTrashModal() {
+      const body = DOM.$("modal-body");
+      const footer = DOM.$("modal-footer");
+      const close = DOM.$("btn-modal-close");
+      if (body && !body.dataset.purchasingTrashBound) {
+        body.dataset.purchasingTrashBound = "true";
+        body.addEventListener("input", handleTrashInput);
+        body.addEventListener("click", handleTrashClick);
+      }
+      if (footer && !footer.dataset.purchasingTrashBound) {
+        footer.dataset.purchasingTrashBound = "true";
+        footer.addEventListener("click", handleTrashFooter);
+      }
+      if (close) close.onclick = closeTrash;
+    }
+
+    function handleTrashInput(event) {
+      if (event.target.id !== "inp-purchasing-trash-search") return;
+      trashQuery = String(event.target.value ?? "").trim().toLowerCase();
+      renderTrashRows();
+    }
+
+    function handleTrashClick(event) {
+      const button = event.target.closest('[data-purchasing-trash-action="restore"]');
+      if (button) openRestoreConfirmation(button.dataset.purchasingId);
+    }
+
+    function handleTrashFooter(event) {
+      if (event.target.closest('[data-purchasing-trash-action="close"]')) closeTrash();
+    }
+
+    function renderTrash() {
+      Modal.body(`
+        <div class="space-y-4">
+          <input id="inp-purchasing-trash-search" type="search" value="${escape(trashQuery)}" placeholder="Search Purchasing Trash..." class="w-full rounded-lg border border-slate-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <div id="lbl-purchasing-trash-info" class="text-sm text-slate-500"></div>
+          <div class="overflow-x-auto rounded-lg border border-slate-200">
+            <table class="min-w-full text-sm"><thead class="bg-slate-100"><tr>
+              <th class="px-3 py-3 text-left">Purchase ID</th><th class="px-3 py-3 text-left">Date</th><th class="px-3 py-3 text-left">Supplier</th><th class="px-3 py-3 text-left">Product</th><th class="px-3 py-3 text-right">Qty</th><th class="px-3 py-3 text-right">Unit Price</th><th class="px-3 py-3 text-right">Total</th><th class="px-3 py-3 text-center">Status</th><th class="px-3 py-3 text-center">Action</th>
+            </tr></thead><tbody id="tbl-purchasing-trash-body"></tbody></table>
+          </div>
+        </div>`);
+      Modal.footer(trashCloseFooter());
+      bindTrashModal();
+      renderTrashRows();
+    }
+
+    function renderTrashRows() {
+      const visible = trashQuery ? trashRows.filter((row) => matchesTrashSearch(row, trashQuery)) : trashRows;
+      DOM.text(DOM.$("lbl-purchasing-trash-info"), `${Format.number(visible.length)} Deleted Purchasing`);
+      const body = DOM.$("tbl-purchasing-trash-body");
+      if (!body) return;
+      Render.mount("tbl-purchasing-trash-body", visible.length
+        ? visible.map(renderTrashRow).join("")
+        : `<tr><td colspan="9">${Components.empty(trashRows.length && trashQuery ? "No deleted purchasing matches your search." : "Purchasing Trash is empty.")}</td></tr>`);
+    }
+
+    function renderTrashRow(row) {
+      const id = safeValue(row?.[FIELD.ID]);
+      const supplierId = row?.[FIELD.SUPPLIER_ID];
+      const productId = row?.[FIELD.PRODUCT_ID];
+      return Components.tableRow([
+        Components.tableCell(text(id), "font-medium text-slate-800"),
+        Components.tableCell(text(formatDate(row?.[FIELD.DATE]))),
+        Components.tableCell(text(resolveName(supplierNames, supplierId))),
+        Components.tableCell(text(resolveName(productNames, productId))),
+        Components.tableCell(text(formatNumber(row?.[FIELD.QTY])), "text-right"),
+        Components.tableCell(text(formatCurrency(row?.[FIELD.PRICE])), "text-right"),
+        Components.tableCell(text(formatCurrency(row?.[FIELD.TOTAL])), "text-right"),
+        Components.tableCell(Components.badge("Deleted", false), "text-center"),
+        Components.tableCell(`<button type="button" data-purchasing-trash-action="restore" data-purchasing-id="${escape(id)}" class="rounded-lg bg-emerald-50 px-3 py-2 text-emerald-700 hover:bg-emerald-100">${Components.icon("fa-rotate-left")} <span>Restore</span></button>`, "text-center"),
+      ]);
+    }
+
+    function matchesTrashSearch(row, query) {
+      const supplierId = row?.[FIELD.SUPPLIER_ID];
+      const productId = row?.[FIELD.PRODUCT_ID];
+      return [row?.[FIELD.ID], row?.[FIELD.DATE], formatDate(row?.[FIELD.DATE]), supplierId,
+        resolveName(supplierNames, supplierId), productId, resolveName(productNames, productId),
+        row?.[FIELD.QTY], formatNumber(row?.[FIELD.QTY]), row?.[FIELD.PRICE], formatCurrency(row?.[FIELD.PRICE]),
+        row?.[FIELD.TOTAL], formatCurrency(row?.[FIELD.TOTAL]), "Deleted"].some((value) =>
+        String(safeValue(value)).toLowerCase().includes(query));
+    }
+
+    function isDeletedRow(row) {
+      return toBoolean(row?.[FIELD.DELETED], false) && !toBoolean(row?.[FIELD.IS_ACTIVE], true);
+    }
+
+    function openRestoreConfirmation(id) {
+      if (restoreSubmitting) return;
+      const row = trashRows.find((item) => String(item?.[FIELD.ID] ?? "") === String(id ?? ""));
+      if (!row || !isDeletedRow(row)) {
+        Components.toast("Deleted Purchasing record is unavailable.", "error");
+        return;
+      }
+      pendingRestore = row;
+      Modal.title("Restore Purchasing");
+      Modal.body(`<div class="space-y-3"><p class="font-medium text-emerald-700">Restore this Purchasing record?</p><dl class="grid grid-cols-1 gap-3 rounded-lg bg-slate-50 p-3 text-sm sm:grid-cols-2">${detailField("Purchase ID", row[FIELD.ID])}${detailField("Date", formatDate(row[FIELD.DATE]))}${detailField("Supplier", resolveName(supplierNames, row[FIELD.SUPPLIER_ID]))}${detailField("Product", resolveName(productNames, row[FIELD.PRODUCT_ID]))}${detailField("Qty", formatNumber(row[FIELD.QTY]))}${detailField("Total", formatCurrency(row[FIELD.TOTAL]))}</dl></div>`);
+      Modal.footer('<button type="button" data-purchasing-restore-action="cancel" class="rounded-lg border border-slate-300 px-5 py-2 hover:bg-slate-100">Cancel</button><button type="button" id="btn-purchasing-restore-confirm" data-purchasing-restore-action="confirm" class="rounded-lg bg-emerald-600 px-5 py-2 text-white hover:bg-emerald-700">Restore Purchasing</button>');
+      bindRestoreModal();
+    }
+
+    function bindRestoreModal() {
+      const footer = DOM.$("modal-footer");
+      const close = DOM.$("btn-modal-close");
+      if (footer && !footer.dataset.purchasingRestoreBound) {
+        footer.dataset.purchasingRestoreBound = "true";
+        footer.addEventListener("click", (event) => {
+          const action = event.target.closest("[data-purchasing-restore-action]")?.dataset.purchasingRestoreAction;
+          if (action === "cancel") returnToTrash();
+          if (action === "confirm") submitRestore();
+        });
+      }
+      if (close) close.onclick = restoreSubmitting ? () => {} : returnToTrash;
+    }
+
+    function returnToTrash() {
+      if (restoreSubmitting) return;
+      pendingRestore = null;
+      Modal.title("Purchasing Trash");
+      renderTrash();
+    }
+
+    async function submitRestore() {
+      if (restoreSubmitting || !pendingRestore) return;
+      const id = String(pendingRestore[FIELD.ID] ?? "").trim();
+      if (!id) return;
+      restoreSubmitting = true;
+      setRestoreLoading(true);
+      let response;
+      try {
+        response = await Api.Purchasing.restore(id);
+        if (!response?.success) {
+          Toast.error(response?.message || "Purchasing could not be restored.");
+          restoreSubmitting = false;
+          setRestoreLoading(false);
+          return;
+        }
+      } catch (error) {
+        Toast.error(
+          typeof error?.message === "string" && error.message.trim()
+            ? error.message
+            : "Purchasing could not be restored. Please try again.",
+        );
+        restoreSubmitting = false;
+        setRestoreLoading(false);
+        return;
+      }
+
+      Toast.success(response.message || "Purchasing restored.");
+      pendingRestore = null;
+      try {
+        await App.refresh();
+      } catch (error) {
+        console.error("Purchasing active list refresh failed.");
+      }
+      await reloadTrash();
+      restoreSubmitting = false;
+      setRestoreLoading(false);
+    }
+
+    async function reloadTrash() {
+      try {
+        const response = await Api.Purchasing.findDeleted();
+        if (!response?.success || !Array.isArray(response.data)) {
+          showTrashError(response?.message || "Purchasing Trash could not be refreshed.");
+          return;
+        }
+        trashRows = response.data.filter(isDeletedRow);
+        Modal.title("Purchasing Trash");
+        renderTrash();
+      } catch (error) {
+        showTrashError("Purchasing Trash could not be refreshed. Please reopen Trash.");
+      }
+    }
+
+    function setRestoreLoading(loading) {
+      const confirm = DOM.$("btn-purchasing-restore-confirm");
+      const cancel = document.querySelector('[data-purchasing-restore-action="cancel"]');
+      const close = DOM.$("btn-modal-close");
+      [confirm, cancel, close].forEach((button) => { if (button) button.disabled = loading; });
+      if (confirm) confirm.textContent = loading ? "Restoring..." : "Restore Purchasing";
+    }
+
+    function showTrashError(message) {
+      Modal.body(Components.empty(escape(message)));
+      Modal.footer(trashCloseFooter());
+      bindTrashModal();
+    }
+
+    function closeTrash() {
+      if (restoreSubmitting) return;
+      trashRequest += 1;
+      trashRows = [];
+      pendingRestore = null;
+      Modal.close();
     }
 
     function clearSearch() {
