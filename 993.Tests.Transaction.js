@@ -2375,3 +2375,237 @@ function testReturnFindByIdResolvedData() {
     cleanupReturnTestRow(row);
   }
 }
+
+function purchasingAssertFailure(response, message) {
+  if (!response || response.success) throw new Error(message);
+}
+
+function purchasingTestMasterData(partnerType) {
+  const suffix = `${new Date().getTime()}_${Math.floor(Math.random() * 100000)}`;
+  const partnerResponse = PartnerService().create({
+    Nama: `Purchasing Test ${suffix}`,
+    Alamat: "Test",
+    Telepon: suffix,
+    Jenis: partnerType || "Supplier",
+  });
+  if (!partnerResponse.success) throw new Error("Could not create controlled Partner fixture.");
+
+  const productResponse = ProductService().create({
+    Nama: `Purchasing Test ${suffix}`,
+    Kategori: "Test",
+    Satuan: "Unit",
+    Harga: 10,
+  });
+  if (!productResponse.success) {
+    PartnerService().remove(partnerResponse.data.ID);
+    throw new Error("Could not create controlled Product fixture.");
+  }
+
+  return { partner: partnerResponse.data, product: productResponse.data };
+}
+
+function purchasingCleanupMasterData(fixture) {
+  if (!fixture) return;
+  const partner = RepositoryReader.findById(PARTNER_SCHEMA, fixture.partner.ID);
+  const product = RepositoryReader.findById(PRODUCT_SCHEMA, fixture.product.ID);
+  if (partner) PartnerService().remove(fixture.partner.ID);
+  if (product) ProductService().remove(fixture.product.ID);
+}
+
+function purchasingDocument(fixture, changes) {
+  return Object.assign({
+    Tanggal: "2026-07-17",
+    SupplierID: fixture.partner.ID,
+    ProductID: fixture.product.ID,
+    Qty: 2,
+    Harga: 10,
+  }, changes || {});
+}
+
+function purchasingWithFixture(test, partnerType) {
+  const fixture = purchasingTestMasterData(partnerType);
+  let purchase = null;
+  try {
+    test(fixture, (row) => { purchase = row; });
+  } finally {
+    if (purchase && PurchasingService().findById(purchase.ID).success) {
+      PurchasingService().remove(purchase.ID);
+    }
+    if (purchase) {
+      Logger.log(`CLEANUP: Purchasing fixture ${purchase.ID} is soft-deleted.`);
+    }
+    purchasingCleanupMasterData(fixture);
+  }
+}
+
+function purchasingCreateFixture(fixture, changes) {
+  const response = PurchasingService().create(purchasingDocument(fixture, changes));
+  if (!response.success) throw new Error(`Could not create Purchasing fixture: ${response.message}`);
+  return response.data;
+}
+
+function testPurchasingServicePublicApi() {
+  const actual = Object.keys(PurchasingService()).sort();
+  const expected = ["create", "findAll", "findById", "remove", "restore", "update"];
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error("PurchasingService public API is invalid.");
+}
+
+function testPurchasingFindAllActiveOnly() {
+  const response = PurchasingService().findAll();
+  if (!response.success || !Array.isArray(response.data)) throw new Error("Purchasing findAll response is invalid.");
+  response.data.forEach((row) => {
+    if (!(row.Deleted === false || row.Deleted === 0 || String(row.Deleted).toUpperCase() === "FALSE") ||
+        !(row.IsActive === true || row.IsActive === 1 || String(row.IsActive).toUpperCase() === "TRUE")) {
+      throw new Error("Purchasing findAll returned a deleted or inactive row.");
+    }
+  });
+}
+
+function testPurchasingFindByIdValidation() {
+  purchasingAssertFailure(PurchasingService().findById(" "), "Purchasing findById must require ID.");
+}
+
+function purchasingAssertCreateFailure(changes, message, partnerType) {
+  purchasingWithFixture((fixture) => {
+    purchasingAssertFailure(PurchasingService().create(purchasingDocument(fixture, changes)), message);
+  }, partnerType);
+}
+
+function testPurchasingCreateRequiresTanggal() { purchasingAssertCreateFailure({ Tanggal: "" }, "Tanggal must be required."); }
+function testPurchasingCreateRequiresSupplier() { purchasingAssertCreateFailure({ SupplierID: "" }, "Supplier must be required."); }
+function testPurchasingCreateRequiresProduct() { purchasingAssertCreateFailure({ ProductID: "" }, "Product must be required."); }
+function testPurchasingCreateRejectsQtyZero() { purchasingAssertCreateFailure({ Qty: 0 }, "Qty zero must be rejected."); }
+function testPurchasingCreateRejectsQtyNegative() { purchasingAssertCreateFailure({ Qty: -1 }, "Negative Qty must be rejected."); }
+function testPurchasingCreateRejectsQtyInfinity() { purchasingAssertCreateFailure({ Qty: Infinity }, "Infinite Qty must be rejected."); }
+function testPurchasingCreateRejectsHargaNegative() { purchasingAssertCreateFailure({ Harga: -1 }, "Negative Harga must be rejected."); }
+function testPurchasingCreateRejectsHargaInfinity() { purchasingAssertCreateFailure({ Harga: Infinity }, "Infinite Harga must be rejected."); }
+function testPurchasingCreateRejectsNonSupplierPartner() { purchasingAssertCreateFailure({}, "Non-Supplier must be rejected.", "Customer"); }
+
+function testPurchasingCreateRejectsInactiveSupplier() {
+  purchasingWithFixture((fixture) => {
+    PartnerService().remove(fixture.partner.ID);
+    purchasingAssertFailure(PurchasingService().create(purchasingDocument(fixture)), "Inactive Supplier must be rejected.");
+  });
+}
+
+function testPurchasingCreateRejectsInactiveProduct() {
+  purchasingWithFixture((fixture) => {
+    ProductService().remove(fixture.product.ID);
+    purchasingAssertFailure(PurchasingService().create(purchasingDocument(fixture)), "Inactive Product must be rejected.");
+  });
+}
+
+function purchasingAssertCreate(changes, assertion) {
+  purchasingWithFixture((fixture, remember) => {
+    const row = purchasingCreateFixture(fixture, changes);
+    remember(row);
+    assertion(row);
+  });
+}
+
+function testPurchasingCreateValid() { purchasingAssertCreate({}, (row) => { if (!row.ID) throw new Error("Purchasing create did not return an ID."); }); }
+function testPurchasingCreateDerivesTotal() { purchasingAssertCreate({ Qty: 3, Harga: 7 }, (row) => { if (row.Total !== 21) throw new Error("Total was not derived."); }); }
+function testPurchasingCreateIgnoresSuppliedTotal() { purchasingAssertCreate({ Qty: 3, Harga: 7, Total: 999 }, (row) => { if (row.Total !== 21) throw new Error("Caller Total was trusted."); }); }
+function testPurchasingCreateAllowsDecimalQty() { purchasingAssertCreate({ Qty: 1.5, Harga: 8 }, (row) => { if (row.Qty !== 1.5 || row.Total !== 12) throw new Error("Decimal Qty failed."); }); }
+
+function purchasingAssertUpdate(changes, assertion) {
+  purchasingWithFixture((fixture, remember) => {
+    const row = purchasingCreateFixture(fixture);
+    remember(row);
+    const response = PurchasingService().update(row.ID, changes);
+    if (!response.success) throw new Error(`Purchasing update failed: ${response.message}`);
+    assertion(response.data, fixture, row);
+  });
+}
+
+function testPurchasingUpdateValid() {
+  purchasingAssertUpdate(
+    { Tanggal: "2026-07-18" },
+    (row, fixture, original) => {
+      const actual = row[PURCHASING_FIELDS.DATE];
+      const normalized = normalizeReturnTestDate(actual);
+
+      if (normalized !== "2026-07-18") {
+        throw new Error(
+          `Purchasing Tanggal assertion failed: actual=${String(actual)}, typeof=${typeof actual}, isDate=${actual instanceof Date}, normalized=${normalized}.`,
+        );
+      }
+
+      if (
+        row[PURCHASING_SCHEMA.PRIMARY_KEY] !== original[PURCHASING_SCHEMA.PRIMARY_KEY] ||
+        row[PURCHASING_FIELDS.SUPPLIER_ID] !== fixture.partner.ID ||
+        row[PURCHASING_FIELDS.PRODUCT_ID] !== fixture.product.ID ||
+        Number(row[PURCHASING_FIELDS.QTY]) !== 2 ||
+        Number(row[PURCHASING_FIELDS.PRICE]) !== 10 ||
+        Number(row[PURCHASING_FIELDS.TOTAL]) !== 20 ||
+        row[PURCHASING_SCHEMA.SYSTEM.IS_DELETED] !== false ||
+        row[PURCHASING_SCHEMA.SYSTEM.IS_ACTIVE] !== true
+      ) {
+        throw new Error("Purchasing update did not preserve fixture fields or active state.");
+      }
+    },
+  );
+}
+function testPurchasingUpdateRecalculatesTotal() { purchasingAssertUpdate({ Qty: 4, Harga: 6 }, (row) => { if (row.Total !== 24) throw new Error("Update did not recalculate Total."); }); }
+function testPurchasingUpdateTotalOnlyDoesNotOverride() { purchasingAssertUpdate({ Total: 999 }, (row) => { if (row.Total !== 20) throw new Error("Total-only update overrode derived Total."); }); }
+function testPurchasingUpdateRejectsInfinity() {
+  purchasingWithFixture((fixture, remember) => {
+    const row = purchasingCreateFixture(fixture); remember(row);
+    purchasingAssertFailure(PurchasingService().update(row.ID, { Harga: Infinity }), "Update must reject Infinity.");
+  });
+}
+
+function purchasingAssertUpdateRelation(field, relation) {
+  purchasingWithFixture((fixture, remember) => {
+    const row = purchasingCreateFixture(fixture); remember(row);
+    if (relation === "supplier") PartnerService().remove(fixture.partner.ID);
+    else ProductService().remove(fixture.product.ID);
+    purchasingAssertFailure(PurchasingService().update(row.ID, { [field]: field === "SupplierID" ? fixture.partner.ID : fixture.product.ID }), "Update must revalidate relations.");
+  });
+}
+
+function testPurchasingUpdateRevalidatesSupplier() { purchasingAssertUpdateRelation("SupplierID", "supplier"); }
+function testPurchasingUpdateRevalidatesProduct() { purchasingAssertUpdateRelation("ProductID", "product"); }
+
+function testPurchasingRemoveSoftDeleteState() {
+  purchasingWithFixture((fixture) => {
+    const row = purchasingCreateFixture(fixture);
+    if (!PurchasingService().remove(row.ID).success) throw new Error("Purchasing remove failed.");
+    const stored = RepositoryBase.mapRows(PURCHASING_SCHEMA, RepositoryReader.raw(PURCHASING_SCHEMA)).find((item) => item.ID === row.ID);
+    if (!stored || stored.Deleted !== true || stored.IsActive !== false || PurchasingService().findAll().data.some((item) => item.ID === row.ID)) {
+      throw new Error("Purchasing remove did not persist soft-delete state.");
+    }
+    Logger.log(`CLEANUP: Purchasing fixture ${row.ID} is soft-deleted.`);
+  });
+}
+
+function purchasingAssertRestore(setup, assertion, partnerType) {
+  purchasingWithFixture((fixture, remember) => {
+    const row = purchasingCreateFixture(fixture); remember(row);
+    if (!PurchasingService().remove(row.ID).success) throw new Error("Could not delete Purchasing fixture.");
+    setup(fixture, row);
+    const response = PurchasingService().restore(row.ID);
+    assertion(response, fixture, row);
+  }, partnerType);
+}
+
+function testPurchasingRestoreValid() { purchasingAssertRestore(() => {}, (response) => { if (!response.success) throw new Error("Purchasing restore failed."); }); }
+function testPurchasingRestoreAlreadyActive() {
+  purchasingWithFixture((fixture, remember) => {
+    const row = purchasingCreateFixture(fixture); remember(row);
+    purchasingAssertFailure(PurchasingService().restore(row.ID), "Restore must reject active rows.");
+  });
+}
+function testPurchasingRestoreRejectsInactiveSupplier() { purchasingAssertRestore((fixture) => PartnerService().remove(fixture.partner.ID), (response) => purchasingAssertFailure(response, "Restore must reject inactive Supplier.")); }
+function testPurchasingRestoreRejectsNonSupplierPartner() {
+  purchasingAssertRestore(
+    (fixture) => RepositoryWriter.update(PARTNER_SCHEMA, fixture.partner.ID, { Jenis: "Customer" }),
+    (response) => purchasingAssertFailure(response, "Restore must reject non-Supplier."),
+  );
+}
+function testPurchasingRestoreRejectsInactiveProduct() { purchasingAssertRestore((fixture) => ProductService().remove(fixture.product.ID), (response) => purchasingAssertFailure(response, "Restore must reject inactive Product.")); }
+function testPurchasingRestoreRecalculatesTotal() {
+  purchasingAssertRestore((fixture, row) => RepositoryWriter.update(PURCHASING_SCHEMA, row.ID, { Total: 999 }), (response) => {
+    if (!response.success || response.data.Total !== 20) throw new Error("Restore did not recalculate Total.");
+  });
+}

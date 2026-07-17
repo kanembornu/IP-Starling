@@ -215,6 +215,58 @@ function runReturnWriteTests() {
   ]);
 }
 
+function runPurchasingValidationTests() {
+  runTestSuite("Purchasing validation tests", [
+    testPurchasingServicePublicApi,
+    testPurchasingFindAllActiveOnly,
+    testPurchasingFindByIdValidation,
+    testPurchasingCreateRequiresTanggal,
+    testPurchasingCreateRequiresSupplier,
+    testPurchasingCreateRequiresProduct,
+    testPurchasingCreateRejectsQtyZero,
+    testPurchasingCreateRejectsQtyNegative,
+    testPurchasingCreateRejectsQtyInfinity,
+    testPurchasingCreateRejectsHargaNegative,
+    testPurchasingCreateRejectsHargaInfinity,
+    testPurchasingCreateRejectsNonSupplierPartner,
+    testPurchasingCreateRejectsInactiveSupplier,
+    testPurchasingCreateRejectsInactiveProduct,
+  ]);
+}
+
+function runPurchasingWriteTests() {
+  runTestSuite("Purchasing write tests", [
+    testPurchasingCreateValid,
+    testPurchasingCreateDerivesTotal,
+    testPurchasingCreateIgnoresSuppliedTotal,
+    testPurchasingCreateAllowsDecimalQty,
+    testPurchasingUpdateValid,
+    testPurchasingUpdateRecalculatesTotal,
+    testPurchasingUpdateTotalOnlyDoesNotOverride,
+    testPurchasingUpdateRevalidatesSupplier,
+    testPurchasingUpdateRevalidatesProduct,
+    testPurchasingUpdateRejectsInfinity,
+    testPurchasingRemoveSoftDeleteState,
+  ]);
+}
+
+function runPurchasingRestoreTests() {
+  runTestSuite("Purchasing restore tests", [
+    testPurchasingRestoreValid,
+    testPurchasingRestoreAlreadyActive,
+    testPurchasingRestoreRejectsInactiveSupplier,
+    testPurchasingRestoreRejectsNonSupplierPartner,
+    testPurchasingRestoreRejectsInactiveProduct,
+    testPurchasingRestoreRecalculatesTotal,
+  ]);
+}
+
+function runPurchasingAllTests() {
+  runPurchasingValidationTests();
+  runPurchasingWriteTests();
+  runPurchasingRestoreTests();
+}
+
 /**
  * Runs the complete Return regression set, including controlled write tests.
  * This runner is intentionally not included in runAllSafeTests.

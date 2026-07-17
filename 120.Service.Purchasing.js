@@ -1,149 +1,211 @@
 /**
  * =============================================================================
  * FILE        : 120.Service.Purchasing.gs
- * VERSION     : 1.0.0
+ * VERSION     : 2.0.0
  * DESCRIPTION : Purchasing Service
- * =============================================================================
- *
- * Business Rule Purchasing.
- *
  * =============================================================================
  */
 
 function PurchasingService() {
-  return EntityService.create(
-    PURCHASING_SCHEMA,
+  const base = EntityService.create(PURCHASING_SCHEMA);
+  const mutableFields = [
+    PURCHASING_FIELDS.DATE,
+    PURCHASING_FIELDS.SUPPLIER_ID,
+    PURCHASING_FIELDS.PRODUCT_ID,
+    PURCHASING_FIELDS.QTY,
+    PURCHASING_FIELDS.PRICE,
+  ];
 
-    {
-      /**
-       * -----------------------------------------------------------------------
-       * Before Validation
-       * -----------------------------------------------------------------------
-       */
-      beforeValidation(data) {
-        return Utils.trimObject(data);
-      },
+  function isTrue(value) {
+    return value === true || value === 1 || String(value).trim().toUpperCase() === "TRUE";
+  }
 
-      /**
-       * -----------------------------------------------------------------------
-       * Before Create
-       * -----------------------------------------------------------------------
-       */
-      beforeCreate(data) {
-        /**
-         * Supplier harus ada
-         */
-        const supplier = RepositoryReader.findById(
-          PARTNER_SCHEMA,
+  function isFalse(value) {
+    return value === false || value === 0 || String(value).trim().toUpperCase() === "FALSE";
+  }
 
-          data[PURCHASING_FIELDS.SUPPLIER_ID],
-        );
+  function isActiveRow(schema, row) {
+    return Boolean(
+      row &&
+      isFalse(row[schema.SYSTEM.IS_DELETED]) &&
+      isTrue(row[schema.SYSTEM.IS_ACTIVE]),
+    );
+  }
 
-        if (!supplier) {
-          return Response.error("Supplier tidak ditemukan.");
-        }
+  function allRows(schema) {
+    return RepositoryBase.mapRows(schema, RepositoryReader.raw(schema));
+  }
 
-        /**
-         * Product harus ada
-         */
-        const product = RepositoryReader.findById(
-          PRODUCT_SCHEMA,
+  function rawById(schema, id) {
+    return allRows(schema).find((row) => row[schema.PRIMARY_KEY] === id) || null;
+  }
 
-          data[PURCHASING_FIELDS.PRODUCT_ID],
-        );
+  function requireId(id) {
+    return typeof id === "string" && id.trim() !== "";
+  }
 
-        if (!product) {
-          return Response.error("Produk tidak ditemukan.");
-        }
+  function validateSupplier(id) {
+    const supplier = rawById(PARTNER_SCHEMA, id);
 
-        /**
-         * Qty minimal 1
-         */
-        if (Number(data[PURCHASING_FIELDS.QTY]) <= 0) {
-          return Response.error("Qty harus lebih besar dari 0.");
-        }
+    if (!isActiveRow(PARTNER_SCHEMA, supplier)) {
+      return Response.error("Supplier tidak ditemukan atau tidak aktif.");
+    }
 
-        /**
-         * Harga minimal 0
-         */
-        if (Number(data[PURCHASING_FIELDS.PRICE]) < 0) {
-          return Response.error("Harga tidak boleh negatif.");
-        }
+    const type = String(supplier[PARTNER_FIELDS.TYPE] || "").trim().toLowerCase();
 
-        /**
-         * Hitung Total Otomatis
-         */
-        data[PURCHASING_FIELDS.TOTAL] =
-          Number(data[PURCHASING_FIELDS.QTY]) *
-          Number(data[PURCHASING_FIELDS.PRICE]);
+    if (type !== "supplier") {
+      return Response.error("Partner harus bertipe Supplier.");
+    }
 
-        return data;
-      },
+    return null;
+  }
 
-      /**
-       * -----------------------------------------------------------------------
-       * Before Update
-       * -----------------------------------------------------------------------
-       */
-      beforeUpdate(id, data) {
-        if (
-          data[PURCHASING_FIELDS.QTY] !== undefined &&
-          Number(data[PURCHASING_FIELDS.QTY]) <= 0
-        ) {
-          return Response.error("Qty harus lebih besar dari 0.");
-        }
+  function validateProduct(id) {
+    const product = rawById(PRODUCT_SCHEMA, id);
 
-        if (
-          data[PURCHASING_FIELDS.PRICE] !== undefined &&
-          Number(data[PURCHASING_FIELDS.PRICE]) < 0
-        ) {
-          return Response.error("Harga tidak boleh negatif.");
-        }
+    if (!isActiveRow(PRODUCT_SCHEMA, product)) {
+      return Response.error("Produk tidak ditemukan atau tidak aktif.");
+    }
 
-        /**
-         * Recalculate Total
-         */
-        if (
-          data[PURCHASING_FIELDS.QTY] !== undefined ||
-          data[PURCHASING_FIELDS.PRICE] !== undefined
-        ) {
-          const current = RepositoryReader.findById(
-            PURCHASING_SCHEMA,
+    return null;
+  }
 
-            id,
-          );
+  function normalizeNumber(value, field, allowZero) {
+    if (
+      value === null ||
+      value === undefined ||
+      (typeof value === "string" && value.trim() === "")
+    ) {
+      return Response.error(`${field} wajib diisi.`);
+    }
 
-          if (!current) {
-            return Response.error("Data purchasing tidak ditemukan.");
-          }
+    const number = Number(value);
 
-          const qty =
-            data[PURCHASING_FIELDS.QTY] ?? current[PURCHASING_FIELDS.QTY];
+    if (!Number.isFinite(number)) {
+      return Response.error(`${field} harus berupa angka finite.`);
+    }
 
-          const price =
-            data[PURCHASING_FIELDS.PRICE] ?? current[PURCHASING_FIELDS.PRICE];
+    if (allowZero ? number < 0 : number <= 0) {
+      return Response.error(
+        allowZero ? `${field} tidak boleh negatif.` : `${field} harus lebih besar dari 0.`,
+      );
+    }
 
-          data[PURCHASING_FIELDS.TOTAL] = Number(qty) * Number(price);
-        }
+    return number;
+  }
 
-        return data;
-      },
+  function prepare(document) {
+    const data = Utils.trimObject(document || {});
 
-      /**
-       * -----------------------------------------------------------------------
-       * Before Delete
-       * -----------------------------------------------------------------------
-       */
-      beforeDelete(id) {
-        /**
-         * Future:
-         *
-         * Validasi apabila purchasing
-         * sudah masuk closing period.
-         */
+    if (!data[PURCHASING_FIELDS.DATE]) {
+      return Response.error("Tanggal wajib diisi.");
+    }
 
-        return id;
-      },
-    },
-  );
+    if (!data[PURCHASING_FIELDS.SUPPLIER_ID]) {
+      return Response.error("SupplierID wajib diisi.");
+    }
+
+    if (!data[PURCHASING_FIELDS.PRODUCT_ID]) {
+      return Response.error("ProductID wajib diisi.");
+    }
+
+    const qty = normalizeNumber(data[PURCHASING_FIELDS.QTY], "Qty", false);
+    if (qty && qty.success === false) return qty;
+
+    const price = normalizeNumber(data[PURCHASING_FIELDS.PRICE], "Harga", true);
+    if (price && price.success === false) return price;
+
+    const supplierError = validateSupplier(data[PURCHASING_FIELDS.SUPPLIER_ID]);
+    if (supplierError) return supplierError;
+
+    const productError = validateProduct(data[PURCHASING_FIELDS.PRODUCT_ID]);
+    if (productError) return productError;
+
+    data[PURCHASING_FIELDS.QTY] = qty;
+    data[PURCHASING_FIELDS.PRICE] = price;
+    data[PURCHASING_FIELDS.TOTAL] = qty * price;
+
+    return data;
+  }
+
+  function findAll() {
+    return Response.success(
+      allRows(PURCHASING_SCHEMA).filter((row) => isActiveRow(PURCHASING_SCHEMA, row)),
+    );
+  }
+
+  function findById(id) {
+    if (!requireId(id)) return Response.error("ID Purchasing wajib diisi.");
+
+    const row = rawById(PURCHASING_SCHEMA, id);
+    if (!isActiveRow(PURCHASING_SCHEMA, row)) {
+      return Response.error("Purchase tidak ditemukan.");
+    }
+
+    return Response.success(row);
+  }
+
+  function create(document) {
+    const prepared = prepare(document);
+    if (prepared && prepared.success === false) return prepared;
+    return base.create(prepared);
+  }
+
+  function update(id, document) {
+    if (!requireId(id)) return Response.error("ID Purchasing wajib diisi.");
+
+    const current = rawById(PURCHASING_SCHEMA, id);
+    if (!isActiveRow(PURCHASING_SCHEMA, current)) {
+      return Response.error("Purchase tidak ditemukan.");
+    }
+
+    const finalData = {};
+    mutableFields.forEach((field) => {
+      finalData[field] =
+        document && Object.prototype.hasOwnProperty.call(document, field)
+          ? document[field]
+          : current[field];
+    });
+
+    const prepared = prepare(finalData);
+    if (prepared && prepared.success === false) return prepared;
+    return base.update(id, prepared);
+  }
+
+  function remove(id) {
+    if (!requireId(id)) return Response.error("ID Purchasing wajib diisi.");
+    if (!isActiveRow(PURCHASING_SCHEMA, rawById(PURCHASING_SCHEMA, id))) {
+      return Response.error("Purchase tidak ditemukan.");
+    }
+    return base.remove(id);
+  }
+
+  function restore(id) {
+    if (!requireId(id)) return Response.error("ID Purchasing wajib diisi.");
+
+    const current = rawById(PURCHASING_SCHEMA, id);
+    if (!current) return Response.error("Purchase tidak ditemukan.");
+    if (isActiveRow(PURCHASING_SCHEMA, current)) {
+      return Response.error("Purchase sudah aktif.");
+    }
+    if (!isTrue(current[PURCHASING_SCHEMA.SYSTEM.IS_DELETED]) &&
+        !isFalse(current[PURCHASING_SCHEMA.SYSTEM.IS_ACTIVE])) {
+      return Response.error("Purchase tidak dalam status terhapus/nonaktif.");
+    }
+
+    const prepared = prepare(current);
+    if (prepared && prepared.success === false) return prepared;
+
+    if (!RepositoryWriter.update(PURCHASING_SCHEMA, id, {
+      [PURCHASING_FIELDS.QTY]: prepared[PURCHASING_FIELDS.QTY],
+      [PURCHASING_FIELDS.PRICE]: prepared[PURCHASING_FIELDS.PRICE],
+      [PURCHASING_FIELDS.TOTAL]: prepared[PURCHASING_FIELDS.TOTAL],
+    })) {
+      return Response.error("Purchase tidak ditemukan.");
+    }
+
+    return base.restore(id);
+  }
+
+  return Object.freeze({ findAll, findById, create, update, remove, restore });
 }
