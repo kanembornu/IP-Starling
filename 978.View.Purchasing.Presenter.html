@@ -74,6 +74,10 @@
 
     let editProducts = [];
 
+    let pendingDelete = null;
+
+    let deleteSubmitting = false;
+
     function render(purchasing = []) {
       const list = normalizeList(purchasing);
 
@@ -562,6 +566,8 @@
           view(button.dataset.purchasingId);
         } else if (button.dataset.purchasingAction === "edit") {
           openEdit(button.dataset.purchasingId);
+        } else if (button.dataset.purchasingAction === "delete") {
+          confirmDelete(button.dataset.purchasingId);
         }
       });
     }
@@ -648,7 +654,126 @@
           ${Components.icon("fa-eye")}
           <span>View</span>
         </button>
+        <button
+          type="button"
+          data-purchasing-action="delete"
+          data-purchasing-id="${escape(id)}"
+          title="Delete"
+          class="inline-flex items-center gap-2 px-3 py-2 rounded-lg transition bg-red-50 hover:bg-red-100 text-red-700"
+        >
+          ${Components.icon("fa-trash")}
+          <span>Delete</span>
+        </button>
       `;
+    }
+
+    //===========================================================================
+    // Delete
+    //===========================================================================
+
+    async function confirmDelete(id) {
+      const purchase = findLoadedPurchase(id);
+
+      if (Utils.isEmpty(id)) {
+        Components.toast("Purchasing ID is unavailable.", "error");
+        return;
+      }
+
+      if (!purchase || !isActiveRow(purchase)) {
+        Components.toast("This Purchasing record is no longer available for deletion.", "error");
+        return;
+      }
+
+      if (deleteSubmitting || pendingDelete) {
+        return;
+      }
+
+      pendingDelete = {
+        id: String(purchase[FIELD.ID]),
+        date: purchase[FIELD.DATE],
+        supplier: resolveName(supplierNames, purchase[FIELD.SUPPLIER_ID]),
+        product: resolveName(productNames, purchase[FIELD.PRODUCT_ID]),
+        qty: purchase[FIELD.QTY],
+        total: purchase[FIELD.TOTAL],
+      };
+
+      try {
+        const confirmed = await Dialog.confirm({
+          title: "Delete Purchasing",
+          confirmText: "Delete Purchasing",
+          loadingText: "Deleting...",
+          message: renderDeleteMessage(pendingDelete),
+          onConfirm: submitDelete,
+        });
+
+        if (confirmed) {
+          await App.refresh();
+        }
+      } finally {
+        pendingDelete = null;
+        deleteSubmitting = false;
+      }
+    }
+
+    function findLoadedPurchase(id) {
+      return loadedRows.find((purchase) => {
+        return String(purchase?.[FIELD.ID] ?? "") === String(id ?? "");
+      });
+    }
+
+    function renderDeleteMessage(context) {
+      return `
+        <div class="space-y-3">
+          <p class="font-medium text-red-700">Confirm soft deletion of this Purchasing record.</p>
+          <dl class="grid grid-cols-1 gap-3 rounded-lg bg-slate-50 p-3 text-sm sm:grid-cols-2">
+            ${detailField("Purchase ID", context.id)}
+            ${detailField("Date", formatDate(context.date))}
+            ${detailField("Supplier", context.supplier)}
+            ${detailField("Product", context.product)}
+            ${detailField("Qty", formatNumber(context.qty))}
+            ${detailField("Total", formatCurrency(context.total))}
+          </dl>
+          <p class="text-sm text-slate-600">This action removes the record from the active list using a soft delete. It does not permanently erase the sheet row.</p>
+        </div>
+      `;
+    }
+
+    async function submitDelete() {
+      if (deleteSubmitting) {
+        return false;
+      }
+
+      const id = String(pendingDelete?.id ?? "").trim();
+
+      if (!id) {
+        Components.toast("Purchasing ID is unavailable.", "error");
+        return false;
+      }
+
+      deleteSubmitting = true;
+
+      try {
+        const response = await Api.Purchasing.remove(id);
+
+        if (!response?.success) {
+          Components.toast(readableDeleteError(response?.message), "error");
+          return false;
+        }
+
+        Components.toast(response.message || "Purchasing deleted.", "success");
+        return true;
+      } catch (error) {
+        Components.toast("Purchasing could not be deleted. Please try again.", "error");
+        return false;
+      } finally {
+        deleteSubmitting = false;
+      }
+    }
+
+    function readableDeleteError(message) {
+      return typeof message === "string" && message.trim()
+        ? message
+        : "Purchasing could not be deleted.";
     }
 
     //===========================================================================
@@ -1311,6 +1436,18 @@
 
     function formatDate(value) {
       return isValidDate(value) ? Format.date(value) : "-";
+    }
+
+    function formatNumber(value) {
+      const number = Number(value);
+
+      return Number.isFinite(number) ? Format.number(number) : "-";
+    }
+
+    function formatCurrency(value) {
+      const number = Number(value);
+
+      return Number.isFinite(number) ? Format.currency(number) : "-";
     }
 
     function formatDateTime(value) {
