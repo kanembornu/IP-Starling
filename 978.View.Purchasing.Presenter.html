@@ -348,7 +348,7 @@
       try {
         await App.refresh();
       } catch (error) {
-        console.error("Purchasing active list refresh failed.");
+        // Restore already succeeded; Trash still reloads canonically below.
       }
       await reloadTrash();
       restoreSubmitting = false;

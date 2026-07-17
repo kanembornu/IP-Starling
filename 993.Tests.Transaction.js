@@ -2380,6 +2380,168 @@ function purchasingAssertFailure(response, message) {
   if (!response || response.success) throw new Error(message);
 }
 
+/**
+ * MANUAL ONLY: creates one active Purchasing row for list/detail browser checks.
+ * Run cleanupManualPurchasingFixture() after validation.
+ */
+function createManualPurchasingFixture() {
+  const propertyKey = "MANUAL_PURCHASING_FIXTURE_ID";
+  const properties = PropertiesService.getUserProperties();
+  const existingId = properties.getProperty(propertyKey);
+
+  if (existingId) {
+    const existing = PurchasingService().findById(existingId);
+
+    if (existing.success) {
+      throw new Error(
+        `Manual Purchasing fixture ${existingId} is still active. Run cleanupManualPurchasingFixture() first.`,
+      );
+    }
+
+    properties.deleteProperty(propertyKey);
+  }
+
+  const partners = PartnerService().findAll();
+
+  if (!partners.success || !Array.isArray(partners.data)) {
+    throw new Error("Unable to read active Partners for the manual fixture.");
+  }
+
+  const supplier = partners.data.find((partner) => {
+    return (
+      manualPurchasingStatusFalse(partner[PARTNER_SCHEMA.SYSTEM.IS_DELETED]) &&
+      manualPurchasingStatusTrue(partner[PARTNER_SCHEMA.SYSTEM.IS_ACTIVE]) &&
+      String(partner[PARTNER_FIELDS.TYPE] || "").trim().toLowerCase() ===
+        "supplier"
+    );
+  });
+
+  if (!supplier) {
+    throw new Error(
+      "Manual Purchasing fixture requires one active, non-deleted Supplier Partner.",
+    );
+  }
+
+  const products = ProductService().findAll();
+
+  if (!products.success || !Array.isArray(products.data)) {
+    throw new Error("Unable to read active Products for the manual fixture.");
+  }
+
+  const product = products.data.find((item) => {
+    return (
+      manualPurchasingStatusFalse(item[PRODUCT_SCHEMA.SYSTEM.IS_DELETED]) &&
+      manualPurchasingStatusTrue(item[PRODUCT_SCHEMA.SYSTEM.IS_ACTIVE])
+    );
+  });
+
+  if (!product) {
+    throw new Error(
+      "Manual Purchasing fixture requires one active, non-deleted Product.",
+    );
+  }
+
+  const response = PurchasingService().create({
+    [PURCHASING_FIELDS.DATE]: Utilities.formatDate(
+      new Date(),
+      APP_CONFIG.TIMEZONE,
+      "yyyy-MM-dd",
+    ),
+    [PURCHASING_FIELDS.SUPPLIER_ID]:
+      supplier[PARTNER_SCHEMA.PRIMARY_KEY],
+    [PURCHASING_FIELDS.PRODUCT_ID]: product[PRODUCT_SCHEMA.PRIMARY_KEY],
+    [PURCHASING_FIELDS.QTY]: 2,
+    [PURCHASING_FIELDS.PRICE]: 10000,
+  });
+
+  if (!response.success || !response.data?.[PURCHASING_SCHEMA.PRIMARY_KEY]) {
+    throw new Error(
+      `Unable to create manual Purchasing fixture: ${response.message || "unknown error"}`,
+    );
+  }
+
+  const id = response.data[PURCHASING_SCHEMA.PRIMARY_KEY];
+
+  try {
+    properties.setProperty(propertyKey, id);
+  } catch (error) {
+    PurchasingService().remove(id);
+    throw new Error(
+      `Manual Purchasing fixture ${id} was rolled back because its cleanup ID could not be stored.`,
+    );
+  }
+
+  Logger.log(`MANUAL PURCHASING FIXTURE ID: ${id}`);
+
+  return response;
+}
+
+/**
+ * MANUAL ONLY: soft-deletes only the ID stored by the paired create helper.
+ */
+function cleanupManualPurchasingFixture() {
+  const propertyKey = "MANUAL_PURCHASING_FIXTURE_ID";
+  const properties = PropertiesService.getUserProperties();
+  const id = properties.getProperty(propertyKey);
+
+  if (!id) {
+    const result = {
+      success: true,
+      message: "No manual Purchasing fixture is registered for cleanup.",
+      data: null,
+    };
+
+    Logger.log(result.message);
+
+    return result;
+  }
+
+  const active = PurchasingService().findById(id);
+
+  if (!active.success) {
+    properties.deleteProperty(propertyKey);
+
+    const result = {
+      success: true,
+      message: `Manual Purchasing fixture ${id} is already absent or inactive; no cleanup was needed.`,
+      data: { ID: id },
+    };
+
+    Logger.log(result.message);
+
+    return result;
+  }
+
+  const response = PurchasingService().remove(id);
+
+  if (!response.success) {
+    throw new Error(
+      `Unable to clean up manual Purchasing fixture ${id}: ${response.message || "unknown error"}`,
+    );
+  }
+
+  properties.deleteProperty(propertyKey);
+  Logger.log(`CLEANUP: Manual Purchasing fixture ${id} is soft-deleted.`);
+
+  return response;
+}
+
+function manualPurchasingStatusTrue(value) {
+  return (
+    value === true ||
+    value === 1 ||
+    String(value).trim().toLowerCase() === "true"
+  );
+}
+
+function manualPurchasingStatusFalse(value) {
+  return (
+    value === false ||
+    value === 0 ||
+    String(value).trim().toLowerCase() === "false"
+  );
+}
+
 function purchasingTestMasterData(partnerType) {
   const suffix = `${new Date().getTime()}_${Math.floor(Math.random() * 100000)}`;
   const partnerResponse = PartnerService().create({
@@ -2446,8 +2608,40 @@ function purchasingCreateFixture(fixture, changes) {
 
 function testPurchasingServicePublicApi() {
   const actual = Object.keys(PurchasingService()).sort();
-  const expected = ["create", "findAll", "findById", "remove", "restore", "statistics", "update"];
+  const expected = ["create", "findAll", "findById", "findDeleted", "remove", "restore", "statistics", "update"];
   if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error("PurchasingService public API is invalid.");
+}
+
+function purchasingAssertDeletedResponse(response, context) {
+  if (!response?.success || !Array.isArray(response.data)) {
+    throw new Error(`${context} must return a successful array response.`);
+  }
+  if (response.data.some((row) => !purchasingAuditDeleted(row.Deleted) || manualPurchasingStatusTrue(row.IsActive))) {
+    throw new Error(`${context} returned an active or nondeleted row.`);
+  }
+  return response.data;
+}
+
+function testPurchasingFindDeletedEmpty() {
+  const rows = purchasingAssertDeletedResponse(PurchasingService().findDeleted(), "PurchasingService.findDeleted()");
+  if (rows.length) Logger.log("SKIPPED: Empty Purchasing Trash assertion requires no existing deleted rows.");
+}
+
+function testPurchasingFindDeletedFiltering() {
+  purchasingWithFixture((fixture, remember) => {
+    const row = purchasingCreateFixture(fixture); remember(row);
+    const activeRows = purchasingAssertDeletedResponse(PurchasingService().findDeleted(), "PurchasingService.findDeleted()");
+    if (activeRows.some((item) => item.ID === row.ID)) throw new Error("Active Purchasing fixture appeared in Trash.");
+    if (!PurchasingService().remove(row.ID).success) throw new Error("Could not soft-delete Purchasing fixture.");
+    const deletedRows = purchasingAssertDeletedResponse(PurchasingService().findDeleted(), "PurchasingService.findDeleted()");
+    if (!deletedRows.some((item) => item.ID === row.ID)) throw new Error("Deleted Purchasing fixture did not appear in Trash.");
+  });
+}
+
+function testPurchasingFindDeletedResponseShape() {
+  const response = PurchasingService().findDeleted();
+  purchasingAssertControllerResponse(response, "PurchasingService.findDeleted()");
+  purchasingAssertDeletedResponse(response, "PurchasingService.findDeleted()");
 }
 
 function testPurchasingStatisticsEmpty() {
@@ -2574,6 +2768,7 @@ function purchasingAssertControllerResponse(response, context) {
 function testPurchasingControllerPublicApi() {
   const functions = [
     getPurchasing,
+    getDeletedPurchasing,
     getPurchasingById,
     createPurchasing,
     updatePurchasing,
@@ -2583,6 +2778,27 @@ function testPurchasingControllerPublicApi() {
 
   if (functions.some((fn) => typeof fn !== "function")) {
     throw new Error("Purchasing Controller public API is invalid.");
+  }
+}
+
+function testPurchasingDeletedControllerPublicApi() {
+  if (typeof getDeletedPurchasing !== "function") {
+    throw new Error("getDeletedPurchasing Controller global is missing.");
+  }
+  const response = getDeletedPurchasing();
+  purchasingAssertControllerResponse(response, "getDeletedPurchasing()");
+  purchasingAssertDeletedResponse(response, "getDeletedPurchasing()");
+}
+
+function testPurchasingDeletedControllerSerialization() {
+  const response = getDeletedPurchasing();
+  if (typeof response === "string") throw new Error("getDeletedPurchasing() must return a plain object.");
+  JSON.stringify(response);
+  const values = [response];
+  while (values.length) {
+    const value = values.pop();
+    if (value instanceof Date || typeof value === "function") throw new Error("Deleted Purchasing response contains an unsafe value.");
+    if (value && typeof value === "object") Object.keys(value).forEach((key) => values.push(value[key]));
   }
 }
 
@@ -2823,6 +3039,28 @@ function testPurchasingRestoreAlreadyActive() {
   purchasingWithFixture((fixture, remember) => {
     const row = purchasingCreateFixture(fixture); remember(row);
     purchasingAssertFailure(PurchasingService().restore(row.ID), "Restore must reject active rows.");
+  });
+}
+function testPurchasingRestoreRejectsInactiveNonDeleted() {
+  purchasingWithFixture((fixture, remember) => {
+    const row = purchasingCreateFixture(fixture); remember(row);
+
+    if (!RepositoryWriter.update(PURCHASING_SCHEMA, row.ID, {
+      [PURCHASING_SCHEMA.SYSTEM.IS_ACTIVE]: false,
+    })) {
+      throw new Error("Could not make controlled Purchasing fixture inactive.");
+    }
+
+    try {
+      purchasingAssertFailure(
+        PurchasingService().restore(row.ID),
+        "Restore must reject inactive non-deleted rows.",
+      );
+    } finally {
+      RepositoryWriter.update(PURCHASING_SCHEMA, row.ID, {
+        [PURCHASING_SCHEMA.SYSTEM.IS_ACTIVE]: true,
+      });
+    }
   });
 }
 function testPurchasingRestoreRejectsInactiveSupplier() { purchasingAssertRestore((fixture) => PartnerService().remove(fixture.partner.ID), (response) => purchasingAssertFailure(response, "Restore must reject inactive Supplier.")); }

@@ -237,6 +237,14 @@ function runPurchasingValidationTests() {
   ]);
 }
 
+function runPurchasingDeletedListTests() {
+  runTestSuite("Purchasing deleted-list tests", [
+    testPurchasingFindDeletedEmpty,
+    testPurchasingFindDeletedFiltering,
+    testPurchasingFindDeletedResponseShape,
+  ]);
+}
+
 function runPurchasingWriteTests() {
   runTestSuite("Purchasing write tests", [
     testPurchasingStatisticsActiveOnly,
@@ -258,6 +266,7 @@ function runPurchasingRestoreTests() {
   runTestSuite("Purchasing restore tests", [
     testPurchasingRestoreValid,
     testPurchasingRestoreAlreadyActive,
+    testPurchasingRestoreRejectsInactiveNonDeleted,
     testPurchasingRestoreRejectsInactiveSupplier,
     testPurchasingRestoreRejectsNonSupplierPartner,
     testPurchasingRestoreRejectsInactiveProduct,
@@ -268,6 +277,7 @@ function runPurchasingRestoreTests() {
 function runPurchasingControllerTests() {
   runTestSuite("Purchasing controller tests", [
     testPurchasingControllerPublicApi,
+    testPurchasingDeletedControllerPublicApi,
     testPurchasingControllerGetAll,
     testPurchasingControllerGetByIdValidation,
     testPurchasingControllerCreateValidation,
@@ -275,12 +285,14 @@ function runPurchasingControllerTests() {
     testPurchasingControllerDeleteValidation,
     testPurchasingControllerRestoreValidation,
     testPurchasingControllerSerialization,
+    testPurchasingDeletedControllerSerialization,
   ]);
 }
 
 function runPurchasingAllTests() {
   runPurchasingControllerTests();
   runPurchasingValidationTests();
+  runPurchasingDeletedListTests();
   runPurchasingWriteTests();
   runPurchasingRestoreTests();
 }

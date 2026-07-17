@@ -134,6 +134,17 @@ function PurchasingService() {
     );
   }
 
+  function findDeleted() {
+    return Response.success(
+      allRows(PURCHASING_SCHEMA).filter((row) => {
+        return (
+          isTrue(row[PURCHASING_SCHEMA.SYSTEM.IS_DELETED]) &&
+          isFalse(row[PURCHASING_SCHEMA.SYSTEM.IS_ACTIVE])
+        );
+      }),
+    );
+  }
+
   function findById(id) {
     if (!requireId(id)) return Response.error("ID Purchasing wajib diisi.");
 
@@ -201,7 +212,7 @@ function PurchasingService() {
     if (isActiveRow(PURCHASING_SCHEMA, current)) {
       return Response.error("Purchase sudah aktif.");
     }
-    if (!isTrue(current[PURCHASING_SCHEMA.SYSTEM.IS_DELETED]) &&
+    if (!isTrue(current[PURCHASING_SCHEMA.SYSTEM.IS_DELETED]) ||
         !isFalse(current[PURCHASING_SCHEMA.SYSTEM.IS_ACTIVE])) {
       return Response.error("Purchase tidak dalam status terhapus/nonaktif.");
     }
@@ -222,6 +233,7 @@ function PurchasingService() {
 
   return Object.freeze({
     findAll,
+    findDeleted,
     findById,
     statistics,
     create,
