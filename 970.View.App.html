@@ -30,6 +30,14 @@
       expenses: [],
     };
 
+    let productsLoaded = false;
+
+    let partnersLoaded = false;
+
+    let productsLoading = null;
+
+    let partnersLoading = null;
+
     //===========================================================================
     // Initialize
     //===========================================================================
@@ -92,6 +100,102 @@
       return Array.isArray(state.partners)
         ? Utils.deepClone(state.partners)
         : [];
+    }
+
+    function ensureProductsLoaded() {
+      return loadProductsCache(false);
+    }
+
+    function ensurePartnersLoaded() {
+      return loadPartnersCache(false);
+    }
+
+    function loadProductsCache(forceReload) {
+      if (productsLoading) {
+        return productsLoading;
+      }
+
+      if (productsLoaded && !forceReload) {
+        return Promise.resolve(getProducts());
+      }
+
+      productsLoading = Api.Product.list()
+        .then((response) => {
+          if (!response?.success) {
+            throw masterDataError(
+              response?.message || "Load products failed.",
+            );
+          }
+
+          state.products = Utils.deepClone(
+            Array.isArray(response.data) ? response.data : [],
+          );
+          productsLoaded = true;
+
+          return getProducts();
+        })
+        .catch((error) => {
+          productsLoaded = false;
+          Toast.error(readableLoadError(error, "Load products failed."));
+          throw notifiedLoadError(error, "Load products failed.");
+        })
+        .finally(() => {
+          productsLoading = null;
+        });
+
+      return productsLoading;
+    }
+
+    function loadPartnersCache(forceReload) {
+      if (partnersLoading) {
+        return partnersLoading;
+      }
+
+      if (partnersLoaded && !forceReload) {
+        return Promise.resolve(getPartners());
+      }
+
+      partnersLoading = Api.Partner.list()
+        .then((response) => {
+          if (!response?.success) {
+            throw masterDataError(
+              response?.message || "Load partners failed.",
+            );
+          }
+
+          state.partners = Utils.deepClone(
+            Array.isArray(response.data) ? response.data : [],
+          );
+          partnersLoaded = true;
+
+          return getPartners();
+        })
+        .catch((error) => {
+          partnersLoaded = false;
+          Toast.error(readableLoadError(error, "Load partners failed."));
+          throw notifiedLoadError(error, "Load partners failed.");
+        })
+        .finally(() => {
+          partnersLoading = null;
+        });
+
+      return partnersLoading;
+    }
+
+    function masterDataError(message) {
+      return new Error(message);
+    }
+
+    function notifiedLoadError(error, fallback) {
+      const notified = new Error(readableLoadError(error, fallback));
+      notified.appNotified = true;
+      return notified;
+    }
+
+    function readableLoadError(error, fallback) {
+      return typeof error?.message === "string" && error.message.trim()
+        ? error.message
+        : fallback;
     }
 
     //===========================================================================
@@ -168,17 +272,15 @@
     //===========================================================================
 
     async function loadProducts() {
-      const res = await Api.Product.list();
+      let products;
 
-      if (!res || !res.success) {
-        Components.toast(res?.message || "Load products failed.");
-
+      try {
+        products = await loadProductsCache(true);
+      } catch (error) {
         return;
       }
 
-      state.products = Utils.deepClone(res.data);
-
-      ProductsPresenter.render(state.products);
+      ProductsPresenter.render(products);
     }
 
     //===========================================================================
@@ -206,17 +308,15 @@
     //===========================================================================
 
     async function loadPartners() {
-      const res = await Api.Partner.list();
+      let partners;
 
-      if (!res || !res.success) {
-        Components.toast(res?.message || "Load partners failed.");
-
+      try {
+        partners = await loadPartnersCache(true);
+      } catch (error) {
         return;
       }
 
-      state.partners = Utils.deepClone(res.data);
-
-      PartnersPresenter.render(state.partners);
+      PartnersPresenter.render(partners);
     }
 
     //===========================================================================
@@ -276,10 +376,24 @@
     //===========================================================================
 
     async function loadPurchasing() {
-      const res = await Api.Purchasing.list();
+      let res;
+
+      try {
+        [, , res] = await Promise.all([
+          ensureProductsLoaded(),
+          ensurePartnersLoaded(),
+          Api.Purchasing.list(),
+        ]);
+      } catch (error) {
+        if (!error?.appNotified) {
+          Toast.error(readableLoadError(error, "Load purchasing failed."));
+        }
+
+        return;
+      }
 
       if (!res || !res.success) {
-        Components.toast(res?.message || "Load purchasing failed.");
+        Toast.error(res?.message || "Load purchasing failed.");
 
         return;
       }
