@@ -54,6 +54,14 @@
 
     let pendingDetailId = null;
 
+    let createSubmitting = false;
+
+    let createForm = null;
+
+    let createSuppliers = [];
+
+    let createProducts = [];
+
     function render(purchasing = []) {
       const list = normalizeList(purchasing);
 
@@ -95,6 +103,8 @@
 
       const refresh = DOM.$("btn-purchasing-refresh");
 
+      const add = DOM.$("btn-purchasing-add");
+
       if (search && !search.dataset.purchasingSearchBound) {
         search.dataset.purchasingSearchBound = "true";
         search.addEventListener("input", renderVisibleRows);
@@ -107,6 +117,11 @@
           App.refresh();
         });
       }
+
+      if (add && !add.dataset.purchasingAddBound) {
+        add.dataset.purchasingAddBound = "true";
+        add.addEventListener("click", openCreate);
+      }
     }
 
     function clearSearch() {
@@ -114,6 +129,405 @@
 
       if (input) {
         input.value = "";
+      }
+    }
+
+    //===========================================================================
+    // Create Form
+    //===========================================================================
+
+    function openCreate() {
+      if (createSubmitting) {
+        return;
+      }
+
+      createSuppliers = selectableSuppliers(App.getPartners());
+      createProducts = selectableProducts(App.getProducts());
+      createForm = {
+        Tanggal: todayInputValue(),
+        SupplierID: "",
+        ProductID: "",
+        Qty: "",
+        Harga: "",
+      };
+
+      Modal.open({
+        title: "Create Purchasing",
+        width: "md",
+        body: renderCreateForm(),
+        footer: renderCreateFooter(),
+      });
+
+      bindCreateForm();
+      updateTotalPreview();
+      DOM.$("inp-purchasing-create-date")?.focus();
+    }
+
+    function selectableSuppliers(records) {
+      return (Array.isArray(records) ? records : []).filter((record) => {
+        return (
+          !toBoolean(record?.Deleted, false) &&
+          toBoolean(record?.IsActive, false) &&
+          String(record?.Jenis ?? "").trim().toLowerCase() === "supplier"
+        );
+      });
+    }
+
+    function selectableProducts(records) {
+      return (Array.isArray(records) ? records : []).filter((record) => {
+        return (
+          !toBoolean(record?.Deleted, false) &&
+          toBoolean(record?.IsActive, false)
+        );
+      });
+    }
+
+    function todayInputValue() {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, "0");
+      const day = String(today.getDate()).padStart(2, "0");
+
+      return `${year}-${month}-${day}`;
+    }
+
+    function renderCreateForm() {
+      const availability = renderCreateAvailability();
+
+      return `
+        <form id="purchasing-create-form" class="space-y-4" novalidate>
+          ${availability}
+          <div>
+            <label for="inp-purchasing-create-date" class="mb-1 block text-sm font-medium text-slate-700">Date</label>
+            <input id="inp-purchasing-create-date" data-purchasing-create-field="Tanggal" type="date" value="${escape(createForm.Tanggal)}" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            ${renderFieldError("Tanggal")}
+          </div>
+          <div>
+            <label for="inp-purchasing-create-supplier" class="mb-1 block text-sm font-medium text-slate-700">Supplier</label>
+            <select id="inp-purchasing-create-supplier" data-purchasing-create-field="SupplierID" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" ${createSuppliers.length ? "" : "disabled"}>
+              <option value="">-- Select Supplier --</option>
+              ${createSuppliers.map(renderCreateOption).join("")}
+            </select>
+            ${renderFieldError("SupplierID")}
+          </div>
+          <div>
+            <label for="inp-purchasing-create-product" class="mb-1 block text-sm font-medium text-slate-700">Product</label>
+            <select id="inp-purchasing-create-product" data-purchasing-create-field="ProductID" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" ${createProducts.length ? "" : "disabled"}>
+              <option value="">-- Select Product --</option>
+              ${createProducts.map(renderCreateOption).join("")}
+            </select>
+            ${renderFieldError("ProductID")}
+          </div>
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label for="inp-purchasing-create-qty" class="mb-1 block text-sm font-medium text-slate-700">Qty</label>
+              <input id="inp-purchasing-create-qty" data-purchasing-create-field="Qty" type="number" min="0" step="any" inputmode="decimal" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0" />
+              ${renderFieldError("Qty")}
+            </div>
+            <div>
+              <label for="inp-purchasing-create-price" class="mb-1 block text-sm font-medium text-slate-700">Unit Price</label>
+              <input id="inp-purchasing-create-price" data-purchasing-create-field="Harga" type="number" min="0" step="any" inputmode="decimal" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0" />
+              ${renderFieldError("Harga")}
+            </div>
+          </div>
+          <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+            <span class="block text-sm text-slate-500">Total Preview</span>
+            <strong id="lbl-purchasing-create-total" class="mt-1 block text-lg text-slate-800">${escape(Format.currency(0))}</strong>
+          </div>
+        </form>
+      `;
+    }
+
+    function renderCreateAvailability() {
+      const messages = [];
+
+      if (!createSuppliers.length) {
+        messages.push("No active Supplier is available for Purchasing.");
+      }
+
+      if (!createProducts.length) {
+        messages.push("No active Product is available for Purchasing.");
+      }
+
+      return messages.length
+        ? `<div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">${messages.map(escape).join("<br>")}</div>`
+        : "";
+    }
+
+    function renderCreateOption(record) {
+      const id = String(record?.ID ?? "");
+      const name = String(record?.Nama ?? "");
+
+      return `<option value="${escape(id)}">${escape(name)}</option>`;
+    }
+
+    function renderFieldError(field) {
+      return `<p data-purchasing-create-error="${escape(field)}" class="mt-1 hidden text-sm text-red-600"></p>`;
+    }
+
+    function renderCreateFooter() {
+      const unavailable = !createSuppliers.length || !createProducts.length;
+
+      return `
+        <button type="button" data-purchasing-create-action="cancel" class="rounded-lg border border-slate-300 px-5 py-2 hover:bg-slate-100">Cancel</button>
+        <button type="button" id="btn-purchasing-create-save" data-purchasing-create-action="save" ${unavailable ? "disabled" : ""} class="rounded-lg bg-blue-600 px-5 py-2 text-white hover:bg-blue-700 ${unavailable ? "cursor-not-allowed opacity-50" : ""}">Create Purchasing</button>
+      `;
+    }
+
+    function bindCreateForm() {
+      const form = DOM.$("purchasing-create-form");
+      const footer = DOM.$("modal-footer");
+      const close = DOM.$("btn-modal-close");
+
+      form?.addEventListener("input", handleCreateInput);
+      form?.addEventListener("change", handleCreateInput);
+      form?.addEventListener("submit", (event) => {
+        event.preventDefault();
+        submitCreate();
+      });
+      if (footer && !footer.dataset.purchasingCreateBound) {
+        footer.dataset.purchasingCreateBound = "true";
+        footer.addEventListener("click", handleCreateFooterClick);
+      }
+
+      if (close) {
+        close.onclick = closeCreate;
+      }
+    }
+
+    function handleCreateInput(event) {
+      const field = event.target.dataset.purchasingCreateField;
+
+      if (!field || !createForm) {
+        return;
+      }
+
+      createForm[field] = event.target.value;
+      clearFieldError(field);
+
+      if (field === FIELD.QTY || field === FIELD.PRICE) {
+        updateTotalPreview();
+      }
+    }
+
+    function handleCreateFooterClick(event) {
+      const action = event.target.closest("[data-purchasing-create-action]")
+        ?.dataset.purchasingCreateAction;
+
+      if (action === "cancel") {
+        closeCreate();
+      } else if (action === "save") {
+        submitCreate();
+      }
+    }
+
+    function updateTotalPreview() {
+      const qty = Number(createForm?.Qty);
+      const price = Number(createForm?.Harga);
+      const total =
+        createForm?.Qty !== "" &&
+        createForm?.Harga !== "" &&
+        Number.isFinite(qty) &&
+        qty > 0 &&
+        Number.isFinite(price) &&
+        price >= 0
+          ? qty * price
+          : 0;
+
+      DOM.text(
+        DOM.$("lbl-purchasing-create-total"),
+        Format.currency(Number.isFinite(total) ? total : 0),
+      );
+    }
+
+    function closeCreate() {
+      if (createSubmitting) {
+        return;
+      }
+
+      createForm = null;
+      createSuppliers = [];
+      createProducts = [];
+      Modal.close();
+    }
+
+    async function submitCreate() {
+      if (createSubmitting || !createForm) {
+        return;
+      }
+
+      clearAllFieldErrors();
+
+      const validation = validateCreate();
+
+      if (!validation.valid) {
+        showFieldError(validation.field, validation.message);
+        validation.element?.focus();
+
+        return;
+      }
+
+      createSubmitting = true;
+      setCreateLoading(true);
+
+      let response;
+
+      try {
+        response = await Api.Purchasing.create(validation.payload);
+
+        if (!response?.success) {
+          Components.toast(
+            response?.message || "Purchasing could not be created.",
+            "error",
+          );
+
+          return;
+        }
+      } catch (error) {
+        Components.toast(
+          "Purchasing could not be created. Please try again.",
+          "error",
+        );
+
+        return;
+      } finally {
+        createSubmitting = false;
+        setCreateLoading(false);
+      }
+
+      Components.toast(response.message || "Purchasing created.", "success");
+      closeCreate();
+      await App.refresh();
+    }
+
+    function validateCreate() {
+      if (!createSuppliers.length) {
+        return invalidCreate("SupplierID", "No active Supplier is available for Purchasing.");
+      }
+
+      if (!createProducts.length) {
+        return invalidCreate("ProductID", "No active Product is available for Purchasing.");
+      }
+
+      const date = String(createForm.Tanggal ?? "").trim();
+      const supplierId = String(createForm.SupplierID ?? "").trim();
+      const productId = String(createForm.ProductID ?? "").trim();
+      const qtyText = String(createForm.Qty ?? "").trim();
+      const priceText = String(createForm.Harga ?? "").trim();
+      const qty = Number(qtyText);
+      const price = Number(priceText);
+
+      if (!isDateInputValue(date)) {
+        return invalidCreate("Tanggal", "Date is required.", "inp-purchasing-create-date");
+      }
+
+      if (!supplierId) {
+        return invalidCreate("SupplierID", "Supplier is required.", "inp-purchasing-create-supplier");
+      }
+
+      if (!productId) {
+        return invalidCreate("ProductID", "Product is required.", "inp-purchasing-create-product");
+      }
+
+      if (!qtyText || !Number.isFinite(qty) || qty <= 0) {
+        return invalidCreate("Qty", "Qty must be a number greater than zero.", "inp-purchasing-create-qty");
+      }
+
+      if (!priceText || !Number.isFinite(price) || price < 0) {
+        return invalidCreate("Harga", "Unit Price must be a number greater than or equal to zero.", "inp-purchasing-create-price");
+      }
+
+      return {
+        valid: true,
+        payload: {
+          Tanggal: date,
+          SupplierID: supplierId,
+          ProductID: productId,
+          Qty: qty,
+          Harga: price,
+        },
+      };
+    }
+
+    function isDateInputValue(value) {
+      const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+
+      if (!match) {
+        return false;
+      }
+
+      const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+
+      return (
+        date.getFullYear() === Number(match[1]) &&
+        date.getMonth() === Number(match[2]) - 1 &&
+        date.getDate() === Number(match[3])
+      );
+    }
+
+    function invalidCreate(field, message, elementId) {
+      return {
+        valid: false,
+        field,
+        message,
+        element: elementId ? DOM.$(elementId) : null,
+      };
+    }
+
+    function showFieldError(field, message) {
+      const error = document.querySelector(
+        `[data-purchasing-create-error="${field}"]`,
+      );
+
+      if (!error) {
+        Components.toast(message, "error");
+
+        return;
+      }
+
+      DOM.text(error, message);
+      error.classList.remove("hidden");
+    }
+
+    function clearFieldError(field) {
+      const error = document.querySelector(
+        `[data-purchasing-create-error="${field}"]`,
+      );
+
+      if (error) {
+        DOM.text(error, "");
+        error.classList.add("hidden");
+      }
+    }
+
+    function clearAllFieldErrors() {
+      document
+        .querySelectorAll("[data-purchasing-create-error]")
+        .forEach((error) => {
+          DOM.text(error, "");
+          error.classList.add("hidden");
+        });
+    }
+
+    function setCreateLoading(loading) {
+      const save = DOM.$("btn-purchasing-create-save");
+      const cancel = document.querySelector(
+        '[data-purchasing-create-action="cancel"]',
+      );
+      const close = DOM.$("btn-modal-close");
+
+      [save, cancel, close].forEach((button) => {
+        if (!button) {
+          return;
+        }
+
+        button.disabled = loading;
+        button.classList.toggle("cursor-not-allowed", loading);
+        button.classList.toggle("opacity-50", loading);
+      });
+
+      if (save) {
+        save.textContent = loading ? "Creating..." : "Create Purchasing";
       }
     }
 
