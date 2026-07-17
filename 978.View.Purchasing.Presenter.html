@@ -17,15 +17,17 @@
 
       DATE: "Tanggal",
 
-      SUPPLIER: "Supplier",
+      SUPPLIER_ID: "SupplierID",
 
-      PRODUCT: "Produk",
+      PRODUCT_ID: "ProductID",
 
       QTY: "Qty",
 
       PRICE: "Harga",
 
       TOTAL: "Total",
+
+      DELETED: "Deleted",
 
       IS_ACTIVE: "IsActive",
     });
@@ -34,23 +36,39 @@
     // Public Render
     //===========================================================================
 
+    let loadedRows = [];
+
+    let supplierNames = new Map();
+
+    let productNames = new Map();
+
     function render(purchasing = []) {
-      const list = Array.isArray(purchasing) ? purchasing : [];
+      const list = normalizeList(purchasing);
+
+      supplierNames = createNameMap(App.getPartners());
+
+      productNames = createNameMap(App.getProducts());
+
+      loadedRows = list.filter(isActiveRow);
 
       bindToolbar();
 
-      renderInfo(list.length);
+      renderVisibleRows();
+    }
 
-      if (!list.length) {
-        renderEmpty();
-
-        return;
+    function normalizeList(value) {
+      if (Array.isArray(value)) {
+        return value;
       }
 
-      Render.mount(
-        "tbl-purchasing-body",
+      return Array.isArray(value?.data) ? value.data : [];
+    }
 
-        list.map(renderRow).join(""),
+    function createNameMap(records) {
+      const list = Array.isArray(records) ? records : [];
+
+      return new Map(
+        list.map((record) => [String(record?.ID ?? ""), record?.Nama]),
       );
     }
 
@@ -59,17 +77,22 @@
     //===========================================================================
 
     function bindToolbar() {
+      const search = DOM.$("inp-purchasing-search");
+
       const refresh = DOM.$("btn-purchasing-refresh");
 
-      if (!refresh || refresh.dataset.purchasingRefreshBound) {
-        return;
+      if (search && !search.dataset.purchasingSearchBound) {
+        search.dataset.purchasingSearchBound = "true";
+        search.addEventListener("input", renderVisibleRows);
       }
 
-      refresh.dataset.purchasingRefreshBound = "true";
-      refresh.addEventListener("click", () => {
-        clearSearch();
-        App.refresh();
-      });
+      if (refresh && !refresh.dataset.purchasingRefreshBound) {
+        refresh.dataset.purchasingRefreshBound = "true";
+        refresh.addEventListener("click", () => {
+          clearSearch();
+          App.refresh();
+        });
+      }
     }
 
     function clearSearch() {
@@ -87,6 +110,10 @@
     function renderRow(purchase = {}) {
       const id = purchase[FIELD.ID];
 
+      const supplierId = purchase[FIELD.SUPPLIER_ID];
+
+      const productId = purchase[FIELD.PRODUCT_ID];
+
       return Components.tableRow([
         Components.tableCell(
           SharedPresenter.text(id),
@@ -94,38 +121,38 @@
           "font-medium text-slate-800",
         ),
 
-        Components.tableCell(Format.date(purchase[FIELD.DATE])),
+        Components.tableCell(text(Format.date(purchase[FIELD.DATE]))),
 
-        Components.tableCell(SharedPresenter.text(purchase[FIELD.SUPPLIER])),
+        Components.tableCell(text(resolveName(supplierNames, supplierId))),
 
-        Components.tableCell(SharedPresenter.text(purchase[FIELD.PRODUCT])),
+        Components.tableCell(text(resolveName(productNames, productId))),
 
         Components.tableCell(
-          Format.number(purchase[FIELD.QTY]),
+          text(Format.number(purchase[FIELD.QTY])),
 
           "text-right",
         ),
 
         Components.tableCell(
-          Format.currency(purchase[FIELD.PRICE]),
+          text(Format.currency(purchase[FIELD.PRICE])),
 
           "text-right",
         ),
 
         Components.tableCell(
-          Format.currency(purchase[FIELD.TOTAL]),
+          text(Format.currency(purchase[FIELD.TOTAL])),
 
           "text-right",
         ),
 
         Components.tableCell(
-          SharedPresenter.renderStatus(purchase[FIELD.IS_ACTIVE]),
+          Components.badge(Format.status(true), true),
 
           "text-center",
         ),
 
         Components.tableCell(
-          SharedPresenter.renderActions(id),
+          text("-"),
 
           "text-center",
         ),
@@ -136,14 +163,14 @@
     // Empty
     //===========================================================================
 
-    function renderEmpty() {
+    function renderEmpty(message) {
       Render.mount(
         "tbl-purchasing-body",
 
         `
         <tr>
           <td colspan="9">
-            ${Components.empty("No purchasing available.")}
+            ${Components.empty(message)}
           </td>
         </tr>
       `,
@@ -160,6 +187,112 @@
 
         `${Format.number(total)} Purchasing`,
       );
+    }
+
+    //===========================================================================
+    // Local Search
+    //===========================================================================
+
+    function renderVisibleRows() {
+      const query = getSearchQuery();
+
+      const visibleRows = query
+        ? loadedRows.filter((purchase) => matchesSearch(purchase, query))
+        : loadedRows;
+
+      renderInfo(visibleRows.length);
+
+      if (!visibleRows.length) {
+        renderEmpty(
+          loadedRows.length && query
+            ? "No purchasing matches your search."
+            : "No purchasing available.",
+        );
+
+        return;
+      }
+
+      Render.mount(
+        "tbl-purchasing-body",
+
+        visibleRows.map(renderRow).join(""),
+      );
+    }
+
+    function getSearchQuery() {
+      const input = DOM.$("inp-purchasing-search");
+
+      return String(input?.value ?? "").trim().toLowerCase();
+    }
+
+    function matchesSearch(purchase, query) {
+      const supplierId = purchase[FIELD.SUPPLIER_ID];
+
+      const productId = purchase[FIELD.PRODUCT_ID];
+
+      const values = [
+        purchase[FIELD.ID],
+        purchase[FIELD.DATE],
+        Format.date(purchase[FIELD.DATE]),
+        supplierId,
+        resolveName(supplierNames, supplierId),
+        productId,
+        resolveName(productNames, productId),
+        purchase[FIELD.QTY],
+        Format.number(purchase[FIELD.QTY]),
+        purchase[FIELD.PRICE],
+        Format.currency(purchase[FIELD.PRICE]),
+        purchase[FIELD.TOTAL],
+        Format.currency(purchase[FIELD.TOTAL]),
+        "Active",
+      ];
+
+      return values.some((value) =>
+        String(value ?? "").toLowerCase().includes(query),
+      );
+    }
+
+    //===========================================================================
+    // Values
+    //===========================================================================
+
+    function resolveName(names, id) {
+      return names.get(String(id ?? "")) || id;
+    }
+
+    function isActiveRow(purchase) {
+      return (
+        !toBoolean(purchase?.[FIELD.DELETED], false) &&
+        toBoolean(purchase?.[FIELD.IS_ACTIVE], false)
+      );
+    }
+
+    function toBoolean(value, fallback) {
+      if (value === true || value === 1) {
+        return true;
+      }
+
+      if (value === false || value === 0) {
+        return false;
+      }
+
+      if (typeof value === "string") {
+        const normalized = value.trim().toLowerCase();
+
+        if (normalized === "true" || normalized === "1") {
+          return true;
+        }
+
+        if (normalized === "false" || normalized === "0") {
+          return false;
+        }
+      }
+
+      return fallback;
+    }
+
+    function text(value) {
+      return SharedPresenter.text(value);
     }
 
     //===========================================================================
