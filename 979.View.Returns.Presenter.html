@@ -33,6 +33,14 @@
 
     let pickupLoadRequest = 0;
 
+    let editForm = null;
+
+    let editSubmitting = false;
+
+    let editRequest = 0;
+
+    let modalMode = null;
+
     //===========================================================================
     // Public Render
     //===========================================================================
@@ -126,6 +134,18 @@
 
           <span>View</span>
         </button>
+
+        <button
+          type="button"
+          data-return-action="edit"
+          data-return-id="${escape(id)}"
+          title="Edit"
+          class="ml-2 inline-flex items-center gap-2 px-3 py-2 rounded-lg transition bg-blue-600 hover:bg-blue-700 text-white"
+        >
+          ${Components.icon("fa-pen")}
+
+          <span>Edit</span>
+        </button>
       `;
     }
 
@@ -147,6 +167,10 @@
 
         if (button.dataset.returnAction === "view") {
           view(button.dataset.returnId);
+        }
+
+        if (button.dataset.returnAction === "edit") {
+          openEdit(button.dataset.returnId);
         }
       });
     }
@@ -297,6 +321,11 @@
       }
 
       const request = ++detailRequest;
+
+      clearEditForm();
+      pickupLoadRequest += 1;
+      returnForm = null;
+      modalMode = "view";
 
       Modal.open({
         title: "Return Detail",
@@ -486,7 +515,299 @@
     }
 
     function closeDetail() {
+      if (modalMode !== "view") {
+        return;
+      }
+
       detailRequest += 1;
+      modalMode = null;
+      Modal.close();
+    }
+
+    //===========================================================================
+    // Edit Return
+    //===========================================================================
+
+    async function openEdit(id) {
+      if (editSubmitting) {
+        return;
+      }
+
+      if (Utils.isEmpty(id)) {
+        Toast.error("Return ID is unavailable.");
+        return;
+      }
+
+      const request = ++editRequest;
+      clearEditForm();
+      pickupLoadRequest += 1;
+      returnForm = null;
+      modalMode = "edit";
+
+      Modal.open({
+        title: "Edit Return",
+        width: "lg",
+        body: Components.loading("Loading return..."),
+        footer: renderEditFooter(),
+      });
+
+      bindEditModal();
+
+      let response;
+
+      try {
+        response = await Api.Return.findById(id);
+      } catch (error) {
+        if (request === editRequest) {
+          showEditError("Return could not be loaded for editing.");
+        }
+        return;
+      }
+
+      if (request !== editRequest) {
+        return;
+      }
+
+      if (!isEditableResponse(response)) {
+        showEditError(response?.message || "Return context is unavailable for editing.");
+        return;
+      }
+
+      populateEditForm(response.data);
+      Modal.body(renderEditForm());
+      bindEditModal();
+      DOM.$("inp-return-edit-date")?.focus();
+    }
+
+    function isEditableResponse(response) {
+      return (
+        isDetailResponse(response) &&
+        !Utils.isEmpty(response.data.return?.[FIELD.ID]) &&
+        isRecord(response.data.pickupHeader) &&
+        isRecord(response.data.pickupDetail)
+      );
+    }
+
+    function populateEditForm(data) {
+      const ret = data.return;
+      const header = data.pickupHeader;
+      const detail = data.pickupDetail;
+
+      editSubmitting = false;
+      editForm = {
+        id: String(ret[FIELD.ID]),
+        Tanggal: dateInputValue(ret[FIELD.DATE]),
+        Qty: ret[FIELD.QTY] ?? "",
+        Keterangan: String(ret[FIELD.NOTE] || ""),
+        originalQty: ret[FIELD.QTY],
+        availableQty: data.availableQty,
+        pickupHeader: header,
+        pickupDetail: detail,
+      };
+    }
+
+    function dateInputValue(value) {
+      const date = String(value || "").trim();
+      return /^\d{4}-\d{2}-\d{2}/.test(date) ? date.slice(0, 10) : date;
+    }
+
+    function renderEditForm() {
+      if (!editForm) {
+        return Components.empty("Return data is unavailable.");
+      }
+
+      const header = editForm.pickupHeader;
+      const detail = editForm.pickupDetail;
+      const pickupLabel = header.PickupNo || header.ID || editForm.id;
+
+      return `
+        <div id="return-edit-form" class="space-y-5">
+          <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
+            <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              ${detailField("Return ID", editForm.id)}
+              ${detailField("Pickup", pickupLabel)}
+              ${detailField("Pickup Detail ID", detail.ID)}
+              ${detailField("Product ID", detail.ProductID)}
+              ${detailField("Pickup Detail Qty", Format.number(detail.Qty))}
+              ${detailField("Current Return Qty", Format.number(editForm.originalQty))}
+              ${detailField("Available Qty", Format.number(editForm.availableQty))}
+              ${detailField("Quantity validation", "Final quantity is validated by the server on Save.", "sm:col-span-2")}
+            </dl>
+          </div>
+
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label for="inp-return-edit-date" class="mb-1 block text-sm font-medium text-slate-700">Tanggal</label>
+              <input id="inp-return-edit-date" data-return-edit-field="Tanggal" type="date" value="${escape(editForm.Tanggal)}" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+
+            <div>
+              <label for="inp-return-edit-qty" class="mb-1 block text-sm font-medium text-slate-700">Qty Return</label>
+              <input id="inp-return-edit-qty" data-return-edit-field="Qty" type="number" min="0" step="any" value="${escape(editForm.Qty)}" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0" />
+            </div>
+          </div>
+
+          <div>
+            <label for="inp-return-edit-note" class="mb-1 block text-sm font-medium text-slate-700">Keterangan</label>
+            <textarea id="inp-return-edit-note" data-return-edit-field="Keterangan" rows="3" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Optional notes">${escape(editForm.Keterangan)}</textarea>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderEditFooter() {
+      return `
+        <button type="button" data-return-edit-action="cancel" class="rounded-lg border border-slate-300 px-5 py-2 hover:bg-slate-100">Cancel</button>
+        <button type="button" id="btn-return-edit-save" data-return-edit-action="save" class="rounded-lg bg-blue-600 px-5 py-2 text-white hover:bg-blue-700">Save Changes</button>
+      `;
+    }
+
+    function bindEditModal() {
+      const form = DOM.$("return-edit-form");
+
+      if (form && !form.dataset.returnEditBound) {
+        form.dataset.returnEditBound = "true";
+        form.addEventListener("input", handleEditInput);
+        form.addEventListener("change", handleEditInput);
+      }
+
+      const footer = DOM.$("modal-footer");
+
+      if (footer && !footer.dataset.returnEditBound) {
+        footer.dataset.returnEditBound = "true";
+        footer.addEventListener("click", handleEditFooterClick);
+      }
+
+      const close = DOM.$("btn-modal-close");
+
+      if (close && !close.dataset.returnEditBound) {
+        close.dataset.returnEditBound = "true";
+        close.addEventListener("click", () => {
+          if (!editSubmitting) {
+            closeEdit();
+          }
+        });
+      }
+    }
+
+    function handleEditInput(event) {
+      const field = event.target.dataset.returnEditField;
+
+      if (field && editForm) {
+        editForm[field] = event.target.value;
+      }
+    }
+
+    function handleEditFooterClick(event) {
+      const action = event.target.closest("[data-return-edit-action]")?.dataset.returnEditAction;
+
+      if (action === "cancel" && !editSubmitting) {
+        closeEdit();
+      }
+
+      if (action === "save") {
+        submitEdit();
+      }
+    }
+
+    async function submitEdit() {
+      if (editSubmitting || !editForm) {
+        return;
+      }
+
+      const validation = validateEdit();
+
+      if (!validation.valid) {
+        Toast.warning(validation.message);
+        validation.element?.focus();
+        return;
+      }
+
+      editSubmitting = true;
+      setEditLoading(true);
+
+      try {
+        const response = await Api.Return.update(editForm.id, validation.document);
+
+        if (!response?.success) {
+          Toast.error(response?.message || "Return could not be updated.");
+          return;
+        }
+
+        Toast.success(response.message || "Return updated.");
+        closeEdit();
+        await App.refresh();
+      } catch (error) {
+        Toast.error(error?.message || "Return could not be updated. Please try again.");
+      } finally {
+        editSubmitting = false;
+        setEditLoading(false);
+      }
+    }
+
+    function validateEdit() {
+      const id = String(editForm.id || "").trim();
+      const tanggal = String(editForm.Tanggal || "").trim();
+      const qty = Number(editForm.Qty);
+
+      if (!id) {
+        return invalidReturn("Return ID is unavailable.");
+      }
+
+      if (!tanggal) {
+        return invalidReturn("Tanggal is required.", DOM.$("inp-return-edit-date"));
+      }
+
+      if (!Number.isFinite(qty)) {
+        return invalidReturn("Qty must be numeric.", DOM.$("inp-return-edit-qty"));
+      }
+
+      if (qty <= 0) {
+        return invalidReturn("Qty must be greater than zero.", DOM.$("inp-return-edit-qty"));
+      }
+
+      return {
+        valid: true,
+        document: {
+          Tanggal: tanggal,
+          Qty: qty,
+          Keterangan: String(editForm.Keterangan || "").trim(),
+        },
+      };
+    }
+
+    function setEditLoading(loading) {
+      const button = DOM.$("btn-return-edit-save");
+
+      if (!button) {
+        return;
+      }
+
+      button.disabled = loading;
+      button.classList.toggle("opacity-50", loading);
+      button.classList.toggle("cursor-not-allowed", loading);
+      button.textContent = loading ? "Saving..." : "Save Changes";
+    }
+
+    function showEditError(message) {
+      Toast.error(message);
+      clearEditForm();
+      Modal.body(Components.empty(message));
+    }
+
+    function clearEditForm() {
+      editForm = null;
+      editSubmitting = false;
+    }
+
+    function closeEdit() {
+      if (modalMode !== "edit") {
+        return;
+      }
+
+      editRequest += 1;
+      clearEditForm();
+      modalMode = null;
       Modal.close();
     }
 
@@ -498,6 +819,8 @@
       if (returnSubmitting) {
         return;
       }
+
+      clearEditForm();
 
       const headers = await loadPickupHeaders();
 
@@ -559,6 +882,8 @@
     }
 
     function openReturnForm() {
+      modalMode = "create";
+
       Modal.open({
         title: "Add Return",
         width: "lg",
@@ -907,6 +1232,7 @@
     function closeCreate() {
       pickupLoadRequest += 1;
       returnForm = null;
+      modalMode = null;
       Modal.close();
     }
 
@@ -930,6 +1256,10 @@
       openCreate,
 
       submitCreate,
+
+      openEdit,
+
+      submitEdit,
     });
   })();
 </script>
