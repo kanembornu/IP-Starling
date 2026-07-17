@@ -261,7 +261,21 @@ function runPurchasingRestoreTests() {
   ]);
 }
 
+function runPurchasingControllerTests() {
+  runTestSuite("Purchasing controller tests", [
+    testPurchasingControllerPublicApi,
+    testPurchasingControllerGetAll,
+    testPurchasingControllerGetByIdValidation,
+    testPurchasingControllerCreateValidation,
+    testPurchasingControllerUpdateValidation,
+    testPurchasingControllerDeleteValidation,
+    testPurchasingControllerRestoreValidation,
+    testPurchasingControllerSerialization,
+  ]);
+}
+
 function runPurchasingAllTests() {
+  runPurchasingControllerTests();
   runPurchasingValidationTests();
   runPurchasingWriteTests();
   runPurchasingRestoreTests();

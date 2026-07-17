@@ -189,11 +189,11 @@
     //===========================================================================
 
     const Purchasing = Object.freeze({
-      list() {
+      findAll() {
         return run("getPurchasing");
       },
 
-      get(id) {
+      findById(id) {
         return run("getPurchasingById", id);
       },
 
@@ -211,6 +211,14 @@
 
       restore(id) {
         return run("restorePurchasing", id);
+      },
+
+      list() {
+        return this.findAll();
+      },
+
+      get(id) {
+        return this.findById(id);
       },
     });
 

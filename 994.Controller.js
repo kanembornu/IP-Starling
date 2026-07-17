@@ -166,28 +166,39 @@ function restoreReturn(id) {
 // Purchasing
 //=============================================================================
 
+function _purchasingControllerResponse(operation) {
+  try {
+    return JSON.parse(JSON.stringify(operation()));
+  } catch (error) {
+    Logger.log(`Purchasing Controller error: ${error.message}`);
+    return JSON.parse(
+      JSON.stringify(Response.error("Terjadi kesalahan saat memproses purchasing.")),
+    );
+  }
+}
+
 function getPurchasing() {
-  return PurchasingService().findAll();
+  return _purchasingControllerResponse(() => PurchasingService().findAll());
 }
 
 function getPurchasingById(id) {
-  return PurchasingService().findById(id);
+  return _purchasingControllerResponse(() => PurchasingService().findById(id));
 }
 
 function createPurchasing(data) {
-  return PurchasingService().create(data);
+  return _purchasingControllerResponse(() => PurchasingService().create(data));
 }
 
 function updatePurchasing(id, data) {
-  return PurchasingService().update(id, data);
+  return _purchasingControllerResponse(() => PurchasingService().update(id, data));
 }
 
 function deletePurchasing(id) {
-  return PurchasingService().remove(id);
+  return _purchasingControllerResponse(() => PurchasingService().remove(id));
 }
 
 function restorePurchasing(id) {
-  return PurchasingService().restore(id);
+  return _purchasingControllerResponse(() => PurchasingService().restore(id));
 }
 
 //=============================================================================

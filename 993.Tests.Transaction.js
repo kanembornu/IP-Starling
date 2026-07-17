@@ -2450,6 +2450,130 @@ function testPurchasingServicePublicApi() {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error("PurchasingService public API is invalid.");
 }
 
+function purchasingAssertControllerResponse(response, context) {
+  if (
+    !response ||
+    typeof response !== "object" ||
+    Array.isArray(response) ||
+    typeof response.success !== "boolean" ||
+    typeof response.message !== "string" ||
+    !Object.prototype.hasOwnProperty.call(response, "data") ||
+    !Array.isArray(response.errors) ||
+    !response.meta ||
+    typeof response.meta !== "object"
+  ) {
+    throw new Error(`${context} must return a Response-compatible object.`);
+  }
+}
+
+function testPurchasingControllerPublicApi() {
+  const functions = [
+    getPurchasing,
+    getPurchasingById,
+    createPurchasing,
+    updatePurchasing,
+    deletePurchasing,
+    restorePurchasing,
+  ];
+
+  if (functions.some((fn) => typeof fn !== "function")) {
+    throw new Error("Purchasing Controller public API is invalid.");
+  }
+}
+
+function testPurchasingControllerGetAll() {
+  const response = getPurchasing();
+  purchasingAssertControllerResponse(response, "getPurchasing()");
+  if (!response.success || !Array.isArray(response.data)) {
+    throw new Error("getPurchasing() response is invalid.");
+  }
+  JSON.stringify(response);
+}
+
+function testPurchasingControllerGetByIdValidation() {
+  const response = getPurchasingById("");
+  purchasingAssertControllerResponse(response, 'getPurchasingById("")');
+  if (response.success || response.data !== null) {
+    throw new Error('getPurchasingById("") must return a validation failure.');
+  }
+}
+
+function testPurchasingControllerCreateValidation() {
+  const count = RepositoryReader.count(PURCHASING_SCHEMA);
+  const response = createPurchasing(null);
+  purchasingAssertControllerResponse(response, "createPurchasing(null)");
+  if (response.success || response.data !== null) {
+    throw new Error("createPurchasing(null) must return a validation failure.");
+  }
+  if (RepositoryReader.count(PURCHASING_SCHEMA) !== count) {
+    throw new Error("createPurchasing(null) must not write data.");
+  }
+}
+
+function testPurchasingControllerUpdateValidation() {
+  const count = RepositoryReader.count(PURCHASING_SCHEMA);
+  const response = updatePurchasing("", null);
+  purchasingAssertControllerResponse(response, 'updatePurchasing("", null)');
+  if (response.success || response.data !== null) {
+    throw new Error('updatePurchasing("", null) must return a validation failure.');
+  }
+  if (RepositoryReader.count(PURCHASING_SCHEMA) !== count) {
+    throw new Error("Invalid Purchasing update must not write data.");
+  }
+}
+
+function testPurchasingControllerDeleteValidation() {
+  const count = RepositoryReader.count(PURCHASING_SCHEMA);
+  const response = deletePurchasing("");
+  purchasingAssertControllerResponse(response, 'deletePurchasing("")');
+  if (response.success || response.data !== null) {
+    throw new Error('deletePurchasing("") must return a validation failure.');
+  }
+  if (RepositoryReader.count(PURCHASING_SCHEMA) !== count) {
+    throw new Error("Invalid Purchasing deletion must not change data.");
+  }
+}
+
+function testPurchasingControllerRestoreValidation() {
+  const count = RepositoryReader.count(PURCHASING_SCHEMA);
+  const response = restorePurchasing("");
+  purchasingAssertControllerResponse(response, 'restorePurchasing("")');
+  if (response.success || response.data !== null) {
+    throw new Error('restorePurchasing("") must return a validation failure.');
+  }
+  if (RepositoryReader.count(PURCHASING_SCHEMA) !== count) {
+    throw new Error("Invalid Purchasing restoration must not change data.");
+  }
+}
+
+function testPurchasingControllerSerialization() {
+  const response = getPurchasing();
+  const values = [response];
+
+  if (typeof response === "string") {
+    throw new Error("Purchasing Controller response must not be a JSON string.");
+  }
+
+  while (values.length > 0) {
+    const value = values.pop();
+    if (value instanceof Date || typeof value === "function") {
+      throw new Error("Purchasing Controller response contains an unsafe value.");
+    }
+    if (!value || typeof value !== "object") continue;
+    Object.keys(value).forEach((key) => values.push(value[key]));
+  }
+
+  try {
+    JSON.stringify(response);
+  } catch (error) {
+    throw new Error("Purchasing Controller response must be JSON serializable.");
+  }
+
+  if (response.meta && response.meta.timestamp instanceof Date) {
+    throw new Error("Purchasing Controller meta timestamp must be serializable.");
+  }
+}
+
 function testPurchasingFindAllActiveOnly() {
   const response = PurchasingService().findAll();
   if (!response.success || !Array.isArray(response.data)) throw new Error("Purchasing findAll response is invalid.");
