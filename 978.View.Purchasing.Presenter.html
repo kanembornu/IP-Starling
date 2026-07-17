@@ -30,6 +30,14 @@
       DELETED: "Deleted",
 
       IS_ACTIVE: "IsActive",
+
+      CREATED_AT: "CreatedAt",
+
+      CREATED_BY: "CreatedBy",
+
+      UPDATED_AT: "UpdatedAt",
+
+      UPDATED_BY: "UpdatedBy",
     });
 
     //===========================================================================
@@ -42,6 +50,10 @@
 
     let productNames = new Map();
 
+    let detailRequest = 0;
+
+    let pendingDetailId = null;
+
     function render(purchasing = []) {
       const list = normalizeList(purchasing);
 
@@ -52,6 +64,8 @@
       loadedRows = list.filter(isActiveRow);
 
       bindToolbar();
+
+      bindActions();
 
       renderVisibleRows();
     }
@@ -103,6 +117,27 @@
       }
     }
 
+    function bindActions() {
+      const body = DOM.$("tbl-purchasing-body");
+
+      if (!body || body.dataset.purchasingActionsBound) {
+        return;
+      }
+
+      body.dataset.purchasingActionsBound = "true";
+      body.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-purchasing-action]");
+
+        if (!button || !body.contains(button)) {
+          return;
+        }
+
+        if (button.dataset.purchasingAction === "view") {
+          view(button.dataset.purchasingId);
+        }
+      });
+    }
+
     //===========================================================================
     // Row
     //===========================================================================
@@ -152,11 +187,30 @@
         ),
 
         Components.tableCell(
-          text("-"),
+          renderActions(id),
 
           "text-center",
         ),
       ]);
+    }
+
+    function renderActions(id) {
+      if (Utils.isEmpty(id)) {
+        return text("-");
+      }
+
+      return `
+        <button
+          type="button"
+          data-purchasing-action="view"
+          data-purchasing-id="${escape(id)}"
+          title="View"
+          class="inline-flex items-center gap-2 px-3 py-2 rounded-lg transition bg-slate-100 hover:bg-slate-200 text-slate-700"
+        >
+          ${Components.icon("fa-eye")}
+          <span>View</span>
+        </button>
+      `;
     }
 
     //===========================================================================
@@ -187,6 +241,189 @@
 
         `${Format.number(total)} Purchasing`,
       );
+    }
+
+    //===========================================================================
+    // Detail View
+    //===========================================================================
+
+    async function view(id) {
+      if (Utils.isEmpty(id)) {
+        Components.toast("Purchasing ID is unavailable.", "error");
+
+        return;
+      }
+
+      const normalizedId = String(id);
+
+      if (pendingDetailId === normalizedId) {
+        return;
+      }
+
+      if (pendingDetailId !== null) {
+        setViewLoading(pendingDetailId, false);
+      }
+
+      const request = ++detailRequest;
+
+      pendingDetailId = normalizedId;
+      setViewLoading(normalizedId, true);
+
+      supplierNames = createNameMap(App.getPartners());
+      productNames = createNameMap(App.getProducts());
+
+      Modal.open({
+        title: "Purchasing Detail",
+        width: "lg",
+        body: Components.loading("Loading purchasing detail..."),
+        footer: renderDetailFooter(),
+      });
+
+      bindDetailFooter();
+
+      try {
+        const response = await Api.Purchasing.findById(normalizedId);
+
+        if (request !== detailRequest) {
+          return;
+        }
+
+        if (!isDetailResponse(response)) {
+          showDetailError(
+            response?.message || "Purchasing detail is unavailable.",
+          );
+
+          return;
+        }
+
+        Modal.body(renderDetail(response.data));
+      } catch (error) {
+        if (request !== detailRequest) {
+          return;
+        }
+
+        showDetailError("Purchasing detail could not be loaded.");
+      } finally {
+        if (request === detailRequest) {
+          pendingDetailId = null;
+          setViewLoading(normalizedId, false);
+        }
+      }
+    }
+
+    function isDetailResponse(response) {
+      return Boolean(
+        response?.success &&
+          response.data &&
+          typeof response.data === "object" &&
+          !Array.isArray(response.data),
+      );
+    }
+
+    function renderDetail(purchase = {}) {
+      const supplierId = purchase[FIELD.SUPPLIER_ID];
+
+      const productId = purchase[FIELD.PRODUCT_ID];
+
+      return `
+        <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2 text-sm">
+          ${detailField("Purchase ID", purchase[FIELD.ID])}
+          ${detailField("Date", formatDate(purchase[FIELD.DATE]))}
+          ${detailField("Supplier", resolveName(supplierNames, supplierId))}
+          ${detailField("Supplier ID", supplierId)}
+          ${detailField("Product", resolveName(productNames, productId))}
+          ${detailField("Product ID", productId)}
+          ${detailField("Qty", Format.number(purchase[FIELD.QTY]))}
+          ${detailField("Unit Price", Format.currency(purchase[FIELD.PRICE]))}
+          ${detailField("Total", Format.currency(purchase[FIELD.TOTAL]))}
+          ${detailField("Status", Format.status(isActiveRow(purchase)))}
+          ${detailField("Created At", formatDateTime(purchase[FIELD.CREATED_AT]))}
+          ${detailField("Created By", purchase[FIELD.CREATED_BY])}
+          ${detailField("Updated At", formatDateTime(purchase[FIELD.UPDATED_AT]))}
+          ${detailField("Updated By", purchase[FIELD.UPDATED_BY])}
+        </dl>
+      `;
+    }
+
+    function detailField(label, value) {
+      return `
+        <div>
+          <dt class="text-slate-500">${escape(label)}</dt>
+          <dd class="mt-1 font-medium text-slate-800 break-words">${text(value)}</dd>
+        </div>
+      `;
+    }
+
+    function renderDetailFooter() {
+      return `
+        <button
+          type="button"
+          data-purchasing-detail-action="close"
+          class="px-5 py-2 rounded-lg border border-slate-300 hover:bg-slate-100"
+        >
+          Close
+        </button>
+      `;
+    }
+
+    function bindDetailFooter() {
+      const footer = DOM.$("modal-footer");
+
+      if (footer && !footer.dataset.purchasingDetailBound) {
+        footer.dataset.purchasingDetailBound = "true";
+        footer.addEventListener("click", (event) => {
+          const button = event.target.closest(
+            "[data-purchasing-detail-action]",
+          );
+
+          if (button?.dataset.purchasingDetailAction === "close") {
+            closeDetail();
+          }
+        });
+      }
+
+      const close = DOM.$("btn-modal-close");
+
+      if (close) {
+        close.onclick = closeDetail;
+      }
+    }
+
+    function closeDetail() {
+      const pendingId = pendingDetailId;
+
+      detailRequest += 1;
+      pendingDetailId = null;
+
+      if (pendingId !== null) {
+        setViewLoading(pendingId, false);
+      }
+
+      Modal.close();
+    }
+
+    function showDetailError(message) {
+      const readable = safeValue(message);
+
+      Components.toast(readable, "error");
+      Modal.body(Components.empty(escape(readable)));
+    }
+
+    function setViewLoading(id, loading) {
+      const buttons = document.querySelectorAll(
+        '[data-purchasing-action="view"]',
+      );
+
+      buttons.forEach((button) => {
+        if (String(button.dataset.purchasingId) !== String(id)) {
+          return;
+        }
+
+        button.disabled = loading;
+        button.classList.toggle("opacity-50", loading);
+        button.classList.toggle("cursor-not-allowed", loading);
+        button.title = loading ? "Loading..." : "View";
+      });
     }
 
     //===========================================================================
@@ -291,8 +528,37 @@
       return fallback;
     }
 
+    function formatDate(value) {
+      return isValidDate(value) ? Format.date(value) : "-";
+    }
+
+    function formatDateTime(value) {
+      return isValidDate(value) ? Format.datetime(value) : "-";
+    }
+
+    function isValidDate(value) {
+      return !Utils.isEmpty(value) && !isNaN(new Date(value).getTime());
+    }
+
+    function safeValue(value) {
+      if (
+        Utils.isEmpty(value) ||
+        (typeof value === "string" && !value.trim()) ||
+        typeof value === "object" ||
+        typeof value === "function"
+      ) {
+        return "-";
+      }
+
+      return value;
+    }
+
     function text(value) {
-      return SharedPresenter.text(value);
+      return SharedPresenter.text(safeValue(value));
+    }
+
+    function escape(value) {
+      return Utils.escapeHTML(String(value ?? ""));
     }
 
     //===========================================================================
