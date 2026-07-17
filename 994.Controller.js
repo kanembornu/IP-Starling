@@ -138,6 +138,10 @@ function getReturns() {
   return _returnControllerResponse(() => ReturnService().findAll());
 }
 
+function getDeletedReturns() {
+  return _returnControllerResponse(() => ReturnService().findDeleted());
+}
+
 function getReturn(id) {
   return _returnControllerResponse(() => ReturnService().findById(id));
 }

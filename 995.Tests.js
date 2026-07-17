@@ -136,12 +136,35 @@ function runReturnControllerTests() {
   runTestSuite("Return controller tests", [
     testReturnControllerPublicApi,
     testReturnControllerGetReturns,
+    testReturnControllerGetDeletedReturns,
     testReturnControllerGetReturnValidation,
     testReturnControllerCreateValidation,
     testReturnControllerUpdateValidation,
     testReturnControllerDeleteValidation,
     testReturnControllerRestoreValidation,
     testReturnControllerSerialization,
+    testReturnControllerDeletedSerialization,
+  ]);
+}
+
+function runReturnDeletedListTests() {
+  runTestSuite("Return deleted-list tests", [
+    testReturnFindDeletedEmpty,
+    testReturnFindDeletedOnlyDeleted,
+    testReturnFindDeletedExcludesActive,
+    testReturnFindDeletedStatusCompatibility,
+  ]);
+}
+
+function runReturnRestoreValidationTests() {
+  runTestSuite("Return restore validation tests", [
+    testReturnRestoreMissingId,
+    testReturnRestoreUnknownId,
+    testReturnRestoreAlreadyActive,
+    testReturnRestoreRejectsInactivePickupHeader,
+    testReturnRestoreRejectsInactivePickupDetail,
+    testReturnRestoreValid,
+    testReturnRestoreRejectsOverQuantity,
   ]);
 }
 

@@ -15,6 +15,22 @@ function ReturnService() {
     return typeof id === "string" ? id.trim() !== "" : !!id;
   }
 
+  function isTrueEquivalent(value) {
+    return (
+      value === true ||
+      value === 1 ||
+      (typeof value === "string" && value.trim().toLowerCase() === "true")
+    );
+  }
+
+  function isFalseEquivalent(value) {
+    return (
+      value === false ||
+      value === 0 ||
+      (typeof value === "string" && value.trim().toLowerCase() === "false")
+    );
+  }
+
   function isActive(row, schema) {
     return (
       row &&
@@ -231,6 +247,20 @@ function ReturnService() {
     return Response.success(rows);
   }
 
+  function findDeleted() {
+    const rows = RepositoryBase.mapRows(
+      RETURN_SCHEMA,
+      RepositoryReader.raw(RETURN_SCHEMA),
+    ).filter((row) => {
+      return (
+        isTrueEquivalent(row[RETURN_SCHEMA.SYSTEM.IS_DELETED]) &&
+        isFalseEquivalent(row[RETURN_SCHEMA.SYSTEM.IS_ACTIVE])
+      );
+    });
+
+    return Response.success(rows);
+  }
+
   function findById(id) {
     if (!isPresent(id)) {
       return Response.error("ID Return wajib diisi.");
@@ -307,6 +337,8 @@ function ReturnService() {
 
   return Object.freeze({
     findAll,
+
+    findDeleted,
 
     findById,
 

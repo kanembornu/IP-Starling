@@ -192,6 +192,7 @@ function testPickupControllerSerialization() {
 function testReturnControllerPublicApi() {
   const functions = [
     getReturns,
+    getDeletedReturns,
     getReturn,
     createReturn,
     updateReturn,
@@ -220,6 +221,30 @@ function testReturnControllerGetReturns() {
   }
 
   JSON.stringify(response);
+
+  Logger.log(response);
+}
+
+function testReturnControllerGetDeletedReturns() {
+  const response = getDeletedReturns();
+
+  if (
+    !response ||
+    typeof response !== "object" ||
+    Array.isArray(response) ||
+    !response.success ||
+    !Array.isArray(response.data)
+  ) {
+    throw new Error("getDeletedReturns() response is invalid.");
+  }
+
+  if (
+    response.data.some((row) => {
+      return !returnStatusTrue(row.Deleted) || !returnStatusFalse(row.IsActive);
+    })
+  ) {
+    throw new Error("getDeletedReturns() returned a nondeleted or active Return.");
+  }
 
   Logger.log(response);
 }
@@ -298,6 +323,21 @@ function testReturnControllerRestoreValidation() {
 
 function testReturnControllerSerialization() {
   const response = getReturns();
+
+  assertReturnControllerSerializable(response);
+
+  Logger.log(response);
+}
+
+function testReturnControllerDeletedSerialization() {
+  const response = getDeletedReturns();
+
+  assertReturnControllerSerializable(response);
+
+  Logger.log(response);
+}
+
+function assertReturnControllerSerializable(response) {
   const values = [response];
 
   if (typeof response === "string") {
@@ -326,7 +366,6 @@ function testReturnControllerSerialization() {
     throw new Error("Return Controller response must be JSON serializable.");
   }
 
-  Logger.log(response);
 }
 
 function testPickupServiceHeaderDetailRead() {
@@ -1522,10 +1561,115 @@ function testReturnSchemaRegistry() {
 
 function testReturnServicePublicApi() {
   const keys = Object.keys(ReturnService()).sort();
-  const expected = ["create", "findAll", "findById", "remove", "restore", "update"];
+  const expected = ["create", "findAll", "findById", "findDeleted", "remove", "restore", "update"];
 
   if (JSON.stringify(keys) !== JSON.stringify(expected)) {
     throw new Error("ReturnService public API is invalid.");
+  }
+}
+
+function returnStatusTrue(value) {
+  return value === true || value === 1 || String(value).trim().toLowerCase() === "true";
+}
+
+function returnStatusFalse(value) {
+  return value === false || value === 0 || String(value).trim().toLowerCase() === "false";
+}
+
+function assertDeletedReturnRows(response) {
+  if (!response?.success || !Array.isArray(response.data)) {
+    throw new Error("ReturnService.findDeleted() response is invalid.");
+  }
+
+  if (
+    response.data.some((row) => {
+      return (
+        !returnStatusTrue(row[RETURN_SCHEMA.SYSTEM.IS_DELETED]) ||
+        !returnStatusFalse(row[RETURN_SCHEMA.SYSTEM.IS_ACTIVE])
+      );
+    })
+  ) {
+    throw new Error("ReturnService.findDeleted() returned an invalid row.");
+  }
+
+  return response.data;
+}
+
+function testReturnFindDeletedEmpty() {
+  const rows = assertDeletedReturnRows(ReturnService().findDeleted());
+
+  if (rows.length > 0) {
+    Logger.log("SKIPPED: deleted Return rows already exist; empty result cannot be isolated safely.");
+    return;
+  }
+
+  if (rows.length !== 0) {
+    throw new Error("ReturnService.findDeleted() must return an empty array when no deleted rows exist.");
+  }
+}
+
+function testReturnFindDeletedOnlyDeleted() {
+  const fixture = returnTestFixture();
+  if (!fixture) return;
+  const row = createReturnTestRow(fixture);
+  let removed = false;
+
+  try {
+    const response = ReturnService().remove(row.ID);
+    if (!response.success) throw new Error("Return fixture could not be deleted.");
+    removed = true;
+
+    const deleted = assertDeletedReturnRows(ReturnService().findDeleted());
+    if (!deleted.some((item) => item.ID === row.ID)) {
+      throw new Error("Deleted Return was not discoverable.");
+    }
+  } finally {
+    if (!removed) cleanupReturnTestRow(row);
+  }
+}
+
+function testReturnFindDeletedExcludesActive() {
+  const fixture = returnTestFixture();
+  if (!fixture) return;
+  const row = createReturnTestRow(fixture);
+
+  try {
+    const deleted = assertDeletedReturnRows(ReturnService().findDeleted());
+    if (deleted.some((item) => item.ID === row.ID)) {
+      throw new Error("Active Return was included in deleted results.");
+    }
+  } finally {
+    cleanupReturnTestRow(row);
+  }
+}
+
+function testReturnFindDeletedStatusCompatibility() {
+  const fixture = returnTestFixture();
+  if (!fixture) return;
+  const row = createReturnTestRow(fixture);
+  const variants = [
+    { Deleted: true, IsActive: false },
+    { Deleted: "TRUE", IsActive: "FALSE" },
+    { Deleted: 1, IsActive: 0 },
+  ];
+
+  try {
+    variants.forEach((status) => {
+      if (!RepositoryWriter.update(RETURN_SCHEMA, row.ID, status)) {
+        throw new Error("Return status compatibility fixture could not be updated.");
+      }
+
+      const deleted = assertDeletedReturnRows(ReturnService().findDeleted());
+      if (!deleted.some((item) => item.ID === row.ID)) {
+        throw new Error("Deleted Return status compatibility failed.");
+      }
+    });
+  } finally {
+    RepositoryWriter.update(RETURN_SCHEMA, row.ID, {
+      Deleted: false,
+      IsActive: true,
+    });
+    cleanupReturnTestRow(row);
   }
 }
 
@@ -1563,6 +1707,70 @@ function testReturnRemoveMissingId() {
 
 function testReturnRestoreMissingId() {
   if (ReturnService().restore("").success) throw new Error("Return restore must require ID.");
+}
+
+function testReturnRestoreUnknownId() {
+  if (ReturnService().restore("RT_TEST_UNKNOWN").success) {
+    throw new Error("Return restore must reject an unknown ID.");
+  }
+}
+
+function testReturnRestoreAlreadyActive() {
+  const fixture = returnTestFixture();
+  if (!fixture) return;
+  const row = createReturnTestRow(fixture);
+
+  try {
+    if (ReturnService().restore(row.ID).success) {
+      throw new Error("Return restore must reject an already active Return.");
+    }
+  } finally {
+    cleanupReturnTestRow(row);
+  }
+}
+
+function assertReturnRestoreRejectsInactiveRelation(relation) {
+  const transaction = createPickupUpdateTestTransaction(1);
+  if (!transaction) return;
+  const detail = transaction.details[0];
+  const fixture = { detail, available: Number(detail[PICKUP_DETAIL_FIELDS.QTY]) };
+  const row = createReturnTestRow(fixture);
+  const schema = relation === "header" ? PICKUP_HEADER_SCHEMA : PICKUP_DETAIL_SCHEMA;
+  const id = relation === "header"
+    ? transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]
+    : detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY];
+  let relationDeleted = false;
+
+  try {
+    if (!ReturnService().remove(row.ID).success) {
+      throw new Error("Return fixture could not be deleted before restore validation.");
+    }
+
+    if (!RepositoryWriter.softDelete(schema, id)) {
+      throw new Error(`Pickup ${relation} fixture could not be deactivated.`);
+    }
+    relationDeleted = true;
+
+    if (ReturnService().restore(row.ID).success) {
+      throw new Error(`Return restore must reject an inactive Pickup ${relation}.`);
+    }
+  } finally {
+    if (relationDeleted && !RepositoryWriter.restore(schema, id)) {
+      throw new Error(`Pickup ${relation} fixture could not be restored after validation.`);
+    }
+
+    if (ReturnService().findById(row.ID).success) {
+      cleanupReturnTestRow(row);
+    }
+  }
+}
+
+function testReturnRestoreRejectsInactivePickupHeader() {
+  assertReturnRestoreRejectsInactiveRelation("header");
+}
+
+function testReturnRestoreRejectsInactivePickupDetail() {
+  assertReturnRestoreRejectsInactiveRelation("detail");
 }
 
 function testReturnCreateValid() {
