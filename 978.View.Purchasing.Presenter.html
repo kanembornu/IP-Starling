@@ -62,6 +62,18 @@
 
     let createProducts = [];
 
+    let editRequest = 0;
+
+    let pendingEditId = null;
+
+    let editSubmitting = false;
+
+    let editForm = null;
+
+    let editSuppliers = [];
+
+    let editProducts = [];
+
     function render(purchasing = []) {
       const list = normalizeList(purchasing);
 
@@ -548,6 +560,8 @@
 
         if (button.dataset.purchasingAction === "view") {
           view(button.dataset.purchasingId);
+        } else if (button.dataset.purchasingAction === "edit") {
+          openEdit(button.dataset.purchasingId);
         }
       });
     }
@@ -616,6 +630,16 @@
       return `
         <button
           type="button"
+          data-purchasing-action="edit"
+          data-purchasing-id="${escape(id)}"
+          title="Edit"
+          class="inline-flex items-center gap-2 px-3 py-2 rounded-lg transition bg-blue-50 hover:bg-blue-100 text-blue-700"
+        >
+          ${Components.icon("fa-pen")}
+          <span>Edit</span>
+        </button>
+        <button
+          type="button"
           data-purchasing-action="view"
           data-purchasing-id="${escape(id)}"
           title="View"
@@ -625,6 +649,349 @@
           <span>View</span>
         </button>
       `;
+    }
+
+    //===========================================================================
+    // Edit Form
+    //===========================================================================
+
+    async function openEdit(id) {
+      if (editSubmitting || Utils.isEmpty(id)) {
+        if (Utils.isEmpty(id)) {
+          Components.toast("Purchasing ID is unavailable.", "error");
+        }
+
+        return;
+      }
+
+      const normalizedId = String(id);
+
+      if (pendingEditId === normalizedId) {
+        return;
+      }
+
+      if (pendingEditId !== null) {
+        setEditRowLoading(pendingEditId, false);
+      }
+
+      const request = ++editRequest;
+      resetEditState();
+      pendingEditId = normalizedId;
+      setEditRowLoading(normalizedId, true);
+
+      Modal.open({
+        title: "Edit Purchasing",
+        width: "md",
+        body: Components.loading("Loading purchasing for editing..."),
+        footer: renderEditFooter(true),
+      });
+      bindEditModal();
+
+      try {
+        const response = await Api.Purchasing.findById(normalizedId);
+
+        if (request !== editRequest) {
+          return;
+        }
+
+        if (!isDetailResponse(response)) {
+          showEditLoadError(response?.message || "Purchasing could not be loaded for editing.");
+          return;
+        }
+
+        const prepared = prepareEditForm(response.data, normalizedId);
+
+        if (!prepared.valid) {
+          showEditLoadError(prepared.message);
+          return;
+        }
+
+        editForm = prepared.form;
+        editSuppliers = selectableSuppliers(App.getPartners());
+        editProducts = selectableProducts(App.getProducts());
+        Modal.body(renderEditForm());
+        Modal.footer(renderEditFooter(false));
+        bindEditModal();
+        updateEditTotalPreview();
+        DOM.$("inp-purchasing-edit-date")?.focus();
+      } catch (error) {
+        if (request === editRequest) {
+          showEditLoadError("Purchasing could not be loaded for editing. Please try again.");
+        }
+      } finally {
+        if (request === editRequest) {
+          pendingEditId = null;
+          setEditRowLoading(normalizedId, false);
+        }
+      }
+    }
+
+    function prepareEditForm(purchase, requestedId) {
+      const id = String(purchase?.[FIELD.ID] ?? "").trim();
+      const date = dateInputValue(purchase?.[FIELD.DATE]);
+      const supplierId = String(purchase?.[FIELD.SUPPLIER_ID] ?? "").trim();
+      const productId = String(purchase?.[FIELD.PRODUCT_ID] ?? "").trim();
+      const qty = purchase?.[FIELD.QTY];
+      const price = purchase?.[FIELD.PRICE];
+
+      if (
+        !id || id !== requestedId || !isDateInputValue(date) ||
+        !supplierId || !productId || !isValidNumericValue(qty, true) ||
+        !isValidNumericValue(price, false)
+      ) {
+        return { valid: false, message: "Purchasing detail is incomplete or invalid for editing." };
+      }
+
+      return {
+        valid: true,
+        form: { id, Tanggal: date, SupplierID: supplierId, ProductID: productId, Qty: String(qty), Harga: String(price) },
+      };
+    }
+
+    function dateInputValue(value) {
+      const date = String(value ?? "").trim();
+      return /^\d{4}-\d{2}-\d{2}/.test(date) ? date.slice(0, 10) : "";
+    }
+
+    function isValidNumericValue(value, greaterThanZero) {
+      const textValue = String(value ?? "").trim();
+      const numberValue = Number(textValue);
+      return Boolean(textValue) && Number.isFinite(numberValue) && (greaterThanZero ? numberValue > 0 : numberValue >= 0);
+    }
+
+    function renderEditForm() {
+      const supplierValid = hasSelectableId(editSuppliers, editForm.SupplierID);
+      const productValid = hasSelectableId(editProducts, editForm.ProductID);
+      const availability = [];
+
+      if (!supplierValid) {
+        availability.push("The current Supplier is no longer active and selectable. Choose a valid Supplier before saving.");
+      }
+
+      if (!productValid) {
+        availability.push("The current Product is no longer active and selectable. Choose a valid Product before saving.");
+      }
+
+      return `
+        <form id="purchasing-edit-form" class="space-y-4" novalidate>
+          ${availability.length ? `<div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">${availability.map(escape).join("<br>")}</div>` : ""}
+          <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+            <span class="text-slate-500">Purchase ID</span>
+            <strong class="ml-2 text-slate-800">${escape(editForm.id)}</strong>
+          </div>
+          ${renderEditInput("Date", "Tanggal", "date", editForm.Tanggal, "inp-purchasing-edit-date")}
+          <div>
+            <label for="inp-purchasing-edit-supplier" class="mb-1 block text-sm font-medium text-slate-700">Supplier</label>
+            <select id="inp-purchasing-edit-supplier" data-purchasing-edit-field="SupplierID" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">-- Select Supplier --</option>
+              ${editSuppliers.map((record) => renderEditOption(record, editForm.SupplierID)).join("")}
+            </select>
+            ${renderEditFieldError("SupplierID")}
+          </div>
+          <div>
+            <label for="inp-purchasing-edit-product" class="mb-1 block text-sm font-medium text-slate-700">Product</label>
+            <select id="inp-purchasing-edit-product" data-purchasing-edit-field="ProductID" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">-- Select Product --</option>
+              ${editProducts.map((record) => renderEditOption(record, editForm.ProductID)).join("")}
+            </select>
+            ${renderEditFieldError("ProductID")}
+          </div>
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            ${renderEditInput("Qty", "Qty", "number", editForm.Qty, "inp-purchasing-edit-qty")}
+            ${renderEditInput("Unit Price", "Harga", "number", editForm.Harga, "inp-purchasing-edit-price")}
+          </div>
+          <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+            <span class="block text-sm text-slate-500">Total Preview</span>
+            <strong id="lbl-purchasing-edit-total" class="mt-1 block text-lg text-slate-800">${escape(Format.currency(0))}</strong>
+          </div>
+        </form>
+      `;
+    }
+
+    function renderEditInput(label, field, type, value, id) {
+      const numeric = type === "number" ? ' min="0" step="any" inputmode="decimal"' : "";
+      return `<div><label for="${id}" class="mb-1 block text-sm font-medium text-slate-700">${escape(label)}</label><input id="${id}" data-purchasing-edit-field="${field}" type="${type}"${numeric} value="${escape(value)}" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />${renderEditFieldError(field)}</div>`;
+    }
+
+    function renderEditOption(record, selectedId) {
+      const id = String(record?.ID ?? "");
+      return `<option value="${escape(id)}" ${id === String(selectedId) ? "selected" : ""}>${escape(record?.Nama ?? id)}</option>`;
+    }
+
+    function renderEditFieldError(field) {
+      return `<p data-purchasing-edit-error="${escape(field)}" class="mt-1 hidden text-sm text-red-600"></p>`;
+    }
+
+    function renderEditFooter(loading) {
+      return `<button type="button" data-purchasing-edit-action="cancel" class="rounded-lg border border-slate-300 px-5 py-2 hover:bg-slate-100">Cancel</button><button type="button" id="btn-purchasing-edit-save" data-purchasing-edit-action="save" ${loading ? "disabled" : ""} class="rounded-lg bg-blue-600 px-5 py-2 text-white hover:bg-blue-700 ${loading ? "cursor-not-allowed opacity-50" : ""}">${loading ? "Loading..." : "Save Changes"}</button>`;
+    }
+
+    function bindEditModal() {
+      const form = DOM.$("purchasing-edit-form");
+      const footer = DOM.$("modal-footer");
+      const close = DOM.$("btn-modal-close");
+
+      if (form && !form.dataset.purchasingEditBound) {
+        form.dataset.purchasingEditBound = "true";
+        form.addEventListener("input", handleEditInput);
+        form.addEventListener("change", handleEditInput);
+        form.addEventListener("submit", (event) => { event.preventDefault(); submitEdit(); });
+      }
+
+      if (footer && !footer.dataset.purchasingEditBound) {
+        footer.dataset.purchasingEditBound = "true";
+        footer.addEventListener("click", handleEditFooterClick);
+      }
+
+      if (close) {
+        close.onclick = closeEdit;
+      }
+    }
+
+    function handleEditInput(event) {
+      const field = event.target.dataset.purchasingEditField;
+      if (!field || !editForm) return;
+      editForm[field] = event.target.value;
+      clearEditFieldError(field);
+      if (field === FIELD.QTY || field === FIELD.PRICE) updateEditTotalPreview();
+    }
+
+    function handleEditFooterClick(event) {
+      const action = event.target.closest("[data-purchasing-edit-action]")?.dataset.purchasingEditAction;
+      if (action === "cancel") closeEdit();
+      if (action === "save") submitEdit();
+    }
+
+    function updateEditTotalPreview() {
+      const qty = Number(editForm?.Qty);
+      const price = Number(editForm?.Harga);
+      const valid = isValidNumericValue(editForm?.Qty, true) && isValidNumericValue(editForm?.Harga, false);
+      DOM.text(DOM.$("lbl-purchasing-edit-total"), Format.currency(valid && Number.isFinite(qty * price) ? qty * price : 0));
+    }
+
+    async function submitEdit() {
+      if (editSubmitting || !editForm) return;
+      clearAllEditFieldErrors();
+      const validation = validateEdit();
+
+      if (!validation.valid) {
+        showEditFieldError(validation.field, validation.message);
+        validation.element?.focus();
+        return;
+      }
+
+      editSubmitting = true;
+      setEditLoading(true);
+      let response;
+
+      try {
+        response = await Api.Purchasing.update(editForm.id, validation.payload);
+        if (!response?.success) {
+          Components.toast(response?.message || "Purchasing could not be updated.", "error");
+          return;
+        }
+      } catch (error) {
+        Components.toast("Purchasing could not be updated. Please try again.", "error");
+        return;
+      } finally {
+        editSubmitting = false;
+        setEditLoading(false);
+      }
+
+      Components.toast(response.message || "Purchasing updated.", "success");
+      closeEdit();
+      await App.refresh();
+    }
+
+    function validateEdit() {
+      const id = String(editForm.id ?? "").trim();
+      const date = String(editForm.Tanggal ?? "").trim();
+      const supplierId = String(editForm.SupplierID ?? "").trim();
+      const productId = String(editForm.ProductID ?? "").trim();
+      const qtyText = String(editForm.Qty ?? "").trim();
+      const priceText = String(editForm.Harga ?? "").trim();
+      const qty = Number(qtyText);
+      const price = Number(priceText);
+
+      if (!id) return invalidEdit("ID", "Purchasing ID is unavailable.");
+      if (!isDateInputValue(date)) return invalidEdit("Tanggal", "Date is required.", "inp-purchasing-edit-date");
+      if (!supplierId || !hasSelectableId(editSuppliers, supplierId)) return invalidEdit("SupplierID", "Select an active Supplier.", "inp-purchasing-edit-supplier");
+      if (!productId || !hasSelectableId(editProducts, productId)) return invalidEdit("ProductID", "Select an active Product.", "inp-purchasing-edit-product");
+      if (!qtyText || !Number.isFinite(qty) || qty <= 0) return invalidEdit("Qty", "Qty must be a number greater than zero.", "inp-purchasing-edit-qty");
+      if (!priceText || !Number.isFinite(price) || price < 0) return invalidEdit("Harga", "Unit Price must be a number greater than or equal to zero.", "inp-purchasing-edit-price");
+
+      return { valid: true, payload: { Tanggal: date, SupplierID: supplierId, ProductID: productId, Qty: qty, Harga: price } };
+    }
+
+    function invalidEdit(field, message, elementId) {
+      return { valid: false, field, message, element: elementId ? DOM.$(elementId) : null };
+    }
+
+    function hasSelectableId(records, id) {
+      return records.some((record) => String(record?.ID ?? "") === String(id));
+    }
+
+    function showEditFieldError(field, message) {
+      const error = document.querySelector(`[data-purchasing-edit-error="${field}"]`);
+      if (!error) { Components.toast(message, "error"); return; }
+      DOM.text(error, message);
+      error.classList.remove("hidden");
+    }
+
+    function clearEditFieldError(field) {
+      const error = document.querySelector(`[data-purchasing-edit-error="${field}"]`);
+      if (error) { DOM.text(error, ""); error.classList.add("hidden"); }
+    }
+
+    function clearAllEditFieldErrors() {
+      document.querySelectorAll("[data-purchasing-edit-error]").forEach((error) => { DOM.text(error, ""); error.classList.add("hidden"); });
+    }
+
+    function setEditLoading(loading) {
+      const save = DOM.$("btn-purchasing-edit-save");
+      const cancel = document.querySelector('[data-purchasing-edit-action="cancel"]');
+      const close = DOM.$("btn-modal-close");
+      [save, cancel, close].forEach((button) => {
+        if (!button) return;
+        button.disabled = loading;
+        button.classList.toggle("cursor-not-allowed", loading);
+        button.classList.toggle("opacity-50", loading);
+      });
+      if (save) save.textContent = loading ? "Saving..." : "Save Changes";
+    }
+
+    function setEditRowLoading(id, loading) {
+      document.querySelectorAll('[data-purchasing-action="edit"]').forEach((button) => {
+        if (String(button.dataset.purchasingId) !== String(id)) return;
+        button.disabled = loading;
+        button.classList.toggle("opacity-50", loading);
+        button.classList.toggle("cursor-not-allowed", loading);
+      });
+    }
+
+    function showEditLoadError(message) {
+      const readable = String(safeValue(message));
+      Components.toast(readable, "error");
+      editForm = null;
+      Modal.body(Components.empty(escape(readable)));
+      Modal.footer(renderEditFooter(true));
+      bindEditModal();
+    }
+
+    function closeEdit() {
+      if (editSubmitting) return;
+      const pendingId = pendingEditId;
+      editRequest += 1;
+      resetEditState();
+      if (pendingId !== null) setEditRowLoading(pendingId, false);
+      Modal.close();
+    }
+
+    function resetEditState() {
+      pendingEditId = null;
+      editForm = null;
+      editSuppliers = [];
+      editProducts = [];
     }
 
     //===========================================================================
