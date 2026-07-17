@@ -1729,6 +1729,34 @@ function testReturnRestoreAlreadyActive() {
   }
 }
 
+function testReturnRestoreStatusCompatibility() {
+  const fixture = returnTestFixture();
+  if (!fixture) return;
+  const row = createReturnTestRow(fixture);
+  const variants = [
+    { Deleted: true, IsActive: false },
+    { Deleted: "TRUE", IsActive: "FALSE" },
+    { Deleted: 1, IsActive: 0 },
+  ];
+
+  try {
+    variants.forEach((status) => {
+      if (!RepositoryWriter.update(RETURN_SCHEMA, row.ID, status)) {
+        throw new Error("Return restore status fixture could not be updated.");
+      }
+
+      const response = ReturnService().restore(row.ID);
+      if (!response.success) {
+        throw new Error("Return restore status compatibility failed.");
+      }
+    });
+  } finally {
+    if (ReturnService().findById(row.ID).success) {
+      cleanupReturnTestRow(row);
+    }
+  }
+}
+
 function assertReturnRestoreRejectsInactiveRelation(relation) {
   const transaction = createPickupUpdateTestTransaction(1);
   if (!transaction) return;
@@ -1889,6 +1917,35 @@ function testReturnRemoveReleasesQuantity() {
     replacement = createReturnTestRow(fixture, fixture.available);
   } finally {
     cleanupReturnTestRow(replacement);
+    if (!removed) cleanupReturnTestRow(row);
+  }
+}
+
+function testReturnRemoveSoftDeleteState() {
+  const fixture = returnTestFixture();
+  if (!fixture) return;
+  const row = createReturnTestRow(fixture);
+  let removed = false;
+
+  try {
+    const response = ReturnService().remove(row.ID);
+    if (!response.success) throw new Error("Return remove should succeed.");
+    removed = true;
+
+    const stored = RepositoryBase.mapRows(
+      RETURN_SCHEMA,
+      RepositoryReader.raw(RETURN_SCHEMA),
+    ).find((item) => item[RETURN_SCHEMA.PRIMARY_KEY] === row.ID);
+
+    if (
+      !stored ||
+      stored[RETURN_SCHEMA.SYSTEM.IS_DELETED] !== true ||
+      stored[RETURN_SCHEMA.SYSTEM.IS_ACTIVE] !== false ||
+      ReturnService().findAll().data.some((item) => item.ID === row.ID)
+    ) {
+      throw new Error("Return remove did not produce the required soft-delete state.");
+    }
+  } finally {
     if (!removed) cleanupReturnTestRow(row);
   }
 }

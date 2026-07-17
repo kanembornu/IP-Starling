@@ -55,7 +55,8 @@ function ReturnService() {
       rows.find((row) => {
         return (
           row[RETURN_SCHEMA.PRIMARY_KEY] === id &&
-          row[RETURN_SCHEMA.SYSTEM.IS_DELETED] === true
+          isTrueEquivalent(row[RETURN_SCHEMA.SYSTEM.IS_DELETED]) &&
+          isFalseEquivalent(row[RETURN_SCHEMA.SYSTEM.IS_ACTIVE])
         );
       }) || null
     );

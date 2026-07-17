@@ -161,6 +161,7 @@ function runReturnRestoreValidationTests() {
     testReturnRestoreMissingId,
     testReturnRestoreUnknownId,
     testReturnRestoreAlreadyActive,
+    testReturnRestoreStatusCompatibility,
     testReturnRestoreRejectsInactivePickupHeader,
     testReturnRestoreRejectsInactivePickupDetail,
     testReturnRestoreValid,
@@ -203,10 +204,29 @@ function runReturnWriteTests() {
     testReturnUpdateExcludesCurrentQty,
     testReturnUpdateRejectsOverQuantity,
     testReturnRemoveReleasesQuantity,
+    testReturnRemoveSoftDeleteState,
     testReturnRestoreValid,
     testReturnRestoreRejectsOverQuantity,
     testReturnFindByIdResolvedData,
   ]);
+}
+
+/**
+ * Runs the complete Return regression set, including controlled write tests.
+ * This runner is intentionally not included in runAllSafeTests.
+ */
+function runReturnAllTests() {
+  Logger.log("RETURN TESTS: SAFE AND READ-ONLY");
+  runReturnSchemaTests();
+  runReturnValidationTests();
+  runReturnControllerTests();
+
+  Logger.log("RETURN TESTS: CONTROLLED WRITE FIXTURES");
+  runReturnDeletedListTests();
+  runReturnRestoreValidationTests();
+  runReturnWriteTests();
+
+  Logger.log("COMPLETE: Return all tests");
 }
 
 function runAllSafeTests() {
