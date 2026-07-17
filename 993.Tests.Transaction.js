@@ -2446,8 +2446,113 @@ function purchasingCreateFixture(fixture, changes) {
 
 function testPurchasingServicePublicApi() {
   const actual = Object.keys(PurchasingService()).sort();
-  const expected = ["create", "findAll", "findById", "remove", "restore", "update"];
+  const expected = ["create", "findAll", "findById", "remove", "restore", "statistics", "update"];
   if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error("PurchasingService public API is invalid.");
+}
+
+function testPurchasingStatisticsEmpty() {
+  const rows = PurchasingService().findAll();
+  if (!rows.success) throw new Error("Purchasing findAll failed during empty statistics test.");
+
+  if (rows.data.length !== 0) {
+    Logger.log("SKIPPED: Purchasing statistics empty assertion requires no active Purchasing rows.");
+    return;
+  }
+
+  const response = PurchasingService().statistics();
+  if (!response.success || response.data.total !== 0 || response.data.active !== 0 || response.data.inactive !== 0) {
+    throw new Error("Empty Purchasing statistics are invalid.");
+  }
+}
+
+function testPurchasingStatisticsResponseShape() {
+  const response = PurchasingService().statistics();
+  const data = response && response.data;
+
+  if (
+    !response ||
+    response.success !== true ||
+    !data ||
+    typeof data.total !== "number" ||
+    typeof data.active !== "number" ||
+    typeof data.inactive !== "number" ||
+    data.total !== data.active ||
+    data.inactive !== 0
+  ) {
+    throw new Error("Purchasing statistics response shape is invalid.");
+  }
+}
+
+function testDashboardPurchasingStatisticsCompatibility() {
+  const service = PurchasingService();
+  if (typeof service.statistics !== "function") {
+    throw new Error("Dashboard Purchasing statistics compatibility is missing.");
+  }
+
+  const response = service.statistics();
+  if (!response || response.success !== true || !response.data) {
+    throw new Error("Dashboard Purchasing statistics compatibility response is invalid.");
+  }
+}
+
+function testPurchasingStatisticsActiveOnly() {
+  const fixture = purchasingTestMasterData("Supplier");
+  let row = null;
+
+  try {
+    const baseline = PurchasingService().statistics();
+    if (!baseline.success) throw new Error("Could not read Purchasing statistics baseline.");
+
+    row = purchasingCreateFixture(fixture);
+
+    const active = PurchasingService().statistics();
+    if (!active.success || active.data.total !== baseline.data.total + 1 || active.data.active !== active.data.total || active.data.inactive !== 0) {
+      throw new Error("Active Purchasing fixture was not counted correctly.");
+    }
+
+    if (!RepositoryWriter.update(PURCHASING_SCHEMA, row.ID, {
+      [PURCHASING_SCHEMA.SYSTEM.IS_ACTIVE]: false,
+    })) {
+      throw new Error("Could not make controlled Purchasing fixture inactive.");
+    }
+
+    const inactive = PurchasingService().statistics();
+    if (!inactive.success || inactive.data.total !== baseline.data.total || inactive.data.active !== baseline.data.active || inactive.data.inactive !== 0) {
+      throw new Error("Inactive Purchasing fixture was included in statistics.");
+    }
+
+    RepositoryWriter.update(PURCHASING_SCHEMA, row.ID, {
+      [PURCHASING_SCHEMA.SYSTEM.IS_ACTIVE]: true,
+    });
+
+    if (!PurchasingService().remove(row.ID).success) {
+      throw new Error("Could not delete controlled Purchasing fixture.");
+    }
+
+    const deleted = PurchasingService().statistics();
+    if (!deleted.success || deleted.data.total !== baseline.data.total || deleted.data.active !== baseline.data.active || deleted.data.inactive !== 0) {
+      throw new Error("Deleted Purchasing fixture was included in statistics.");
+    }
+  } finally {
+    if (row) {
+      const stored = RepositoryBase.mapRows(
+        PURCHASING_SCHEMA,
+        RepositoryReader.raw(PURCHASING_SCHEMA),
+      ).find((item) => item.ID === row.ID);
+
+      if (stored && stored.Deleted !== true) {
+        RepositoryWriter.update(PURCHASING_SCHEMA, row.ID, {
+          [PURCHASING_SCHEMA.SYSTEM.IS_DELETED]: false,
+          [PURCHASING_SCHEMA.SYSTEM.IS_ACTIVE]: true,
+        });
+        PurchasingService().remove(row.ID);
+      }
+
+      Logger.log(`CLEANUP: Purchasing statistics fixture ${row.ID} is soft-deleted.`);
+    }
+
+    purchasingCleanupMasterData(fixture);
+  }
 }
 
 function purchasingAssertControllerResponse(response, context) {

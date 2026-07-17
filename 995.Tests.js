@@ -218,6 +218,9 @@ function runReturnWriteTests() {
 function runPurchasingValidationTests() {
   runTestSuite("Purchasing validation tests", [
     testPurchasingServicePublicApi,
+    testPurchasingStatisticsEmpty,
+    testPurchasingStatisticsResponseShape,
+    testDashboardPurchasingStatisticsCompatibility,
     testPurchasingFindAllActiveOnly,
     testPurchasingFindByIdValidation,
     testPurchasingCreateRequiresTanggal,
@@ -236,6 +239,7 @@ function runPurchasingValidationTests() {
 
 function runPurchasingWriteTests() {
   runTestSuite("Purchasing write tests", [
+    testPurchasingStatisticsActiveOnly,
     testPurchasingCreateValid,
     testPurchasingCreateDerivesTotal,
     testPurchasingCreateIgnoresSuppliedTotal,

@@ -145,6 +145,19 @@ function PurchasingService() {
     return Response.success(row);
   }
 
+  function statistics() {
+    const response = findAll();
+    if (!response.success) return response;
+
+    const active = response.data.length;
+
+    return Response.success({
+      total: active,
+      active,
+      inactive: 0,
+    });
+  }
+
   function create(document) {
     const prepared = prepare(document);
     if (prepared && prepared.success === false) return prepared;
@@ -207,5 +220,13 @@ function PurchasingService() {
     return base.restore(id);
   }
 
-  return Object.freeze({ findAll, findById, create, update, remove, restore });
+  return Object.freeze({
+    findAll,
+    findById,
+    statistics,
+    create,
+    update,
+    remove,
+    restore,
+  });
 }
