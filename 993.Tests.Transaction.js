@@ -1757,6 +1757,385 @@ function testReturnRestoreStatusCompatibility() {
   }
 }
 
+function purchasingAuditLog(level, message, data) {
+  const suffix = data === undefined ? "" : ` ${JSON.stringify(data)}`;
+  Logger.log(`${level}: ${message}${suffix}`);
+}
+
+function purchasingAuditBlank(value) {
+  return value === null || value === undefined || String(value).trim() === "";
+}
+
+function purchasingAuditKey(value) {
+  if (value instanceof Date) return value.toISOString();
+  return purchasingAuditBlank(value) ? "" : String(value).trim();
+}
+
+function purchasingAuditStatus(value) {
+  if (typeof value === "boolean") return "boolean";
+  if (typeof value === "string" && /^(true|false)$/i.test(value.trim())) {
+    return "string-boolean";
+  }
+  if (typeof value === "number" && (value === 0 || value === 1)) {
+    return "numeric-boolean";
+  }
+  return "other";
+}
+
+function purchasingAuditDeleted(value) {
+  return value === true || value === 1 || String(value).trim().toLowerCase() === "true";
+}
+
+function purchasingAuditInactive(value) {
+  return value === false || value === 0 || String(value).trim().toLowerCase() === "false";
+}
+
+function purchasingAuditIdPattern(value) {
+  if (purchasingAuditBlank(value)) return "blank";
+  const id = String(value).trim();
+  const prefix = (id.match(/^[A-Za-z]+/) || [""])[0].toUpperCase();
+  const suffix = id.slice(prefix.length);
+  return `${prefix || "none"}-${/^\d+$/.test(suffix) ? "digits" : "mixed"}-len${id.length}`;
+}
+
+function purchasingAuditObjects(sheet) {
+  const rowCount = sheet.getLastRow();
+  const columnCount = sheet.getLastColumn();
+  if (rowCount < 1 || columnCount < 1) {
+    return { headers: [], rows: [], formulas: [] };
+  }
+
+  const range = sheet.getRange(1, 1, rowCount, columnCount);
+  const values = range.getValues();
+  const formulas = range.getFormulas();
+  const headers = values[0].map((value) => String(value));
+  const rows = [];
+  values.slice(1).forEach((valuesRow, index) => {
+    if (!valuesRow.some((value) => !purchasingAuditBlank(value))) return;
+    const object = {};
+    headers.forEach((header, column) => {
+      if (header && !Object.prototype.hasOwnProperty.call(object, header)) {
+        object[header] = valuesRow[column];
+      }
+    });
+    rows.push({ number: index + 2, object, values: valuesRow, formulas: formulas[index + 1] });
+  });
+
+  return { headers, rows };
+}
+
+function purchasingAuditMaster(spreadsheet, schema) {
+  const sheet = spreadsheet.getSheetByName(schema.TABLE);
+  if (!sheet) return { available: false, rows: Object.create(null) };
+
+  const data = purchasingAuditObjects(sheet);
+  const rows = Object.create(null);
+  data.rows.forEach((entry) => {
+    const id = purchasingAuditKey(entry.object[schema.PRIMARY_KEY]);
+    if (id) rows[id] = entry.object;
+  });
+  return { available: true, rows };
+}
+
+function purchasingAuditHeaders(headers, target) {
+  const counts = Object.create(null);
+  headers.forEach((header) => {
+    if (header) counts[header] = (counts[header] || 0) + 1;
+  });
+  const missing = target.filter((header) => !counts[header]);
+  const extra = headers.filter((header) => header && target.indexOf(header) === -1);
+  const duplicated = Object.keys(counts).filter((header) => counts[header] > 1);
+  const blank = headers.reduce((count, header) => count + (header === "" ? 1 : 0), 0);
+  const reordered =
+    missing.length === 0 &&
+    extra.length === 0 &&
+    duplicated.length === 0 &&
+    blank === 0 &&
+    JSON.stringify(headers) !== JSON.stringify(target);
+
+  return {
+    compatible: JSON.stringify(headers) === JSON.stringify(target),
+    missing,
+    extra,
+    duplicated,
+    reordered,
+    blank,
+  };
+}
+
+function purchasingAuditCandidate(sheet, masters, targetHeaders) {
+  const data = purchasingAuditObjects(sheet);
+  const header = purchasingAuditHeaders(data.headers, targetHeaders);
+  const findings = {
+    sheet: sheet.getName(),
+    rowCount: data.rows.length,
+    columnCount: sheet.getLastColumn(),
+    headers: data.headers,
+    header,
+    blankIds: 0,
+    duplicateIds: 0,
+    invalidPrefix: 0,
+    blankRequired: { Tanggal: 0, SupplierID: 0, ProductID: 0, Qty: 0, Harga: 0 },
+    invalidQty: { nonnumeric: 0, nonfinite: 0, nonpositive: 0 },
+    invalidHarga: { nonnumeric: 0, nonfinite: 0, negative: 0 },
+    invalidTotal: { blank: 0, nonnumeric: 0, nonfinite: 0, negative: 0 },
+    totalMismatches: 0,
+    decimalToleranceUsed: false,
+    totalFormulaCells: 0,
+    totalMode: "value-only",
+    statuses: {
+      Deleted: { boolean: 0, "string-boolean": 0, "numeric-boolean": 0, other: 0 },
+      IsActive: { boolean: 0, "string-boolean": 0, "numeric-boolean": 0, other: 0 },
+    },
+    supplier: { missing: 0, deleted: 0, inactive: 0, notSupplier: 0, observedTypes: {} },
+    product: { missing: 0, deleted: 0, inactive: 0 },
+    grouping: { sameMarkerGroups: 0, explicitHeaders: [], repeatedExplicitGroups: 0, noteSignals: 0, evidence: "NONE" },
+    samples: [],
+  };
+  const ids = Object.create(null);
+  const markerGroups = Object.create(null);
+  const explicitHeaders = data.headers.filter((headerName) =>
+    /^(invoice|invoice(no|number|id)|document|document(no|number|id)|purchase(no|number|id)|groupid)$/i.test(
+      headerName.replace(/[\s_-]/g, ""),
+    ),
+  );
+  const noteHeaders = data.headers.filter((headerName) => /^(notes?|keterangan|catatan)$/i.test(headerName));
+  const explicitGroups = Object.create(null);
+  findings.grouping.explicitHeaders = explicitHeaders;
+
+  data.rows.forEach((entry) => {
+    const row = entry.object;
+    const id = purchasingAuditKey(row.ID);
+    if (!id) findings.blankIds += 1;
+    else {
+      ids[id] = (ids[id] || 0) + 1;
+      if (!/^PC/i.test(id)) findings.invalidPrefix += 1;
+    }
+
+    Object.keys(findings.blankRequired).forEach((field) => {
+      if (purchasingAuditBlank(row[field])) findings.blankRequired[field] += 1;
+    });
+
+    const qty = Number(row.Qty);
+    const harga = Number(row.Harga);
+    const total = Number(row.Total);
+    if (!purchasingAuditBlank(row.Qty) && Number.isNaN(qty)) findings.invalidQty.nonnumeric += 1;
+    else if (!purchasingAuditBlank(row.Qty) && !Number.isFinite(qty)) findings.invalidQty.nonfinite += 1;
+    else if (!purchasingAuditBlank(row.Qty) && qty <= 0) findings.invalidQty.nonpositive += 1;
+    if (!purchasingAuditBlank(row.Harga) && Number.isNaN(harga)) findings.invalidHarga.nonnumeric += 1;
+    else if (!purchasingAuditBlank(row.Harga) && !Number.isFinite(harga)) findings.invalidHarga.nonfinite += 1;
+    else if (!purchasingAuditBlank(row.Harga) && harga < 0) findings.invalidHarga.negative += 1;
+    if (purchasingAuditBlank(row.Total)) findings.invalidTotal.blank += 1;
+    else if (Number.isNaN(total)) findings.invalidTotal.nonnumeric += 1;
+    else if (!Number.isFinite(total)) findings.invalidTotal.nonfinite += 1;
+    else if (total < 0) findings.invalidTotal.negative += 1;
+
+    let totalMatches = false;
+    if ([qty, harga, total].every(Number.isFinite)) {
+      const expected = qty * harga;
+      const decimals = !Number.isInteger(qty) || !Number.isInteger(harga) || !Number.isInteger(total);
+      const tolerance = decimals ? 1e-9 * Math.max(1, Math.abs(expected), Math.abs(total)) : 0;
+      findings.decimalToleranceUsed = findings.decimalToleranceUsed || decimals;
+      totalMatches = Math.abs(total - expected) <= tolerance;
+      if (!totalMatches) findings.totalMismatches += 1;
+    }
+
+    const totalColumn = data.headers.indexOf("Total");
+    if (totalColumn !== -1 && entry.formulas?.[totalColumn]) findings.totalFormulaCells += 1;
+    ["Deleted", "IsActive"].forEach((field) => {
+      findings.statuses[field][purchasingAuditStatus(row[field])] += 1;
+    });
+
+    const supplierId = purchasingAuditKey(row.SupplierID);
+    const supplier = supplierId && masters.partners.rows[supplierId];
+    let supplierCategory = "ok";
+    if (supplierId && !supplier) {
+      findings.supplier.missing += 1;
+      supplierCategory = "missing";
+    } else if (supplier) {
+      const type = purchasingAuditKey(supplier[PARTNER_FIELDS.TYPE]) || "(blank)";
+      findings.supplier.observedTypes[type] = (findings.supplier.observedTypes[type] || 0) + 1;
+      if (purchasingAuditDeleted(supplier[PARTNER_SCHEMA.SYSTEM.IS_DELETED])) {
+        findings.supplier.deleted += 1;
+        supplierCategory = "deleted";
+      }
+      if (purchasingAuditInactive(supplier[PARTNER_SCHEMA.SYSTEM.IS_ACTIVE])) {
+        findings.supplier.inactive += 1;
+        supplierCategory = supplierCategory === "ok" ? "inactive" : supplierCategory;
+      }
+      if (type.toLowerCase() !== "supplier") {
+        findings.supplier.notSupplier += 1;
+        supplierCategory = supplierCategory === "ok" ? "not-supplier" : supplierCategory;
+      }
+    }
+
+    const productId = purchasingAuditKey(row.ProductID);
+    const product = productId && masters.products.rows[productId];
+    let productCategory = "ok";
+    if (productId && !product) {
+      findings.product.missing += 1;
+      productCategory = "missing";
+    } else if (product) {
+      if (purchasingAuditDeleted(product[PRODUCT_SCHEMA.SYSTEM.IS_DELETED])) {
+        findings.product.deleted += 1;
+        productCategory = "deleted";
+      }
+      if (purchasingAuditInactive(product[PRODUCT_SCHEMA.SYSTEM.IS_ACTIVE])) {
+        findings.product.inactive += 1;
+        productCategory = productCategory === "ok" ? "inactive" : productCategory;
+      }
+    }
+
+    const marker = [row.Tanggal, row.SupplierID, row.CreatedAt].map(purchasingAuditKey).join("|");
+    if (marker !== "||") markerGroups[marker] = (markerGroups[marker] || 0) + 1;
+    explicitHeaders.forEach((field) => {
+      const value = purchasingAuditKey(row[field]);
+      if (value) explicitGroups[`${field}|${value}`] = (explicitGroups[`${field}|${value}`] || 0) + 1;
+    });
+    noteHeaders.forEach((field) => {
+      if (/\b(multi|multiple|several)\b.{0,30}\b(items?|products?|barang)\b/i.test(String(row[field] || ""))) {
+        findings.grouping.noteSignals += 1;
+      }
+    });
+
+    if (findings.samples.length < 3) {
+      findings.samples.push({
+        idPattern: purchasingAuditIdPattern(row.ID),
+        types: { Tanggal: typeof row.Tanggal, Qty: typeof row.Qty, Harga: typeof row.Harga, Total: typeof row.Total },
+        blank: Object.keys(findings.blankRequired).filter((field) => purchasingAuditBlank(row[field])),
+        totalMatches,
+        supplier: supplierCategory,
+        product: productCategory,
+      });
+    }
+  });
+
+  findings.duplicateIds = Object.keys(ids).reduce((count, id) => count + (ids[id] > 1 ? ids[id] : 0), 0);
+  findings.grouping.sameMarkerGroups = Object.keys(markerGroups).filter((key) => markerGroups[key] > 1).length;
+  findings.grouping.repeatedExplicitGroups = Object.keys(explicitGroups).filter((key) => explicitGroups[key] > 1).length;
+  if (findings.grouping.repeatedExplicitGroups > 0 || findings.grouping.noteSignals > 0) {
+    findings.grouping.evidence = "STRONG";
+  } else if (findings.grouping.sameMarkerGroups > 0 || explicitHeaders.length > 0) {
+    findings.grouping.evidence = "WEAK";
+  }
+  if (findings.totalFormulaCells === findings.rowCount && findings.rowCount > 0) findings.totalMode = "formula-backed";
+  else if (findings.totalFormulaCells > 0) findings.totalMode = "mixed";
+  return findings;
+}
+
+function auditPurchasingData() {
+  purchasingAuditLog("START", "Purchasing live-data audit (read-only)");
+  try {
+    const spreadsheet = Database.spreadsheet();
+    const candidateNames = ["Purchases", "Purchasings"];
+    const targetHeaders = [
+      "ID", "Tanggal", "SupplierID", "ProductID", "Qty", "Harga", "Total",
+      "Deleted", "IsActive", "CreatedAt", "CreatedBy", "UpdatedAt", "UpdatedBy",
+    ];
+    const sheets = candidateNames.map((name) => spreadsheet.getSheetByName(name));
+    const found = sheets.filter(Boolean);
+    const blocking = [];
+    purchasingAuditLog("SECTION", "Sheet discovery");
+    candidateNames.forEach((name, index) => {
+      const sheet = sheets[index];
+      purchasingAuditLog(sheet ? "PASS" : "WARN", `${name}: ${sheet ? "exists" : "missing"}`, sheet ? {
+        rowCount: purchasingAuditObjects(sheet).rows.length, columnCount: sheet.getLastColumn(),
+      } : undefined);
+    });
+    if (found.length === 2) blocking.push("Both Purchases and Purchasings exist; canonical sheet is ambiguous.");
+    if (found.length === 0) blocking.push("Neither Purchases nor Purchasings exists.");
+    if (found.length === 1 && found[0].getName() === "Purchasings") {
+      blocking.push("Only Purchasings exists; sheet rename or source configuration requires a decision.");
+    }
+
+    purchasingAuditLog("SECTION", "Master relation sources");
+    const masters = {
+      partners: purchasingAuditMaster(spreadsheet, PARTNER_SCHEMA),
+      products: purchasingAuditMaster(spreadsheet, PRODUCT_SCHEMA),
+    };
+    if (!masters.partners.available) blocking.push(`Partner sheet ${PARTNER_SCHEMA.TABLE} is missing.`);
+    if (!masters.products.available) blocking.push(`Product sheet ${PRODUCT_SCHEMA.TABLE} is missing.`);
+    purchasingAuditLog(masters.partners.available ? "PASS" : "FAIL", `Partner source ${PARTNER_SCHEMA.TABLE}`);
+    purchasingAuditLog(masters.products.available ? "PASS" : "FAIL", `Product source ${PRODUCT_SCHEMA.TABLE}`);
+
+    const audits = [];
+    found.forEach((sheet) => {
+      purchasingAuditLog("SECTION", `Candidate ${sheet.getName()}`);
+      try {
+        const audit = purchasingAuditCandidate(sheet, masters, targetHeaders);
+        audits.push(audit);
+        purchasingAuditLog(audit.header.compatible ? "PASS" : "FAIL", "Header contract", {
+          exact: audit.headers, missing: audit.header.missing, extra: audit.header.extra,
+          duplicated: audit.header.duplicated, reordered: audit.header.reordered, blank: audit.header.blank,
+        });
+        purchasingAuditLog("PASS", "Aggregate row audit", {
+          rows: audit.rowCount, blankIds: audit.blankIds, duplicateIds: audit.duplicateIds,
+          invalidPrefix: audit.invalidPrefix, blankRequired: audit.blankRequired,
+          invalidQty: audit.invalidQty, invalidHarga: audit.invalidHarga, invalidTotal: audit.invalidTotal,
+        });
+        purchasingAuditLog(audit.totalMismatches || audit.totalFormulaCells ? "WARN" : "PASS", "Total behavior", {
+          mismatches: audit.totalMismatches, formulaCells: audit.totalFormulaCells, mode: audit.totalMode,
+          tolerance: audit.decimalToleranceUsed ? "relative 1e-9 for decimal values" : "exact integer comparison",
+        });
+        purchasingAuditLog("PASS", "Status variants", audit.statuses);
+        purchasingAuditLog("PASS", "Relation integrity", {
+          supplier: audit.supplier, product: audit.product,
+          masterSourcesAvailable: { partners: masters.partners.available, products: masters.products.available },
+        });
+        purchasingAuditLog(audit.grouping.evidence === "NONE" ? "PASS" : "WARN", "Header-detail evidence", audit.grouping);
+        purchasingAuditLog("PASS", "Safe anonymized row-shape samples", audit.samples);
+        if (!audit.header.compatible) blocking.push(`${audit.sheet} headers do not match the source target contract.`);
+        if (audit.totalFormulaCells > 0) blocking.push(`${audit.sheet} has formula-backed Total cells; Total authority requires a decision.`);
+        if (audit.totalMismatches > 0) blocking.push(`${audit.sheet} has Total values that do not match Qty x Harga.`);
+      } catch (error) {
+        blocking.push(`${sheet.getName()} could not be fully audited: ${error.message}`);
+        purchasingAuditLog("FAIL", `${sheet.getName()} candidate audit`, { error: error.message });
+      }
+    });
+
+    const canonical = found.length === 1 ? (found[0].getName() === "Purchases" ? "Purchases" : "Purchases (source target; deployed sheet is Purchasings)") : "UNRESOLVED";
+    const audit = audits.length === 1 ? audits[0] : null;
+    const invalidData = audit && (
+      audit.blankIds || audit.duplicateIds || audit.invalidPrefix ||
+      Object.values(audit.blankRequired).some(Boolean) ||
+      Object.values(audit.invalidQty).some(Boolean) || Object.values(audit.invalidHarga).some(Boolean) ||
+      Object.values(audit.invalidTotal).some(Boolean) || audit.totalMismatches ||
+      audit.supplier.missing || audit.supplier.notSupplier || audit.product.missing
+    );
+    const dataMigration = !audit
+      ? "UNCERTAIN"
+      : (!audit.header.compatible || invalidData ? "YES" : (audit.totalFormulaCells ? "UNCERTAIN" : "NO"));
+    const renameRequired = found.length !== 1 ? "UNCERTAIN" : (found[0].getName() === "Purchases" ? "NO" : "YES");
+    const relationIssues = audit ? {
+      supplier: audit.supplier, product: audit.product,
+    } : "UNCERTAIN";
+    const safe = Boolean(
+      audit && audit.sheet === "Purchases" && audit.header.compatible &&
+      audit.totalFormulaCells === 0 && audit.totalMismatches === 0 && blocking.length === 0,
+    );
+    purchasingAuditLog("SECTION", "Final summary");
+    purchasingAuditLog(safe ? "PASS" : "FAIL", "Purchasing audit conclusion", {
+      candidateSheetFound: found.map((sheet) => sheet.getName()),
+      canonicalSheetRecommendation: canonical,
+      headerCompatibility: audit ? (audit.header.compatible ? "COMPATIBLE" : "INCOMPATIBLE") : "UNCERTAIN",
+      dataMigrationRequired: dataMigration,
+      sheetRenameRequired: renameRequired,
+      totalFormulasPresent: audits.some((item) => item.totalFormulaCells > 0) ? "YES" : "NO",
+      totalMismatchesCount: audits.reduce((sum, item) => sum + item.totalMismatches, 0),
+      relationIssuesSummary: relationIssues,
+      headerDetailEvidence: audit ? audit.grouping.evidence : "UNCERTAIN",
+      safeToBeginBackendHardening: safe ? "YES" : "NO",
+      blockingIssues: blocking,
+    });
+    purchasingAuditLog("COMPLETE", "Purchasing live-data audit");
+    return { success: safe, audits, blockingIssues: blocking };
+  } catch (error) {
+    purchasingAuditLog("FAIL", "Unexpected Purchasing audit error", { error: error.message });
+    purchasingAuditLog("COMPLETE", "Purchasing live-data audit with unexpected error");
+    throw error;
+  }
+}
+
 function assertReturnRestoreRejectsInactiveRelation(relation) {
   const transaction = createPickupUpdateTestTransaction(1);
   if (!transaction) return;

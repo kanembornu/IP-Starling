@@ -32,6 +32,10 @@ function runCoreRegressionTests() {
   ]);
 }
 
+function runPurchasingDataAudit() {
+  return auditPurchasingData();
+}
+
 function runMasterDataRegressionTests() {
   runTestSuite("Master-data regression tests", [
     testProductService,
