@@ -47,6 +47,22 @@
 
     let deleteRequest = 0;
 
+    let trashRows = [];
+
+    let trashSearch = "";
+
+    let trashLoading = false;
+
+    let trashError = null;
+
+    let trashRequest = 0;
+
+    let pendingRestore = null;
+
+    let restoreSubmitting = false;
+
+    let restoreRequest = 0;
+
     //===========================================================================
     // Public Render
     //===========================================================================
@@ -299,6 +315,415 @@
     }
 
     //===========================================================================
+    // Trash and Restore
+    //===========================================================================
+
+    async function openTrash() {
+      if (restoreSubmitting) {
+        return;
+      }
+
+      resetTrashState();
+      await loadTrash();
+    }
+
+    async function loadTrash() {
+      if (trashLoading) {
+        return false;
+      }
+
+      const request = ++trashRequest;
+      trashLoading = true;
+      trashError = null;
+      trashSearch = "";
+      modalMode = "trash";
+      openTrashModal();
+
+      let response;
+
+      try {
+        response = await Api.Return.findDeleted();
+      } catch (error) {
+        if (request === trashRequest) {
+          showTrashError(error?.message || "Deleted Returns could not be loaded.");
+        }
+        return false;
+      }
+
+      if (request !== trashRequest) {
+        return false;
+      }
+
+      if (!isTrashResponse(response)) {
+        showTrashError(response?.message || "Deleted Returns could not be loaded.");
+        return false;
+      }
+
+      trashRows = response.data.slice();
+      trashLoading = false;
+      trashError = null;
+      openTrashModal();
+
+      return true;
+    }
+
+    function isTrashResponse(response) {
+      return Boolean(
+        response?.success &&
+          Array.isArray(response.data) &&
+          response.data.every((ret) => {
+            return (
+              isRecord(ret) &&
+              !Utils.isEmpty(ret[FIELD.ID]) &&
+              isTrue(ret[FIELD.DELETED]) &&
+              !isActive(ret[FIELD.IS_ACTIVE])
+            );
+          }),
+      );
+    }
+
+    function openTrashModal() {
+      modalMode = "trash";
+
+      Modal.open({
+        title: "Deleted Returns",
+        width: "xl",
+        body: trashLoading
+          ? Components.loading("Loading deleted Returns...")
+          : renderTrashBody(),
+        footer: renderTrashFooter(),
+      });
+
+      bindTrashModal();
+    }
+
+    function renderTrashBody() {
+      if (trashError) {
+        return `
+          <div id="return-trash" class="space-y-4">
+            ${Components.empty(escape(trashError))}
+            <div class="flex justify-center">
+              <button type="button" data-return-trash-action="retry" class="rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-100">Retry</button>
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <div id="return-trash" class="space-y-4">
+          <div class="flex flex-wrap items-center gap-3">
+            <input
+              id="inp-return-trash-search"
+              type="search"
+              value="${escape(trashSearch)}"
+              placeholder="Search deleted Returns..."
+              class="min-w-0 flex-1 rounded-lg border border-slate-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button type="button" data-return-trash-action="refresh" title="Refresh Trash" class="rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-100">
+              ${Components.icon("fa-rotate-right")}
+            </button>
+          </div>
+
+          <div id="lbl-return-trash-info" class="text-sm text-slate-500"></div>
+
+          <div id="return-trash-results" class="max-h-[55vh] overflow-auto"></div>
+        </div>
+      `;
+    }
+
+    function renderTrashList() {
+      const list = filterTrash(trashSearch);
+      const results = DOM.$("return-trash-results");
+      const info = DOM.$("lbl-return-trash-info");
+
+      if (info) {
+        DOM.text(info, `${Format.number(list.length)} Deleted Returns`);
+      }
+
+      if (!results) {
+        return;
+      }
+
+      if (!list.length) {
+        Render.mount(
+          "return-trash-results",
+          Components.empty(trashRows.length ? "No deleted Returns match your search." : "No deleted Returns available."),
+        );
+        return;
+      }
+
+      Render.mount(
+        "return-trash-results",
+        `
+          <table class="min-w-full text-sm">
+            <thead class="sticky top-0 bg-slate-100">
+              <tr>
+                <th class="px-3 py-3 text-left">Return ID</th>
+                <th class="px-3 py-3 text-left">Pickup</th>
+                <th class="px-3 py-3 text-left">Pickup Detail</th>
+                <th class="px-3 py-3 text-left">Tanggal</th>
+                <th class="px-3 py-3 text-right">Qty</th>
+                <th class="px-3 py-3 text-left">Keterangan</th>
+                <th class="px-3 py-3 text-center">Status</th>
+                <th class="px-3 py-3 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody>${list.map(renderTrashRow).join("")}</tbody>
+          </table>
+        `,
+      );
+    }
+
+    function renderTrashRow(ret = {}) {
+      return Components.tableRow([
+        Components.tableCell(text(ret[FIELD.ID]), "font-medium text-slate-800"),
+        Components.tableCell(text(ret[FIELD.PICKUP_ID])),
+        Components.tableCell(text(ret[FIELD.PICKUP_DETAIL_ID])),
+        Components.tableCell(Format.date(ret[FIELD.DATE])),
+        Components.tableCell(Format.number(ret[FIELD.QTY]), "text-right"),
+        Components.tableCell(text(ret[FIELD.NOTE])),
+        Components.tableCell(Components.badge("Deleted / Inactive", false), "text-center"),
+        Components.tableCell(renderRestoreAction(ret), "text-center"),
+      ]);
+    }
+
+    function renderRestoreAction(ret = {}) {
+      const id = ret[FIELD.ID];
+
+      if (Utils.isEmpty(id)) {
+        return "-";
+      }
+
+      return `
+        <button
+          type="button"
+          data-return-trash-action="restore"
+          data-return-id="${escape(id)}"
+          class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-white hover:bg-emerald-700"
+        >
+          ${Components.icon("fa-rotate-left")}
+          <span>Restore</span>
+        </button>
+      `;
+    }
+
+    function filterTrash(keyword = "") {
+      const query = String(keyword).trim().toLowerCase();
+
+      if (!query) {
+        return trashRows;
+      }
+
+      return trashRows.filter((ret) => {
+        return [
+          ret[FIELD.ID],
+          ret[FIELD.PICKUP_ID],
+          ret[FIELD.PICKUP_DETAIL_ID],
+          ret[FIELD.DATE],
+          Format.date(ret[FIELD.DATE]),
+          ret[FIELD.NOTE],
+        ]
+          .filter((value) => value !== undefined && value !== null)
+          .join(" ")
+          .toLowerCase()
+          .includes(query);
+      });
+    }
+
+    function bindTrashModal() {
+      const trash = DOM.$("return-trash");
+
+      if (trash && !trash.dataset.returnTrashBound) {
+        trash.dataset.returnTrashBound = "true";
+        trash.addEventListener("input", handleTrashInput);
+        trash.addEventListener("click", handleTrashClick);
+      }
+
+      const footer = DOM.$("modal-footer");
+
+      if (footer && !footer.dataset.returnTrashBound) {
+        footer.dataset.returnTrashBound = "true";
+        footer.addEventListener("click", handleTrashFooterClick);
+      }
+
+      const close = DOM.$("btn-modal-close");
+
+      if (close && !close.dataset.returnTrashBound) {
+        close.dataset.returnTrashBound = "true";
+        close.addEventListener("click", closeTrash);
+      }
+
+      renderTrashList();
+    }
+
+    function handleTrashInput(event) {
+      if (event.target.id !== "inp-return-trash-search") {
+        return;
+      }
+
+      trashSearch = event.target.value;
+      renderTrashList();
+    }
+
+    function handleTrashClick(event) {
+      const action = event.target.closest("[data-return-trash-action]")?.dataset.returnTrashAction;
+
+      if (action === "retry" || action === "refresh") {
+        loadTrash();
+        return;
+      }
+
+      if (action === "restore") {
+        confirmRestore(event.target.closest("[data-return-id]")?.dataset.returnId);
+      }
+    }
+
+    function renderTrashFooter() {
+      return `
+        <button type="button" data-return-trash-action="close" class="rounded-lg border border-slate-300 px-5 py-2 hover:bg-slate-100">Close</button>
+      `;
+    }
+
+    function handleTrashFooterClick(event) {
+      if (event.target.closest("[data-return-trash-action]")?.dataset.returnTrashAction === "close") {
+        closeTrash();
+      }
+    }
+
+    async function confirmRestore(id) {
+      const ret = trashRows.find((item) => String(item?.[FIELD.ID]) === String(id));
+
+      if (Utils.isEmpty(id)) {
+        Toast.error("Return ID is unavailable.");
+        return;
+      }
+
+      if (!ret || !isTrue(ret[FIELD.DELETED]) || isActive(ret[FIELD.IS_ACTIVE])) {
+        Toast.error("This Return is no longer available for restore.");
+        return;
+      }
+
+      if (restoreSubmitting) {
+        return;
+      }
+
+      pendingRestore = {
+        id: String(ret[FIELD.ID]),
+        pickupId: ret[FIELD.PICKUP_ID],
+        pickupDetailId: ret[FIELD.PICKUP_DETAIL_ID],
+        qty: ret[FIELD.QTY],
+      };
+      const request = ++restoreRequest;
+      modalMode = "restore";
+
+      try {
+        const confirmed = await Dialog.confirm({
+          title: "Restore Return",
+          confirmText: "Restore",
+          loadingText: "Restoring...",
+          message: renderRestoreMessage(pendingRestore),
+          onConfirm: submitRestore,
+        });
+
+        if (request !== restoreRequest) {
+          return;
+        }
+
+        pendingRestore = null;
+        restoreSubmitting = false;
+
+        if (confirmed) {
+          await loadTrash();
+          await App.refresh();
+        } else {
+          openTrashModal();
+        }
+      } finally {
+        if (request === restoreRequest) {
+          pendingRestore = null;
+          restoreSubmitting = false;
+          if (modalMode === "restore") {
+            modalMode = null;
+          }
+        }
+      }
+    }
+
+    function renderRestoreMessage(context) {
+      return `
+        <div class="space-y-3">
+          <p>Restore Return <strong>${escape(context.id)}</strong>?</p>
+          <dl class="grid grid-cols-1 gap-2 rounded-lg bg-slate-50 p-3 text-sm">
+            ${detailField("Pickup", context.pickupId)}
+            ${detailField("Pickup Detail", context.pickupDetailId)}
+            ${detailField("Qty", Format.number(context.qty))}
+          </dl>
+          <p class="text-sm text-slate-600">Restore eligibility and available quantity will be validated by the server.</p>
+        </div>
+      `;
+    }
+
+    async function submitRestore() {
+      if (restoreSubmitting) {
+        return false;
+      }
+
+      const id = String(pendingRestore?.id || "").trim();
+
+      if (!id) {
+        Toast.error("Return ID is unavailable.");
+        return false;
+      }
+
+      restoreSubmitting = true;
+
+      try {
+        const response = await Api.Return.restore(id);
+
+        if (!response?.success) {
+          Toast.error(response?.message || "Return could not be restored.");
+          return false;
+        }
+
+        Toast.success(response.message || "Return restored.");
+        return true;
+      } catch (error) {
+        Toast.error(error?.message || "Return could not be restored. Please try again.");
+        return false;
+      } finally {
+        restoreSubmitting = false;
+      }
+    }
+
+    function showTrashError(message) {
+      trashLoading = false;
+      trashError = String(message || "Deleted Returns could not be loaded.");
+      Toast.error(trashError);
+      openTrashModal();
+    }
+
+    function resetTrashState() {
+      trashRequest += 1;
+      restoreRequest += 1;
+      trashRows = [];
+      trashSearch = "";
+      trashLoading = false;
+      trashError = null;
+      pendingRestore = null;
+      restoreSubmitting = false;
+    }
+
+    function closeTrash() {
+      if (modalMode !== "trash") {
+        return;
+      }
+
+      resetTrashState();
+      modalMode = null;
+      Modal.close();
+    }
+
+    //===========================================================================
     // Empty and Info
     //===========================================================================
 
@@ -392,6 +817,14 @@
         add.dataset.returnBound = "true";
 
         add.addEventListener("click", openCreate);
+      }
+
+      const trash = DOM.$("btn-return-trash");
+
+      if (trash && !trash.dataset.returnBound) {
+        trash.dataset.returnBound = "true";
+
+        trash.addEventListener("click", openTrash);
       }
     }
 
@@ -1387,6 +1820,14 @@
       confirmDelete,
 
       submitDelete,
+
+      openTrash,
+
+      loadTrash,
+
+      confirmRestore,
+
+      submitRestore,
     });
   })();
 </script>
