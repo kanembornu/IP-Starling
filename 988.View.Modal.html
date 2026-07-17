@@ -104,6 +104,12 @@
         init();
       }
 
+      const closeButton = DOM.$("btn-modal-close");
+
+      if (closeButton) {
+        closeButton.onclick = close;
+      }
+
       title(options.title || "");
 
       body(options.body || "");
