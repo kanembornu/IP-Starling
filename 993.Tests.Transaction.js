@@ -4400,3 +4400,250 @@ function testPurchasingRestoreRecalculatesTotal() {
     },
   );
 }
+
+function expenseControllerAssertResponse(response, expectedSuccess) {
+  if (
+    !response ||
+    typeof response !== "object" ||
+    Array.isArray(response) ||
+    response.success !== expectedSuccess ||
+    !("data" in response) ||
+    typeof response.message !== "string"
+  ) {
+    throw new Error("Expense Controller returned an invalid response.");
+  }
+}
+
+function expenseControllerAssertJsonSafe(value) {
+  const values = [value];
+
+  while (values.length > 0) {
+    const current = values.pop();
+
+    if (current instanceof Date || typeof current === "function") {
+      throw new Error("Expense Controller response contains an unsafe value.");
+    }
+
+    if (!current || typeof current !== "object") continue;
+
+    const prototype = Object.getPrototypeOf(current);
+    if (prototype !== Object.prototype && prototype !== Array.prototype) {
+      throw new Error("Expense Controller response leaks a prototype.");
+    }
+
+    Object.keys(current).forEach((key) => values.push(current[key]));
+  }
+
+  JSON.stringify(value);
+}
+
+function testExpenseControllerPublicApi() {
+  const functions = [
+    getExpenses,
+    getExpense,
+    getDeletedExpenses,
+    createExpense,
+    updateExpense,
+    deleteExpense,
+    restoreExpense,
+  ];
+
+  if (functions.some((fn) => typeof fn !== "function")) {
+    throw new Error("Expense Controller public API is invalid.");
+  }
+}
+
+function testExpenseControllerGetExpenses() {
+  const response = getExpenses();
+  expenseControllerAssertResponse(response, true);
+  if (!Array.isArray(response.data)) {
+    throw new Error("getExpenses() data must be an array.");
+  }
+  expenseControllerAssertJsonSafe(response);
+}
+
+function testExpenseControllerGetDeletedExpenses() {
+  const response = getDeletedExpenses();
+  expenseControllerAssertResponse(response, true);
+  if (!Array.isArray(response.data)) {
+    throw new Error("getDeletedExpenses() data must be an array.");
+  }
+  expenseControllerAssertJsonSafe(response);
+}
+
+function testExpenseControllerGetValidation() {
+  const count = RepositoryReader.count(EXPENSE_SCHEMA);
+  const response = getExpense("");
+  expenseControllerAssertValidation(
+    response,
+    "ID Expense wajib diisi.",
+    'getExpense("")',
+  );
+
+  if (RepositoryReader.count(EXPENSE_SCHEMA) !== count) {
+    throw new Error('getExpense("") must not change Expense data.');
+  }
+
+  const expected = Response.error("Controlled Expense validation response.", [
+    { field: "controlled", message: "Controlled validation error." },
+  ]);
+
+  if (_expenseControllerResponse(() => expected) !== expected) {
+    throw new Error(
+      "Expense Controller helper must preserve validation response identity.",
+    );
+  }
+}
+
+function testExpenseControllerCreateValidation() {
+  const count = RepositoryReader.count(EXPENSE_SCHEMA);
+  const response = createExpense(null);
+  expenseControllerAssertValidation(
+    response,
+    "Data Expense wajib berupa object.",
+    "createExpense(null)",
+  );
+
+  if (RepositoryReader.count(EXPENSE_SCHEMA) !== count) {
+    throw new Error("createExpense(null) must not write Expense data.");
+  }
+}
+
+function testExpenseControllerUpdateValidation() {
+  const count = RepositoryReader.count(EXPENSE_SCHEMA);
+  const response = updateExpense("", null);
+  expenseControllerAssertValidation(
+    response,
+    "ID Expense wajib diisi.",
+    'updateExpense("", null)',
+  );
+
+  if (RepositoryReader.count(EXPENSE_SCHEMA) !== count) {
+    throw new Error("Invalid Expense update must not write data.");
+  }
+}
+
+function testExpenseControllerDeleteValidation() {
+  const count = RepositoryReader.count(EXPENSE_SCHEMA);
+  const response = deleteExpense("");
+  expenseControllerAssertValidation(
+    response,
+    "ID Expense wajib diisi.",
+    'deleteExpense("")',
+  );
+
+  if (RepositoryReader.count(EXPENSE_SCHEMA) !== count) {
+    throw new Error("Invalid Expense deletion must not change data.");
+  }
+}
+
+function testExpenseControllerRestoreValidation() {
+  const count = RepositoryReader.count(EXPENSE_SCHEMA);
+  const response = restoreExpense("");
+  expenseControllerAssertValidation(
+    response,
+    "ID Expense wajib diisi.",
+    'restoreExpense("")',
+  );
+
+  if (RepositoryReader.count(EXPENSE_SCHEMA) !== count) {
+    throw new Error("Invalid Expense restoration must not change data.");
+  }
+}
+
+function expenseControllerAssertValidation(response, message, operation) {
+  expenseControllerAssertResponse(response, false);
+
+  if (
+    response.message !== message ||
+    response.data !== null ||
+    !Array.isArray(response.errors) ||
+    response.errors.length !== 0
+  ) {
+    throw new Error(`${operation} did not preserve its validation payload.`);
+  }
+}
+
+function testExpenseControllerSerialization() {
+  expenseControllerAssertJsonSafe(getExpenses());
+  expenseControllerAssertJsonSafe(getDeletedExpenses());
+}
+
+function testExpenseControllerDateSerialization() {
+  const response = _expenseControllerResponse(() =>
+    Response.success({ Tanggal: new Date("2026-07-18T00:00:00.000Z") }),
+  );
+
+  expenseControllerAssertResponse(response, true);
+  expenseControllerAssertJsonSafe(response);
+
+  if (response.data.Tanggal !== "2026-07-18T00:00:00.000Z") {
+    throw new Error("Expense Controller date serialization is incompatible.");
+  }
+}
+
+function testExpenseControllerExceptionBoundary() {
+  const response = _expenseControllerResponse(() => {
+    throw new Error("controlled Expense Controller test error");
+  });
+
+  expenseControllerAssertResponse(response, false);
+  expenseControllerAssertJsonSafe(response);
+
+  if (response.message !== "Terjadi kesalahan saat memproses expense.") {
+    throw new Error("Expense Controller exception boundary leaked an error.");
+  }
+}
+
+function expenseApiSource() {
+  return HtmlService.createHtmlOutputFromFile("965.View.API").getContent();
+}
+
+function testExpenseApiPublicApi() {
+  const source = expenseApiSource();
+  const expenseBlock = source.match(
+    /const Expense = Object\.freeze\(\{([\s\S]*?)\n\s*\}\);/,
+  );
+
+  if (!expenseBlock) throw new Error("Api.Expense namespace was not found.");
+  if (/Api\.Expenses|\bconst Expenses\b/.test(source)) {
+    throw new Error("Plural Api.Expenses namespace is not allowed.");
+  }
+
+  const methods = {
+    list: 'run("getExpenses")',
+    get: 'run("getExpense", id)',
+    listDeleted: 'run("getDeletedExpenses")',
+    create: 'run("createExpense", data)',
+    update: 'run("updateExpense", id, data)',
+    remove: 'run("deleteExpense", id)',
+    restore: 'run("restoreExpense", id)',
+  };
+
+  Object.keys(methods).forEach((name) => {
+    const definitions = expenseBlock[1].match(new RegExp(`\\b${name}\\s*\\(`, "g")) || [];
+    if (definitions.length !== 1 || !expenseBlock[1].includes(methods[name])) {
+      throw new Error(`Api.Expense.${name} is missing, duplicated, or invalid.`);
+    }
+  });
+}
+
+function testExpenseApiPromiseTransportBoundary() {
+  const source = expenseApiSource();
+
+  if (
+    !/function run\(fn, \.\.\.args\)[\s\S]*return new Promise/.test(source) ||
+    !/withSuccessHandler\(\(result\) => \{[\s\S]*resolve\(result\)/.test(source) ||
+    !/withFailureHandler\(\(error\) => \{[\s\S]*reject\(error\)/.test(source)
+  ) {
+    throw new Error("Expense browser API transport boundary is invalid.");
+  }
+}
+
+function testExpenseDashboardCompatibility() {
+  const response = getDashboard();
+
+  if (!response || response.success !== true) {
+    throw new Error("Dashboard compatibility failed after Expense hardening.");
+  }
+}

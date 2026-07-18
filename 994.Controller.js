@@ -209,26 +209,47 @@ function restorePurchasing(id) {
 // Expenses
 //=============================================================================
 
+function _expenseControllerResponse(operation) {
+  try {
+    const result = operation();
+
+    if (result && result.success === false) {
+      return result;
+    }
+
+    return JSON.parse(JSON.stringify(result));
+  } catch (error) {
+    Logger.log(`Expense Controller error: ${error.message}`);
+    return JSON.parse(
+      JSON.stringify(Response.error("Terjadi kesalahan saat memproses expense.")),
+    );
+  }
+}
+
 function getExpenses() {
-  return ExpenseService().findAll();
+  return _expenseControllerResponse(() => ExpenseService().findAll());
 }
 
 function getExpense(id) {
-  return ExpenseService().findById(id);
+  return _expenseControllerResponse(() => ExpenseService().findById(id));
 }
 
-function createExpense(data) {
-  return ExpenseService().create(data);
+function getDeletedExpenses() {
+  return _expenseControllerResponse(() => ExpenseService().findDeleted());
 }
 
-function updateExpense(id, data) {
-  return ExpenseService().update(id, data);
+function createExpense(document) {
+  return _expenseControllerResponse(() => ExpenseService().create(document));
+}
+
+function updateExpense(id, document) {
+  return _expenseControllerResponse(() => ExpenseService().update(id, document));
 }
 
 function deleteExpense(id) {
-  return ExpenseService().remove(id);
+  return _expenseControllerResponse(() => ExpenseService().remove(id));
 }
 
 function restoreExpense(id) {
-  return ExpenseService().restore(id);
+  return _expenseControllerResponse(() => ExpenseService().restore(id));
 }

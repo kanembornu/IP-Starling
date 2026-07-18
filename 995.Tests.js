@@ -262,6 +262,35 @@ function runExpenseDeletedListTests() {
   runTestSuite("Expense deleted-list tests", [testExpenseFindDeleted]);
 }
 
+function runExpenseControllerTests() {
+  runTestSuite("Expense controller tests", [
+    testExpenseControllerPublicApi,
+    testExpenseControllerGetExpenses,
+    testExpenseControllerGetValidation,
+    testExpenseControllerGetDeletedExpenses,
+    testExpenseControllerCreateValidation,
+    testExpenseControllerUpdateValidation,
+    testExpenseControllerDeleteValidation,
+    testExpenseControllerRestoreValidation,
+    testExpenseControllerSerialization,
+    testExpenseControllerDateSerialization,
+    testExpenseControllerExceptionBoundary,
+    testExpenseDashboardCompatibility,
+  ]);
+}
+
+function runExpenseApiTests() {
+  runTestSuite("Expense browser API tests", [
+    testExpenseApiPublicApi,
+    testExpenseApiPromiseTransportBoundary,
+  ]);
+}
+
+function runExpenseControllerApiTests() {
+  runExpenseControllerTests();
+  runExpenseApiTests();
+}
+
 function runExpenseAllTests() {
   runExpenseValidationTests();
   runExpenseWriteTests();

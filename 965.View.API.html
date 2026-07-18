@@ -239,6 +239,10 @@
         return run("getExpense", id);
       },
 
+      listDeleted() {
+        return run("getDeletedExpenses");
+      },
+
       create(data) {
         return run("createExpense", data);
       },
