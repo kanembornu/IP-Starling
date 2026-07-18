@@ -24,6 +24,10 @@
       AMOUNT: "Nominal",
 
       IS_ACTIVE: "IsActive",
+
+      CREATED_AT: "CreatedAt",
+
+      UPDATED_AT: "UpdatedAt",
     });
 
     let rows = [];
@@ -34,6 +38,10 @@
 
     let createForm = null;
 
+    let detailRequest = 0;
+
+    let pendingDetailId = null;
+
     //===========================================================================
     // Public Render
     //===========================================================================
@@ -42,6 +50,8 @@
       rows = Array.isArray(expenses) ? expenses.slice() : [];
 
       bindToolbar();
+
+      bindActions();
 
       query = normalize(DOM.$("inp-expense-search")?.value);
 
@@ -380,6 +390,25 @@
     // Row
     //===========================================================================
 
+    function bindActions() {
+      const body = DOM.$("tbl-expenses-body");
+
+      if (!body || body.dataset.expenseActionsBound) {
+        return;
+      }
+
+      body.dataset.expenseActionsBound = "true";
+      body.addEventListener("click", (event) => {
+        const button = event.target.closest('[data-expense-action="view"]');
+
+        if (!button || !body.contains(button)) {
+          return;
+        }
+
+        view(button.dataset.expenseId);
+      });
+    }
+
     function renderRow(expense = {}) {
       const id = expense[FIELD.ID];
 
@@ -409,10 +438,227 @@
         ),
 
         Components.tableCell(
-          '<span class="text-slate-400">Not available</span>',
+          renderActions(id),
           "text-center",
         ),
       ]);
+    }
+
+    function renderActions(id) {
+      const value = String(id ?? "").trim();
+
+      if (!value) {
+        return '<span class="text-slate-400">-</span>';
+      }
+
+      return `
+        <button
+          type="button"
+          data-expense-action="view"
+          data-expense-id="${SharedPresenter.text(value)}"
+          title="View"
+          class="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-slate-700 transition hover:bg-slate-200"
+        >
+          ${Components.icon("fa-eye")}
+          <span>View</span>
+        </button>
+      `;
+    }
+
+    //===========================================================================
+    // Detail View
+    //===========================================================================
+
+    async function view(id) {
+      const normalizedId = String(id ?? "").trim();
+
+      if (!normalizedId) {
+        Toast.error("Expense ID is unavailable.");
+        return;
+      }
+
+      if (pendingDetailId === normalizedId) {
+        return;
+      }
+
+      if (pendingDetailId !== null) {
+        setViewLoading(pendingDetailId, false);
+      }
+
+      const request = ++detailRequest;
+      pendingDetailId = normalizedId;
+      setViewLoading(normalizedId, true);
+
+      Modal.open({
+        title: "Expense Detail",
+        width: "md",
+        body: Components.loading("Loading expense detail..."),
+        footer: renderDetailFooter(true),
+      });
+      setModalLoading(true);
+
+      try {
+        const response = await Api.Expense.get(normalizedId);
+
+        if (request !== detailRequest) {
+          return;
+        }
+
+        if (!isDetailResponse(response)) {
+          handleDetailFailure(response?.message || "Expense detail is unavailable.");
+          return;
+        }
+
+        Modal.body(renderDetail(response.data));
+        Modal.footer(renderDetailFooter(false));
+        bindDetailFooter();
+        setModalLoading(false);
+      } catch (error) {
+        if (request !== detailRequest) {
+          return;
+        }
+
+        handleDetailFailure(
+          typeof error?.message === "string" && error.message.trim()
+            ? error.message
+            : "Expense detail could not be loaded.",
+        );
+      } finally {
+        if (request === detailRequest) {
+          pendingDetailId = null;
+          setViewLoading(normalizedId, false);
+        }
+      }
+    }
+
+    function isDetailResponse(response) {
+      return Boolean(
+        response?.success &&
+          response.data &&
+          typeof response.data === "object" &&
+          !Array.isArray(response.data),
+      );
+    }
+
+    function renderDetail(expense = {}) {
+      return `
+        <dl class="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+          ${detailField("ID", expense[FIELD.ID])}
+          ${detailField("Tanggal", formatDate(expense[FIELD.DATE]))}
+          ${detailField("Kategori", expense[FIELD.CATEGORY])}
+          ${detailField("Keterangan", expense[FIELD.DESCRIPTION], "sm:col-span-2")}
+          ${detailField("Nominal", formatCurrency(expense[FIELD.AMOUNT]))}
+          ${detailField("Created At", formatDateTime(expense[FIELD.CREATED_AT]))}
+          ${detailField("Updated At", formatDateTime(expense[FIELD.UPDATED_AT]))}
+        </dl>
+      `;
+    }
+
+    function detailField(label, value, className = "") {
+      return `
+        <div class="${className}">
+          <dt class="text-slate-500">${SharedPresenter.text(label)}</dt>
+          <dd class="mt-1 break-words font-medium text-slate-800">${safeValue(value)}</dd>
+        </div>
+      `;
+    }
+
+    function safeValue(value) {
+      const text = String(value ?? "").trim();
+      return SharedPresenter.text(text || "-");
+    }
+
+    function formatDateTime(value) {
+      const text = String(value ?? "").trim();
+
+      if (!text) {
+        return "-";
+      }
+
+      const date = new Date(value);
+
+      if (Number.isNaN(date.getTime())) {
+        return "-";
+      }
+
+      return new Intl.DateTimeFormat("id-ID", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(date);
+    }
+
+    function renderDetailFooter(disabled) {
+      return `
+        <button
+          type="button"
+          data-expense-detail-action="close"
+          ${disabled ? "disabled" : ""}
+          class="rounded-lg border border-slate-300 px-5 py-2 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Close
+        </button>
+      `;
+    }
+
+    function bindDetailFooter() {
+      const footer = DOM.$("modal-footer");
+
+      if (footer && !footer.dataset.expenseDetailBound) {
+        footer.dataset.expenseDetailBound = "true";
+        footer.addEventListener("click", (event) => {
+          if (event.target.closest('[data-expense-detail-action="close"]')) {
+            closeDetail();
+          }
+        });
+      }
+
+      const close = DOM.$("btn-modal-close");
+
+      if (close) {
+        close.onclick = closeDetail;
+      }
+    }
+
+    function setModalLoading(loading) {
+      const close = DOM.$("btn-modal-close");
+
+      if (close) {
+        close.disabled = loading;
+        close.classList.toggle("cursor-not-allowed", loading);
+        close.classList.toggle("opacity-50", loading);
+      }
+    }
+
+    function closeDetail() {
+      const pendingId = pendingDetailId;
+      detailRequest += 1;
+      pendingDetailId = null;
+
+      if (pendingId !== null) {
+        setViewLoading(pendingId, false);
+      }
+
+      setModalLoading(false);
+      Modal.close();
+    }
+
+    function handleDetailFailure(message) {
+      Toast.error(String(message ?? "").trim() || "Expense detail could not be loaded.");
+      setModalLoading(false);
+      Modal.close();
+    }
+
+    function setViewLoading(id, loading) {
+      document.querySelectorAll('[data-expense-action="view"]').forEach((button) => {
+        if (String(button.dataset.expenseId) !== String(id)) {
+          return;
+        }
+
+        button.disabled = loading;
+        button.classList.toggle("cursor-not-allowed", loading);
+        button.classList.toggle("opacity-50", loading);
+        button.title = loading ? "Loading..." : "View";
+      });
     }
 
     function formatDate(value) {
