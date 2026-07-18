@@ -26,19 +26,35 @@
       IS_ACTIVE: "IsActive",
     });
 
+    let rows = [];
+
+    let query = "";
+
+    let createSubmitting = false;
+
+    let createForm = null;
+
     //===========================================================================
     // Public Render
     //===========================================================================
 
     function render(expenses = []) {
-      const list = Array.isArray(expenses) ? expenses : [];
+      rows = Array.isArray(expenses) ? expenses.slice() : [];
 
       bindToolbar();
+
+      query = normalize(DOM.$("inp-expense-search")?.value);
+
+      renderVisibleRows();
+    }
+
+    function renderVisibleRows() {
+      const list = query ? rows.filter(matchesSearch) : rows;
 
       renderInfo(list.length);
 
       if (!list.length) {
-        renderEmpty();
+        renderEmpty(query ? "search" : "database");
 
         return;
       }
@@ -50,12 +66,44 @@
       );
     }
 
+    function search(keyword = "") {
+      query = normalize(keyword);
+      rows = App.getExpenses();
+      renderVisibleRows();
+    }
+
+    function matchesSearch(expense = {}) {
+      const date = formatDate(expense[FIELD.DATE]);
+      const amount = formatCurrency(expense[FIELD.AMOUNT]);
+
+      return [
+        expense[FIELD.ID],
+        expense[FIELD.DATE],
+        date,
+        expense[FIELD.CATEGORY],
+        expense[FIELD.DESCRIPTION],
+        expense[FIELD.AMOUNT],
+        amount,
+      ].some((value) => normalize(value).includes(query));
+    }
+
+    function normalize(value) {
+      return String(value ?? "").trim().toLowerCase();
+    }
+
     //===========================================================================
     // Toolbar
     //===========================================================================
 
     function bindToolbar() {
       const refresh = DOM.$("btn-expense-refresh");
+
+      const add = DOM.$("btn-expense-add");
+
+      if (add && !add.dataset.expenseAddBound) {
+        add.dataset.expenseAddBound = "true";
+        add.addEventListener("click", openCreate);
+      }
 
       if (!refresh || refresh.dataset.expenseRefreshBound) {
         return;
@@ -68,7 +116,259 @@
       });
     }
 
+    //===========================================================================
+    // Create Form
+    //===========================================================================
+
+    function openCreate() {
+      if (createSubmitting) {
+        return;
+      }
+
+      createForm = {
+        Tanggal: todayInputValue(),
+        Kategori: "",
+        Keterangan: "",
+        Nominal: "",
+      };
+
+      Modal.open({
+        title: "Create Expense",
+        width: "md",
+        body: renderCreateForm(),
+        footer: renderCreateFooter(),
+      });
+
+      bindCreateForm();
+      DOM.$("inp-expense-create-date")?.focus();
+    }
+
+    function todayInputValue() {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, "0");
+      const day = String(today.getDate()).padStart(2, "0");
+
+      return `${year}-${month}-${day}`;
+    }
+
+    function renderCreateForm() {
+      return `
+        <form id="expense-create-form" class="space-y-4" novalidate>
+          <div>
+            <label for="inp-expense-create-date" class="mb-1 block text-sm font-medium text-slate-700">Date</label>
+            <input id="inp-expense-create-date" data-expense-create-field="Tanggal" type="date" value="${SharedPresenter.text(createForm.Tanggal)}" required class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            ${renderCreateError("Tanggal")}
+          </div>
+          <div>
+            <label for="inp-expense-create-category" class="mb-1 block text-sm font-medium text-slate-700">Category</label>
+            <input id="inp-expense-create-category" data-expense-create-field="Kategori" type="text" required class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            ${renderCreateError("Kategori")}
+          </div>
+          <div>
+            <label for="inp-expense-create-description" class="mb-1 block text-sm font-medium text-slate-700">Description</label>
+            <textarea id="inp-expense-create-description" data-expense-create-field="Keterangan" rows="3" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+            ${renderCreateError("Keterangan")}
+          </div>
+          <div>
+            <label for="inp-expense-create-amount" class="mb-1 block text-sm font-medium text-slate-700">Amount</label>
+            <input id="inp-expense-create-amount" data-expense-create-field="Nominal" type="number" min="0" step="any" inputmode="decimal" required class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            ${renderCreateError("Nominal")}
+          </div>
+        </form>
+      `;
+    }
+
+    function renderCreateError(field) {
+      return `<p data-expense-create-error="${field}" class="mt-1 hidden text-sm text-red-600"></p>`;
+    }
+
+    function renderCreateFooter() {
+      return `
+        <button type="button" data-expense-create-action="cancel" class="rounded-lg border border-slate-300 px-5 py-2 hover:bg-slate-100">Cancel</button>
+        <button type="submit" form="expense-create-form" id="btn-expense-create-save" class="rounded-lg bg-blue-600 px-5 py-2 text-white hover:bg-blue-700">Create Expense</button>
+      `;
+    }
+
+    function bindCreateForm() {
+      const form = DOM.$("expense-create-form");
+      const footer = DOM.$("modal-footer");
+      const close = DOM.$("btn-modal-close");
+
+      form?.addEventListener("input", handleCreateInput);
+      form?.addEventListener("submit", (event) => {
+        event.preventDefault();
+        submitCreate();
+      });
+
+      if (footer && !footer.dataset.expenseCreateBound) {
+        footer.dataset.expenseCreateBound = "true";
+        footer.addEventListener("click", (event) => {
+          if (event.target.closest('[data-expense-create-action="cancel"]')) {
+            closeCreate();
+          }
+        });
+      }
+
+      if (close) {
+        close.onclick = closeCreate;
+      }
+    }
+
+    function handleCreateInput(event) {
+      const field = event.target.dataset.expenseCreateField;
+
+      if (!field || !createForm) {
+        return;
+      }
+
+      createForm[field] = event.target.value;
+      clearCreateError(field);
+    }
+
+    function validateCreate() {
+      const date = String(createForm?.Tanggal ?? "").trim();
+      const category = String(createForm?.Kategori ?? "").trim();
+      const description = String(createForm?.Keterangan ?? "").trim();
+      const amountText = String(createForm?.Nominal ?? "").trim();
+      const amount = Number(amountText);
+
+      if (!date) {
+        return invalidCreate("Tanggal", "Date is required.", "inp-expense-create-date");
+      }
+
+      if (!category) {
+        return invalidCreate("Kategori", "Category is required.", "inp-expense-create-category");
+      }
+
+      if (!amountText) {
+        return invalidCreate("Nominal", "Amount is required.", "inp-expense-create-amount");
+      }
+
+      if (!Number.isFinite(amount)) {
+        return invalidCreate("Nominal", "Amount must be a valid number.", "inp-expense-create-amount");
+      }
+
+      if (amount < 0) {
+        return invalidCreate("Nominal", "Amount cannot be negative.", "inp-expense-create-amount");
+      }
+
+      return {
+        valid: true,
+        payload: {
+          Tanggal: date,
+          Kategori: category,
+          Keterangan: description,
+          Nominal: amount,
+        },
+      };
+    }
+
+    function invalidCreate(field, message, elementId) {
+      return { valid: false, field, message, element: DOM.$(elementId) };
+    }
+
+    function showCreateError(field, message) {
+      const element = document.querySelector(`[data-expense-create-error="${field}"]`);
+
+      if (!element) {
+        return;
+      }
+
+      element.textContent = message;
+      element.classList.remove("hidden");
+    }
+
+    function clearCreateError(field) {
+      const element = document.querySelector(`[data-expense-create-error="${field}"]`);
+
+      if (element) {
+        element.textContent = "";
+        element.classList.add("hidden");
+      }
+    }
+
+    function clearCreateErrors() {
+      document.querySelectorAll("[data-expense-create-error]").forEach((element) => {
+        element.textContent = "";
+        element.classList.add("hidden");
+      });
+    }
+
+    function setCreateLoading(loading) {
+      const submit = DOM.$("btn-expense-create-save");
+      const cancel = document.querySelector('[data-expense-create-action="cancel"]');
+      const close = DOM.$("btn-modal-close");
+
+      [submit, cancel, close].forEach((button) => {
+        if (button) {
+          button.disabled = loading;
+        }
+      });
+
+      if (submit) {
+        submit.textContent = loading ? "Creating..." : "Create Expense";
+        submit.classList.toggle("cursor-not-allowed", loading);
+        submit.classList.toggle("opacity-50", loading);
+      }
+    }
+
+    function closeCreate() {
+      if (createSubmitting) {
+        return;
+      }
+
+      createForm = null;
+      Modal.close();
+    }
+
+    async function submitCreate() {
+      if (createSubmitting || !createForm) {
+        return;
+      }
+
+      clearCreateErrors();
+
+      const validation = validateCreate();
+
+      if (!validation.valid) {
+        showCreateError(validation.field, validation.message);
+        validation.element?.focus();
+        return;
+      }
+
+      createSubmitting = true;
+      setCreateLoading(true);
+
+      let response;
+
+      try {
+        response = await Api.Expense.create(validation.payload);
+
+        if (!response?.success) {
+          Toast.error(response?.message || "Expense could not be created.");
+          return;
+        }
+      } catch (error) {
+        Toast.error(
+          typeof error?.message === "string" && error.message.trim()
+            ? error.message
+            : "Expense could not be created. Please try again.",
+        );
+        return;
+      } finally {
+        createSubmitting = false;
+        setCreateLoading(false);
+      }
+
+      Toast.success(response.message || "Expense created.");
+      closeCreate();
+      await App.refresh();
+    }
+
     function clearSearch() {
+      query = "";
+
       const input = DOM.$("inp-expense-search");
 
       if (input) {
@@ -90,14 +390,14 @@
           "font-medium text-slate-800",
         ),
 
-        Components.tableCell(Format.date(expense[FIELD.DATE])),
+        Components.tableCell(SharedPresenter.text(formatDate(expense[FIELD.DATE]))),
 
         Components.tableCell(SharedPresenter.text(expense[FIELD.CATEGORY])),
 
         Components.tableCell(SharedPresenter.text(expense[FIELD.DESCRIPTION])),
 
         Components.tableCell(
-          Format.currency(expense[FIELD.AMOUNT]),
+          SharedPresenter.text(formatCurrency(expense[FIELD.AMOUNT])),
 
           "text-right",
         ),
@@ -108,26 +408,112 @@
           "text-center",
         ),
 
-        Components.tableCell(SharedPresenter.renderActions(id), "text-center"),
+        Components.tableCell(
+          '<span class="text-slate-400">Not available</span>',
+          "text-center",
+        ),
       ]);
+    }
+
+    function formatDate(value) {
+      const text = String(value ?? "").trim();
+      const match = /^(\d{4})-(\d{2})-(\d{2})(?:$|T)/.exec(text);
+
+      if (match) {
+        const year = Number(match[1]);
+        const month = Number(match[2]);
+        const day = Number(match[3]);
+        const date = new Date(year, month - 1, day);
+
+        if (
+          date.getFullYear() === year &&
+          date.getMonth() === month - 1 &&
+          date.getDate() === day
+        ) {
+          return date.toLocaleDateString("id-ID");
+        }
+      }
+
+      if (!text) {
+        return "-";
+      }
+
+      const date = new Date(value);
+
+      return Number.isNaN(date.getTime()) ? "-" : date.toLocaleDateString("id-ID");
+    }
+
+    function formatCurrency(value) {
+      const text = String(value ?? "").trim();
+
+      if (!text) {
+        return "-";
+      }
+
+      const number = Number(text);
+
+      if (!Number.isFinite(number)) {
+        return "-";
+      }
+
+      const fraction = Math.min(text.match(/\.(\d+)/)?.[1]?.length || 0, 20);
+
+      return new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+        minimumFractionDigits: fraction,
+        maximumFractionDigits: fraction,
+      }).format(number);
     }
 
     //===========================================================================
     // Empty
     //===========================================================================
 
-    function renderEmpty() {
+    function renderEmpty(type) {
+      const noMatch = type === "search";
+
       Render.mount(
         "tbl-expenses-body",
 
         `
         <tr>
           <td colspan="7">
-            ${Components.empty("No expenses available.")}
+            ${Components.empty(
+              noMatch
+                ? "No Expense matches your search. Clear the search to show all active Expenses."
+                : "No active Expense data exists.",
+            )}
           </td>
         </tr>
       `,
       );
+    }
+
+    function renderLoading() {
+      bindToolbar();
+      Render.mount(
+        "tbl-expenses-body",
+        `<tr><td colspan="7">${Components.loading("Loading Expenses...")}</td></tr>`,
+      );
+      Render.mount("lbl-expense-info", "Loading Expenses...");
+    }
+
+    function renderError() {
+      bindToolbar();
+      Render.mount(
+        "tbl-expenses-body",
+        `<tr><td colspan="7">
+          <div class="flex flex-col items-center justify-center py-16 text-center">
+            <i class="fa-solid fa-triangle-exclamation text-5xl text-red-400"></i>
+            <h3 class="mt-4 text-lg font-semibold text-red-700">Load failed</h3>
+            <p class="mt-2 text-slate-500">
+              Expense data could not be loaded. Use Refresh to try again.
+            </p>
+          </div>
+        </td></tr>`,
+      );
+      Render.mount("lbl-expense-info", "Expense count unavailable");
     }
 
     //===========================================================================
@@ -148,6 +534,9 @@
 
     return Object.freeze({
       render,
+      search,
+      renderLoading,
+      renderError,
     });
   })();
 </script>

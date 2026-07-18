@@ -38,6 +38,8 @@
 
     let partnersLoading = null;
 
+    let expensesLoading = null;
+
     //===========================================================================
     // Initialize
     //===========================================================================
@@ -99,6 +101,12 @@
     function getPartners() {
       return Array.isArray(state.partners)
         ? Utils.deepClone(state.partners)
+        : [];
+    }
+
+    function getExpenses() {
+      return Array.isArray(state.expenses)
+        ? Utils.deepClone(state.expenses)
         : [];
     }
 
@@ -408,17 +416,47 @@
     //===========================================================================
 
     async function loadExpenses() {
-      const res = await Api.Expense.list();
-
-      if (!res || !res.success) {
-        Components.toast(res?.message || "Load expenses failed.");
-
-        return;
+      if (expensesLoading) {
+        return expensesLoading;
       }
 
-      state.expenses = Utils.deepClone(res.data);
+      ExpensesPresenter.renderLoading();
 
-      ExpensesPresenter.render(state.expenses);
+      expensesLoading = (async () => {
+        let res;
+
+        try {
+          res = await Api.Expense.list();
+        } catch (error) {
+          const message = readableLoadError(error, "Load expenses failed.");
+
+          Toast.error(message);
+          ExpensesPresenter.renderError();
+
+          return;
+        }
+
+        if (!res || !res.success) {
+          const message = res?.message || "Load expenses failed.";
+
+          Toast.error(message);
+          ExpensesPresenter.renderError();
+
+          return;
+        }
+
+        state.expenses = Utils.deepClone(
+          Array.isArray(res.data) ? res.data : [],
+        );
+
+        ExpensesPresenter.render(state.expenses);
+      })();
+
+      try {
+        return await expensesLoading;
+      } finally {
+        expensesLoading = null;
+      }
     }
 
     //===========================================================================
@@ -438,7 +476,7 @@
           break;
 
         case "expenses":
-          searchExpenses(keyword);
+          ExpensesPresenter.search(keyword);
 
           break;
 
@@ -502,34 +540,6 @@
     }
 
     //===========================================================================
-    // Expense Search
-    //===========================================================================
-
-    function searchExpenses(keyword = "") {
-      const value = String(keyword || "")
-        .trim()
-        .toLowerCase();
-
-      if (!value) {
-        ExpensesPresenter.render(state.expenses);
-
-        return;
-      }
-
-      const fields = ["ID", "Kategori", "Keterangan", "Nominal"];
-
-      const result = state.expenses.filter((expense) => {
-        return fields.some((field) => {
-          return String(expense[field] || "")
-            .toLowerCase()
-            .includes(value);
-        });
-      });
-
-      ExpensesPresenter.render(result);
-    }
-
-    //===========================================================================
     // Public API
     //===========================================================================
 
@@ -542,6 +552,7 @@
 
       getProducts,
       getPartners,
+      getExpenses,
 
       loadProducts,
       openCreateProduct,
