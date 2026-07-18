@@ -26,10 +26,7 @@ function runTestSuite(name, tests) {
 }
 
 function runCoreRegressionTests() {
-  runTestSuite("Core regression tests", [
-    testCoreValidator,
-    testCoreResponse,
-  ]);
+  runTestSuite("Core regression tests", [testCoreValidator, testCoreResponse]);
 }
 
 function runPurchasingDataAudit() {
@@ -235,6 +232,41 @@ function runPurchasingValidationTests() {
     testPurchasingCreateRejectsInactiveSupplier,
     testPurchasingCreateRejectsInactiveProduct,
   ]);
+}
+
+function runExpenseValidationTests() {
+  runTestSuite("Expense validation tests", [
+    testExpenseServicePublicApi,
+    testExpenseValidationAndNormalization,
+    testExpenseUpdateValidationAndNormalization,
+  ]);
+}
+
+function runExpenseWriteTests() {
+  runTestSuite("Expense write tests", [
+    testExpenseCreateNormalization,
+    testExpenseSoftDeleteAndActiveReads,
+    testExpenseStatisticsAndDashboardCompatibility,
+  ]);
+}
+
+function runExpenseRestoreTests() {
+  runTestSuite("Expense restore tests", [
+    testExpenseRestoreValid,
+    testExpenseRestoreRejectsInvalidStates,
+    testExpenseRestoreRejectsInvalidStoredRow,
+  ]);
+}
+
+function runExpenseDeletedListTests() {
+  runTestSuite("Expense deleted-list tests", [testExpenseFindDeleted]);
+}
+
+function runExpenseAllTests() {
+  runExpenseValidationTests();
+  runExpenseWriteTests();
+  runExpenseRestoreTests();
+  runExpenseDeletedListTests();
 }
 
 function runPurchasingDeletedListTests() {

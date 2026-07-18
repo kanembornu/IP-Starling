@@ -243,7 +243,9 @@ function testReturnControllerGetDeletedReturns() {
       return !returnStatusTrue(row.Deleted) || !returnStatusFalse(row.IsActive);
     })
   ) {
-    throw new Error("getDeletedReturns() returned a nondeleted or active Return.");
+    throw new Error(
+      "getDeletedReturns() returned a nondeleted or active Return.",
+    );
   }
 
   Logger.log(response);
@@ -365,7 +367,6 @@ function assertReturnControllerSerializable(response) {
   } catch (error) {
     throw new Error("Return Controller response must be JSON serializable.");
   }
-
 }
 
 function testPickupServiceHeaderDetailRead() {
@@ -1407,7 +1408,9 @@ function returnTestFixture() {
   });
 
   if (!detail) {
-    Logger.log("SKIPPED: no active Pickup Detail is available for Return tests.");
+    Logger.log(
+      "SKIPPED: no active Pickup Detail is available for Return tests.",
+    );
 
     return null;
   }
@@ -1418,7 +1421,9 @@ function returnTestFixture() {
   );
 
   if (!header || header[PICKUP_HEADER_SCHEMA.SYSTEM.IS_ACTIVE] !== true) {
-    Logger.log("SKIPPED: Pickup Header for the Return test fixture is inactive.");
+    Logger.log(
+      "SKIPPED: Pickup Header for the Return test fixture is inactive.",
+    );
 
     return null;
   }
@@ -1440,7 +1445,9 @@ function returnTestFixture() {
   const available = Number(detail[PICKUP_DETAIL_FIELDS.QTY]) - used;
 
   if (available < 1) {
-    Logger.log("SKIPPED: no available Pickup Detail quantity for Return tests.");
+    Logger.log(
+      "SKIPPED: no available Pickup Detail quantity for Return tests.",
+    );
 
     return null;
   }
@@ -1461,10 +1468,14 @@ function createReturnTestRow(fixture, qty = 1) {
   });
 
   if (!response.success) {
-    throw new Error(`Unable to create Return test fixture: ${response.message}`);
+    throw new Error(
+      `Unable to create Return test fixture: ${response.message}`,
+    );
   }
 
-  Logger.log(`Return fixture requiring cleanup: ${response.data[RETURN_SCHEMA.PRIMARY_KEY]}`);
+  Logger.log(
+    `Return fixture requiring cleanup: ${response.data[RETURN_SCHEMA.PRIMARY_KEY]}`,
+  );
 
   return response.data;
 }
@@ -1488,7 +1499,9 @@ function normalizeReturnTestDate(value) {
   if (
     !isDate &&
     typeof value === "string" &&
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:?\d{2})$/.test(value)
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:?\d{2})$/.test(
+      value,
+    )
   ) {
     value = new Date(value);
   }
@@ -1510,7 +1523,9 @@ function cleanupReturnTestRow(row) {
 
   if (!response.success) {
     Logger.log(`Return fixture requires manual cleanup: ${id}`);
-    throw new Error(`Unable to clean up Return test fixture ${id}: ${response.message}`);
+    throw new Error(
+      `Unable to clean up Return test fixture ${id}: ${response.message}`,
+    );
   }
 }
 
@@ -1521,7 +1536,20 @@ function testReturnSchemaTableAndPrefix() {
 }
 
 function testReturnSchemaHeaders() {
-  const expected = ["ID", "PickupID", "PickupDetailID", "Tanggal", "Qty", "Keterangan", "Deleted", "IsActive", "CreatedAt", "CreatedBy", "UpdatedAt", "UpdatedBy"];
+  const expected = [
+    "ID",
+    "PickupID",
+    "PickupDetailID",
+    "Tanggal",
+    "Qty",
+    "Keterangan",
+    "Deleted",
+    "IsActive",
+    "CreatedAt",
+    "CreatedBy",
+    "UpdatedAt",
+    "UpdatedBy",
+  ];
 
   if (JSON.stringify(RETURN_SCHEMA.HEADERS) !== JSON.stringify(expected)) {
     throw new Error("Return schema headers are invalid.");
@@ -1561,7 +1589,15 @@ function testReturnSchemaRegistry() {
 
 function testReturnServicePublicApi() {
   const keys = Object.keys(ReturnService()).sort();
-  const expected = ["create", "findAll", "findById", "findDeleted", "remove", "restore", "update"];
+  const expected = [
+    "create",
+    "findAll",
+    "findById",
+    "findDeleted",
+    "remove",
+    "restore",
+    "update",
+  ];
 
   if (JSON.stringify(keys) !== JSON.stringify(expected)) {
     throw new Error("ReturnService public API is invalid.");
@@ -1569,11 +1605,19 @@ function testReturnServicePublicApi() {
 }
 
 function returnStatusTrue(value) {
-  return value === true || value === 1 || String(value).trim().toLowerCase() === "true";
+  return (
+    value === true ||
+    value === 1 ||
+    String(value).trim().toLowerCase() === "true"
+  );
 }
 
 function returnStatusFalse(value) {
-  return value === false || value === 0 || String(value).trim().toLowerCase() === "false";
+  return (
+    value === false ||
+    value === 0 ||
+    String(value).trim().toLowerCase() === "false"
+  );
 }
 
 function assertDeletedReturnRows(response) {
@@ -1599,12 +1643,16 @@ function testReturnFindDeletedEmpty() {
   const rows = assertDeletedReturnRows(ReturnService().findDeleted());
 
   if (rows.length > 0) {
-    Logger.log("SKIPPED: deleted Return rows already exist; empty result cannot be isolated safely.");
+    Logger.log(
+      "SKIPPED: deleted Return rows already exist; empty result cannot be isolated safely.",
+    );
     return;
   }
 
   if (rows.length !== 0) {
-    throw new Error("ReturnService.findDeleted() must return an empty array when no deleted rows exist.");
+    throw new Error(
+      "ReturnService.findDeleted() must return an empty array when no deleted rows exist.",
+    );
   }
 }
 
@@ -1616,7 +1664,8 @@ function testReturnFindDeletedOnlyDeleted() {
 
   try {
     const response = ReturnService().remove(row.ID);
-    if (!response.success) throw new Error("Return fixture could not be deleted.");
+    if (!response.success)
+      throw new Error("Return fixture could not be deleted.");
     removed = true;
 
     const deleted = assertDeletedReturnRows(ReturnService().findDeleted());
@@ -1656,7 +1705,9 @@ function testReturnFindDeletedStatusCompatibility() {
   try {
     variants.forEach((status) => {
       if (!RepositoryWriter.update(RETURN_SCHEMA, row.ID, status)) {
-        throw new Error("Return status compatibility fixture could not be updated.");
+        throw new Error(
+          "Return status compatibility fixture could not be updated.",
+        );
       }
 
       const deleted = assertDeletedReturnRows(ReturnService().findDeleted());
@@ -1674,39 +1725,62 @@ function testReturnFindDeletedStatusCompatibility() {
 }
 
 function testReturnCreateMissingDocument() {
-  if (ReturnService().create(null).success) throw new Error("Return create must reject a missing document.");
+  if (ReturnService().create(null).success)
+    throw new Error("Return create must reject a missing document.");
 }
 
 function testReturnCreateMissingPickupDetailId() {
-  if (ReturnService().create({ Tanggal: "2026-07-17", Qty: 1 }).success) throw new Error("Return create must require PickupDetailID.");
+  if (ReturnService().create({ Tanggal: "2026-07-17", Qty: 1 }).success)
+    throw new Error("Return create must require PickupDetailID.");
 }
 
 function testReturnCreateMissingTanggal() {
   const fixture = returnTestFixture();
   if (!fixture) return;
-  if (ReturnService().create({ PickupDetailID: fixture.detail.ID, Qty: 1 }).success) throw new Error("Return create must require Tanggal.");
+  if (
+    ReturnService().create({ PickupDetailID: fixture.detail.ID, Qty: 1 })
+      .success
+  )
+    throw new Error("Return create must require Tanggal.");
 }
 
 function testReturnCreateInvalidQty() {
   const fixture = returnTestFixture();
   if (!fixture) return;
-  if (ReturnService().create({ PickupDetailID: fixture.detail.ID, Tanggal: "2026-07-17", Qty: 0 }).success) throw new Error("Return create must reject invalid Qty.");
+  if (
+    ReturnService().create({
+      PickupDetailID: fixture.detail.ID,
+      Tanggal: "2026-07-17",
+      Qty: 0,
+    }).success
+  )
+    throw new Error("Return create must reject invalid Qty.");
 }
 
 function testReturnCreateUnknownPickupDetail() {
-  if (ReturnService().create({ PickupDetailID: "PD_UNKNOWN", Tanggal: "2026-07-17", Qty: 1 }).success) throw new Error("Return create must reject an unknown Pickup Detail.");
+  if (
+    ReturnService().create({
+      PickupDetailID: "PD_UNKNOWN",
+      Tanggal: "2026-07-17",
+      Qty: 1,
+    }).success
+  )
+    throw new Error("Return create must reject an unknown Pickup Detail.");
 }
 
 function testReturnUpdateMissingId() {
-  if (ReturnService().update("", {}).success) throw new Error("Return update must require ID.");
+  if (ReturnService().update("", {}).success)
+    throw new Error("Return update must require ID.");
 }
 
 function testReturnRemoveMissingId() {
-  if (ReturnService().remove("").success) throw new Error("Return remove must require ID.");
+  if (ReturnService().remove("").success)
+    throw new Error("Return remove must require ID.");
 }
 
 function testReturnRestoreMissingId() {
-  if (ReturnService().restore("").success) throw new Error("Return restore must require ID.");
+  if (ReturnService().restore("").success)
+    throw new Error("Return restore must require ID.");
 }
 
 function testReturnRestoreUnknownId() {
@@ -1783,11 +1857,19 @@ function purchasingAuditStatus(value) {
 }
 
 function purchasingAuditDeleted(value) {
-  return value === true || value === 1 || String(value).trim().toLowerCase() === "true";
+  return (
+    value === true ||
+    value === 1 ||
+    String(value).trim().toLowerCase() === "true"
+  );
 }
 
 function purchasingAuditInactive(value) {
-  return value === false || value === 0 || String(value).trim().toLowerCase() === "false";
+  return (
+    value === false ||
+    value === 0 ||
+    String(value).trim().toLowerCase() === "false"
+  );
 }
 
 function purchasingAuditIdPattern(value) {
@@ -1818,7 +1900,12 @@ function purchasingAuditObjects(sheet) {
         object[header] = valuesRow[column];
       }
     });
-    rows.push({ number: index + 2, object, values: valuesRow, formulas: formulas[index + 1] });
+    rows.push({
+      number: index + 2,
+      object,
+      values: valuesRow,
+      formulas: formulas[index + 1],
+    });
   });
 
   return { headers, rows };
@@ -1843,9 +1930,14 @@ function purchasingAuditHeaders(headers, target) {
     if (header) counts[header] = (counts[header] || 0) + 1;
   });
   const missing = target.filter((header) => !counts[header]);
-  const extra = headers.filter((header) => header && target.indexOf(header) === -1);
+  const extra = headers.filter(
+    (header) => header && target.indexOf(header) === -1,
+  );
   const duplicated = Object.keys(counts).filter((header) => counts[header] > 1);
-  const blank = headers.reduce((count, header) => count + (header === "" ? 1 : 0), 0);
+  const blank = headers.reduce(
+    (count, header) => count + (header === "" ? 1 : 0),
+    0,
+  );
   const reordered =
     missing.length === 0 &&
     extra.length === 0 &&
@@ -1875,7 +1967,13 @@ function purchasingAuditCandidate(sheet, masters, targetHeaders) {
     blankIds: 0,
     duplicateIds: 0,
     invalidPrefix: 0,
-    blankRequired: { Tanggal: 0, SupplierID: 0, ProductID: 0, Qty: 0, Harga: 0 },
+    blankRequired: {
+      Tanggal: 0,
+      SupplierID: 0,
+      ProductID: 0,
+      Qty: 0,
+      Harga: 0,
+    },
     invalidQty: { nonnumeric: 0, nonfinite: 0, nonpositive: 0 },
     invalidHarga: { nonnumeric: 0, nonfinite: 0, negative: 0 },
     invalidTotal: { blank: 0, nonnumeric: 0, nonfinite: 0, negative: 0 },
@@ -1884,12 +1982,34 @@ function purchasingAuditCandidate(sheet, masters, targetHeaders) {
     totalFormulaCells: 0,
     totalMode: "value-only",
     statuses: {
-      Deleted: { boolean: 0, "string-boolean": 0, "numeric-boolean": 0, other: 0 },
-      IsActive: { boolean: 0, "string-boolean": 0, "numeric-boolean": 0, other: 0 },
+      Deleted: {
+        boolean: 0,
+        "string-boolean": 0,
+        "numeric-boolean": 0,
+        other: 0,
+      },
+      IsActive: {
+        boolean: 0,
+        "string-boolean": 0,
+        "numeric-boolean": 0,
+        other: 0,
+      },
     },
-    supplier: { missing: 0, deleted: 0, inactive: 0, notSupplier: 0, observedTypes: {} },
+    supplier: {
+      missing: 0,
+      deleted: 0,
+      inactive: 0,
+      notSupplier: 0,
+      observedTypes: {},
+    },
     product: { missing: 0, deleted: 0, inactive: 0 },
-    grouping: { sameMarkerGroups: 0, explicitHeaders: [], repeatedExplicitGroups: 0, noteSignals: 0, evidence: "NONE" },
+    grouping: {
+      sameMarkerGroups: 0,
+      explicitHeaders: [],
+      repeatedExplicitGroups: 0,
+      noteSignals: 0,
+      evidence: "NONE",
+    },
     samples: [],
   };
   const ids = Object.create(null);
@@ -1899,7 +2019,9 @@ function purchasingAuditCandidate(sheet, masters, targetHeaders) {
       headerName.replace(/[\s_-]/g, ""),
     ),
   );
-  const noteHeaders = data.headers.filter((headerName) => /^(notes?|keterangan|catatan)$/i.test(headerName));
+  const noteHeaders = data.headers.filter((headerName) =>
+    /^(notes?|keterangan|catatan)$/i.test(headerName),
+  );
   const explicitGroups = Object.create(null);
   findings.grouping.explicitHeaders = explicitHeaders;
 
@@ -1919,12 +2041,18 @@ function purchasingAuditCandidate(sheet, masters, targetHeaders) {
     const qty = Number(row.Qty);
     const harga = Number(row.Harga);
     const total = Number(row.Total);
-    if (!purchasingAuditBlank(row.Qty) && Number.isNaN(qty)) findings.invalidQty.nonnumeric += 1;
-    else if (!purchasingAuditBlank(row.Qty) && !Number.isFinite(qty)) findings.invalidQty.nonfinite += 1;
-    else if (!purchasingAuditBlank(row.Qty) && qty <= 0) findings.invalidQty.nonpositive += 1;
-    if (!purchasingAuditBlank(row.Harga) && Number.isNaN(harga)) findings.invalidHarga.nonnumeric += 1;
-    else if (!purchasingAuditBlank(row.Harga) && !Number.isFinite(harga)) findings.invalidHarga.nonfinite += 1;
-    else if (!purchasingAuditBlank(row.Harga) && harga < 0) findings.invalidHarga.negative += 1;
+    if (!purchasingAuditBlank(row.Qty) && Number.isNaN(qty))
+      findings.invalidQty.nonnumeric += 1;
+    else if (!purchasingAuditBlank(row.Qty) && !Number.isFinite(qty))
+      findings.invalidQty.nonfinite += 1;
+    else if (!purchasingAuditBlank(row.Qty) && qty <= 0)
+      findings.invalidQty.nonpositive += 1;
+    if (!purchasingAuditBlank(row.Harga) && Number.isNaN(harga))
+      findings.invalidHarga.nonnumeric += 1;
+    else if (!purchasingAuditBlank(row.Harga) && !Number.isFinite(harga))
+      findings.invalidHarga.nonfinite += 1;
+    else if (!purchasingAuditBlank(row.Harga) && harga < 0)
+      findings.invalidHarga.negative += 1;
     if (purchasingAuditBlank(row.Total)) findings.invalidTotal.blank += 1;
     else if (Number.isNaN(total)) findings.invalidTotal.nonnumeric += 1;
     else if (!Number.isFinite(total)) findings.invalidTotal.nonfinite += 1;
@@ -1933,15 +2061,21 @@ function purchasingAuditCandidate(sheet, masters, targetHeaders) {
     let totalMatches = false;
     if ([qty, harga, total].every(Number.isFinite)) {
       const expected = qty * harga;
-      const decimals = !Number.isInteger(qty) || !Number.isInteger(harga) || !Number.isInteger(total);
-      const tolerance = decimals ? 1e-9 * Math.max(1, Math.abs(expected), Math.abs(total)) : 0;
+      const decimals =
+        !Number.isInteger(qty) ||
+        !Number.isInteger(harga) ||
+        !Number.isInteger(total);
+      const tolerance = decimals
+        ? 1e-9 * Math.max(1, Math.abs(expected), Math.abs(total))
+        : 0;
       findings.decimalToleranceUsed = findings.decimalToleranceUsed || decimals;
       totalMatches = Math.abs(total - expected) <= tolerance;
       if (!totalMatches) findings.totalMismatches += 1;
     }
 
     const totalColumn = data.headers.indexOf("Total");
-    if (totalColumn !== -1 && entry.formulas?.[totalColumn]) findings.totalFormulaCells += 1;
+    if (totalColumn !== -1 && entry.formulas?.[totalColumn])
+      findings.totalFormulaCells += 1;
     ["Deleted", "IsActive"].forEach((field) => {
       findings.statuses[field][purchasingAuditStatus(row[field])] += 1;
     });
@@ -1953,19 +2087,23 @@ function purchasingAuditCandidate(sheet, masters, targetHeaders) {
       findings.supplier.missing += 1;
       supplierCategory = "missing";
     } else if (supplier) {
-      const type = purchasingAuditKey(supplier[PARTNER_FIELDS.TYPE]) || "(blank)";
-      findings.supplier.observedTypes[type] = (findings.supplier.observedTypes[type] || 0) + 1;
+      const type =
+        purchasingAuditKey(supplier[PARTNER_FIELDS.TYPE]) || "(blank)";
+      findings.supplier.observedTypes[type] =
+        (findings.supplier.observedTypes[type] || 0) + 1;
       if (purchasingAuditDeleted(supplier[PARTNER_SCHEMA.SYSTEM.IS_DELETED])) {
         findings.supplier.deleted += 1;
         supplierCategory = "deleted";
       }
       if (purchasingAuditInactive(supplier[PARTNER_SCHEMA.SYSTEM.IS_ACTIVE])) {
         findings.supplier.inactive += 1;
-        supplierCategory = supplierCategory === "ok" ? "inactive" : supplierCategory;
+        supplierCategory =
+          supplierCategory === "ok" ? "inactive" : supplierCategory;
       }
       if (type.toLowerCase() !== "supplier") {
         findings.supplier.notSupplier += 1;
-        supplierCategory = supplierCategory === "ok" ? "not-supplier" : supplierCategory;
+        supplierCategory =
+          supplierCategory === "ok" ? "not-supplier" : supplierCategory;
       }
     }
 
@@ -1982,18 +2120,27 @@ function purchasingAuditCandidate(sheet, masters, targetHeaders) {
       }
       if (purchasingAuditInactive(product[PRODUCT_SCHEMA.SYSTEM.IS_ACTIVE])) {
         findings.product.inactive += 1;
-        productCategory = productCategory === "ok" ? "inactive" : productCategory;
+        productCategory =
+          productCategory === "ok" ? "inactive" : productCategory;
       }
     }
 
-    const marker = [row.Tanggal, row.SupplierID, row.CreatedAt].map(purchasingAuditKey).join("|");
+    const marker = [row.Tanggal, row.SupplierID, row.CreatedAt]
+      .map(purchasingAuditKey)
+      .join("|");
     if (marker !== "||") markerGroups[marker] = (markerGroups[marker] || 0) + 1;
     explicitHeaders.forEach((field) => {
       const value = purchasingAuditKey(row[field]);
-      if (value) explicitGroups[`${field}|${value}`] = (explicitGroups[`${field}|${value}`] || 0) + 1;
+      if (value)
+        explicitGroups[`${field}|${value}`] =
+          (explicitGroups[`${field}|${value}`] || 0) + 1;
     });
     noteHeaders.forEach((field) => {
-      if (/\b(multi|multiple|several)\b.{0,30}\b(items?|products?|barang)\b/i.test(String(row[field] || ""))) {
+      if (
+        /\b(multi|multiple|several)\b.{0,30}\b(items?|products?|barang)\b/i.test(
+          String(row[field] || ""),
+        )
+      ) {
         findings.grouping.noteSignals += 1;
       }
     });
@@ -2001,8 +2148,15 @@ function purchasingAuditCandidate(sheet, masters, targetHeaders) {
     if (findings.samples.length < 3) {
       findings.samples.push({
         idPattern: purchasingAuditIdPattern(row.ID),
-        types: { Tanggal: typeof row.Tanggal, Qty: typeof row.Qty, Harga: typeof row.Harga, Total: typeof row.Total },
-        blank: Object.keys(findings.blankRequired).filter((field) => purchasingAuditBlank(row[field])),
+        types: {
+          Tanggal: typeof row.Tanggal,
+          Qty: typeof row.Qty,
+          Harga: typeof row.Harga,
+          Total: typeof row.Total,
+        },
+        blank: Object.keys(findings.blankRequired).filter((field) =>
+          purchasingAuditBlank(row[field]),
+        ),
         totalMatches,
         supplier: supplierCategory,
         product: productCategory,
@@ -2010,17 +2164,748 @@ function purchasingAuditCandidate(sheet, masters, targetHeaders) {
     }
   });
 
-  findings.duplicateIds = Object.keys(ids).reduce((count, id) => count + (ids[id] > 1 ? ids[id] : 0), 0);
-  findings.grouping.sameMarkerGroups = Object.keys(markerGroups).filter((key) => markerGroups[key] > 1).length;
-  findings.grouping.repeatedExplicitGroups = Object.keys(explicitGroups).filter((key) => explicitGroups[key] > 1).length;
-  if (findings.grouping.repeatedExplicitGroups > 0 || findings.grouping.noteSignals > 0) {
+  findings.duplicateIds = Object.keys(ids).reduce(
+    (count, id) => count + (ids[id] > 1 ? ids[id] : 0),
+    0,
+  );
+  findings.grouping.sameMarkerGroups = Object.keys(markerGroups).filter(
+    (key) => markerGroups[key] > 1,
+  ).length;
+  findings.grouping.repeatedExplicitGroups = Object.keys(explicitGroups).filter(
+    (key) => explicitGroups[key] > 1,
+  ).length;
+  if (
+    findings.grouping.repeatedExplicitGroups > 0 ||
+    findings.grouping.noteSignals > 0
+  ) {
     findings.grouping.evidence = "STRONG";
-  } else if (findings.grouping.sameMarkerGroups > 0 || explicitHeaders.length > 0) {
+  } else if (
+    findings.grouping.sameMarkerGroups > 0 ||
+    explicitHeaders.length > 0
+  ) {
     findings.grouping.evidence = "WEAK";
   }
-  if (findings.totalFormulaCells === findings.rowCount && findings.rowCount > 0) findings.totalMode = "formula-backed";
+  if (findings.totalFormulaCells === findings.rowCount && findings.rowCount > 0)
+    findings.totalMode = "formula-backed";
   else if (findings.totalFormulaCells > 0) findings.totalMode = "mixed";
   return findings;
+}
+
+function auditExpenseLiveData() {
+  const sampleLimit = 5;
+  const log = (section, data) =>
+    Logger.log(`${section}: ${JSON.stringify(data)}`);
+  const blank = (value) =>
+    value === null || value === undefined || String(value).trim() === "";
+  const sample = (items, value) => {
+    const safe =
+      value instanceof Date
+        ? value.toISOString()
+        : String(value).replace(/\s+/g, " ").slice(0, 40);
+    if (items.length < sampleLimit && items.indexOf(safe) === -1)
+      items.push(safe);
+  };
+  const countDuplicates = (values) => {
+    const counts = {};
+    values.forEach((value) => {
+      counts[value] = (counts[value] || 0) + 1;
+    });
+    return Object.keys(counts).reduce(
+      (total, value) => total + (counts[value] > 1 ? counts[value] - 1 : 0),
+      0,
+    );
+  };
+  const statusSummary = () => ({
+    booleanTrue: 0,
+    booleanFalse: 0,
+    stringTRUE: 0,
+    stringFALSE: 0,
+    numeric1: 0,
+    numeric0: 0,
+    blank: 0,
+    other: 0,
+  });
+  const classifyStatus = (summary, value) => {
+    if (blank(value)) summary.blank += 1;
+    else if (value === true) summary.booleanTrue += 1;
+    else if (value === false) summary.booleanFalse += 1;
+    else if (typeof value === "string" && value.trim() === "TRUE")
+      summary.stringTRUE += 1;
+    else if (typeof value === "string" && value.trim() === "FALSE")
+      summary.stringFALSE += 1;
+    else if (typeof value === "number" && value === 1) summary.numeric1 += 1;
+    else if (typeof value === "number" && value === 0) summary.numeric0 += 1;
+    else summary.other += 1;
+  };
+  const logicalStatus = (value) => {
+    if (
+      value === true ||
+      value === 1 ||
+      (typeof value === "string" && value.trim().toUpperCase() === "TRUE")
+    )
+      return true;
+    if (
+      value === false ||
+      value === 0 ||
+      (typeof value === "string" && value.trim().toUpperCase() === "FALSE")
+    )
+      return false;
+    return null;
+  };
+  const auditTimestamp = () => ({
+    blank: 0,
+    nativeDate: 0,
+    parseableString: 0,
+    invalid: 0,
+  });
+  const classifyTimestamp = (summary, value) => {
+    if (blank(value)) summary.blank += 1;
+    else if (value instanceof Date && !Number.isNaN(value.getTime()))
+      summary.nativeDate += 1;
+    else if (typeof value === "string" && !Number.isNaN(Date.parse(value)))
+      summary.parseableString += 1;
+    else summary.invalid += 1;
+  };
+
+  const schema = EXPENSE_SCHEMA;
+  const expectedHeaders = schema.HEADERS.slice();
+  const spreadsheet = Database.spreadsheet();
+  const sheetNames = Database.sheetNames();
+  const candidates = ["Expense", "Expenses"].map((name) => ({
+    name,
+    exists: sheetNames.indexOf(name) !== -1,
+  }));
+  const sheet = spreadsheet.getSheetByName(schema.TABLE);
+  log("Expense sheet discovery", {
+    configuredTable: schema.TABLE,
+    configuredExists: Boolean(sheet),
+    candidates,
+  });
+
+  if (!sheet) {
+    const blocked = {
+      assessment: "BLOCKED",
+      reasons: [`Configured sheet ${schema.TABLE} does not exist.`],
+      recommendations: {
+        headerMigrationRequired: "UNKNOWN",
+        rowDataCleanupRequired: "UNKNOWN",
+        tanggalNormalizationNeeded: "UNKNOWN",
+        nominalNormalizationNeeded: "UNKNOWN",
+        decimalNominalValuesExist: "UNKNOWN",
+        keteranganOperationallyOptional: "UNKNOWN",
+        inactiveNonDeletedRowsExist: "UNKNOWN",
+        safeControlledBackendFixturesNext: "NO",
+      },
+    };
+    log("Compatibility assessment", blocked);
+    return blocked;
+  }
+
+  const rowCount = Math.max(sheet.getLastRow() - 1, 0);
+  const columnCount = sheet.getLastColumn();
+  const values =
+    columnCount > 0 && sheet.getLastRow() > 0
+      ? sheet.getRange(1, 1, sheet.getLastRow(), columnCount).getValues()
+      : [];
+  const headers = values.length ? values[0].map((value) => String(value)) : [];
+  const rows = values.slice(1);
+  const duplicateHeaders = headers.filter(
+    (header, index) => header && headers.indexOf(header) !== index,
+  );
+  const missingHeaders = expectedHeaders.filter(
+    (header) => headers.indexOf(header) === -1,
+  );
+  const extraHeaders = headers.filter(
+    (header) => expectedHeaders.indexOf(header) === -1,
+  );
+  const reorderedHeaders = expectedHeaders.filter(
+    (header, index) =>
+      headers.indexOf(header) !== -1 && headers[index] !== header,
+  );
+  const exactHeaders =
+    JSON.stringify(headers) === JSON.stringify(expectedHeaders);
+  const legacyNames = ["Amount", "Total", "Description", "Category", "Date"];
+  const headerAudit = {
+    sheetName: sheet.getName(),
+    rowCount,
+    columnCount,
+    actualHeaders: headers,
+    expectedHeaders,
+    exactCompatibility: exactHeaders,
+    missingHeaders,
+    extraHeaders,
+    duplicateHeaders: [...new Set(duplicateHeaders)],
+    reorderedHeaders,
+    legacyFieldEvidence: headers.filter(
+      (header) => legacyNames.indexOf(header) !== -1,
+    ),
+  };
+  log("Headers", headerAudit);
+
+  const index = {};
+  headers.forEach((header, column) => {
+    if (index[header] === undefined) index[header] = column;
+  });
+  const get = (row, field) =>
+    index[field] === undefined ? undefined : row[index[field]];
+  const idAudit = {
+    blank: 0,
+    duplicate: 0,
+    unique: 0,
+    invalidPrefix: 0,
+    malformed: 0,
+    problematicSamples: [],
+  };
+  const ids = [];
+  const dateAudit = {
+    blank: 0,
+    nativeDate: 0,
+    yyyyMmDdString: 0,
+    otherStringFormat: 0,
+    invalidUnparseable: 0,
+    earliestValidDate: null,
+    latestValidDate: null,
+    problematicSamples: [],
+  };
+  const categoryAudit = {
+    blank: 0,
+    trimmedEmpty: 0,
+    over100: 0,
+    distinct: 0,
+    samples: [],
+    leadingTrailingWhitespace: 0,
+  };
+  const descriptionAudit = {
+    blank: 0,
+    trimmedEmpty: 0,
+    over255: 0,
+    leadingTrailingWhitespace: 0,
+    routinelyAbsent: false,
+  };
+  const amountAudit = {
+    blank: 0,
+    nativeNumber: 0,
+    numericString: 0,
+    nonnumeric: 0,
+    nonFinite: 0,
+    negative: 0,
+    zero: 0,
+    positive: 0,
+    decimalFractional: 0,
+    minimumValid: null,
+    maximumValid: null,
+    sumValidFinite: 0,
+    problematicSamples: [],
+  };
+  const deletedAudit = statusSummary();
+  const activeAudit = statusSummary();
+  const rowGroups = {
+    activeNonDeleted: 0,
+    inactiveNonDeleted: 0,
+    deleted: 0,
+    ambiguousInvalidStatus: 0,
+  };
+  const createdAtAudit = auditTimestamp();
+  const updatedAtAudit = auditTimestamp();
+  const createdByAudit = { blank: 0, nonblank: 0 };
+  const updatedByAudit = { blank: 0, nonblank: 0 };
+  const distinctCategories = {};
+  let earliest = null;
+  let latest = null;
+
+  rows.forEach((row) => {
+    const id = get(row, "ID");
+    if (blank(id)) idAudit.blank += 1;
+    else {
+      const normalized = String(id).trim();
+      ids.push(normalized);
+      if (normalized.indexOf(schema.ID_PREFIX) !== 0) {
+        idAudit.invalidPrefix += 1;
+        sample(idAudit.problematicSamples, normalized);
+      }
+      if (!new RegExp(`^${schema.ID_PREFIX}[A-Za-z0-9_-]+$`).test(normalized)) {
+        idAudit.malformed += 1;
+        sample(idAudit.problematicSamples, normalized);
+      }
+    }
+
+    const dateValue = get(row, "Tanggal");
+    let validDate = null;
+    if (blank(dateValue)) dateAudit.blank += 1;
+    else if (dateValue instanceof Date && !Number.isNaN(dateValue.getTime())) {
+      dateAudit.nativeDate += 1;
+      validDate = dateValue;
+    } else if (
+      typeof dateValue === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/.test(dateValue.trim())
+    ) {
+      const parts = dateValue.trim().split("-").map(Number);
+      const parsed = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+      if (
+        parsed.getUTCFullYear() === parts[0] &&
+        parsed.getUTCMonth() === parts[1] - 1 &&
+        parsed.getUTCDate() === parts[2]
+      ) {
+        dateAudit.yyyyMmDdString += 1;
+        validDate = parsed;
+      } else {
+        dateAudit.invalidUnparseable += 1;
+        sample(dateAudit.problematicSamples, dateValue);
+      }
+    } else if (
+      typeof dateValue === "string" &&
+      !Number.isNaN(Date.parse(dateValue))
+    ) {
+      dateAudit.otherStringFormat += 1;
+      validDate = new Date(dateValue);
+      sample(dateAudit.problematicSamples, dateValue);
+    } else {
+      dateAudit.invalidUnparseable += 1;
+      sample(dateAudit.problematicSamples, dateValue);
+    }
+    if (validDate) {
+      if (!earliest || validDate < earliest) earliest = validDate;
+      if (!latest || validDate > latest) latest = validDate;
+    }
+
+    const category = get(row, "Kategori");
+    if (category === null || category === undefined || category === "")
+      categoryAudit.blank += 1;
+    else {
+      const text = String(category);
+      if (text.trim() === "") categoryAudit.trimmedEmpty += 1;
+      if (text.length > 100) categoryAudit.over100 += 1;
+      if (text !== text.trim()) categoryAudit.leadingTrailingWhitespace += 1;
+      if (text.trim()) {
+        distinctCategories[text.trim()] = true;
+        sample(categoryAudit.samples, text.trim());
+      }
+    }
+
+    const description = get(row, "Keterangan");
+    if (description === null || description === undefined || description === "")
+      descriptionAudit.blank += 1;
+    else {
+      const text = String(description);
+      if (text.trim() === "") descriptionAudit.trimmedEmpty += 1;
+      if (text.length > 255) descriptionAudit.over255 += 1;
+      if (text !== text.trim()) descriptionAudit.leadingTrailingWhitespace += 1;
+    }
+
+    const amount = get(row, "Nominal");
+    let number = null;
+    if (blank(amount)) amountAudit.blank += 1;
+    else if (typeof amount === "number") {
+      amountAudit.nativeNumber += 1;
+      if (Number.isFinite(amount)) number = amount;
+      else amountAudit.nonFinite += 1;
+    } else if (
+      typeof amount === "string" &&
+      amount.trim() !== "" &&
+      Number.isFinite(Number(amount))
+    ) {
+      amountAudit.numericString += 1;
+      number = Number(amount);
+    } else {
+      amountAudit.nonnumeric += 1;
+      sample(amountAudit.problematicSamples, amount);
+    }
+    if (number !== null) {
+      if (number < 0) amountAudit.negative += 1;
+      else if (number === 0) amountAudit.zero += 1;
+      else amountAudit.positive += 1;
+      if (!Number.isInteger(number)) amountAudit.decimalFractional += 1;
+      amountAudit.minimumValid =
+        amountAudit.minimumValid === null
+          ? number
+          : Math.min(amountAudit.minimumValid, number);
+      amountAudit.maximumValid =
+        amountAudit.maximumValid === null
+          ? number
+          : Math.max(amountAudit.maximumValid, number);
+      amountAudit.sumValidFinite += number;
+    }
+
+    const deleted = get(row, "Deleted");
+    const active = get(row, "IsActive");
+    classifyStatus(deletedAudit, deleted);
+    classifyStatus(activeAudit, active);
+    const isDeleted = logicalStatus(deleted);
+    const isActive = logicalStatus(active);
+    if (isDeleted === null || isActive === null)
+      rowGroups.ambiguousInvalidStatus += 1;
+    else if (isDeleted) rowGroups.deleted += 1;
+    else if (isActive) rowGroups.activeNonDeleted += 1;
+    else rowGroups.inactiveNonDeleted += 1;
+
+    classifyTimestamp(createdAtAudit, get(row, "CreatedAt"));
+    classifyTimestamp(updatedAtAudit, get(row, "UpdatedAt"));
+    if (blank(get(row, "CreatedBy"))) createdByAudit.blank += 1;
+    else createdByAudit.nonblank += 1;
+    if (blank(get(row, "UpdatedBy"))) updatedByAudit.blank += 1;
+    else updatedByAudit.nonblank += 1;
+  });
+
+  idAudit.duplicate = countDuplicates(ids);
+  idAudit.unique = [...new Set(ids)].length;
+  dateAudit.earliestValidDate = earliest
+    ? earliest.toISOString().slice(0, 10)
+    : null;
+  dateAudit.latestValidDate = latest ? latest.toISOString().slice(0, 10) : null;
+  categoryAudit.distinct = Object.keys(distinctCategories).length;
+  descriptionAudit.routinelyAbsent =
+    rowCount > 0 &&
+    (descriptionAudit.blank + descriptionAudit.trimmedEmpty) / rowCount >= 0.5;
+  log("ID audit", idAudit);
+  log("Tanggal audit", dateAudit);
+  log("Kategori audit", categoryAudit);
+  log("Keterangan audit", descriptionAudit);
+  log("Nominal audit", amountAudit);
+  log("Deleted and IsActive audit", {
+    Deleted: deletedAudit,
+    IsActive: activeAudit,
+    logicalRowGroups: rowGroups,
+  });
+  log("Audit fields", {
+    CreatedAt: createdAtAudit,
+    UpdatedAt: updatedAtAudit,
+    CreatedBy: createdByAudit,
+    UpdatedBy: updatedByAudit,
+  });
+
+  const headerIssues = !exactHeaders;
+  const dataIssues =
+    idAudit.blank ||
+    idAudit.duplicate ||
+    idAudit.invalidPrefix ||
+    idAudit.malformed ||
+    dateAudit.blank ||
+    dateAudit.otherStringFormat ||
+    dateAudit.invalidUnparseable ||
+    categoryAudit.blank ||
+    categoryAudit.trimmedEmpty ||
+    categoryAudit.over100 ||
+    categoryAudit.leadingTrailingWhitespace ||
+    descriptionAudit.blank ||
+    descriptionAudit.trimmedEmpty ||
+    descriptionAudit.over255 ||
+    descriptionAudit.leadingTrailingWhitespace ||
+    amountAudit.blank ||
+    amountAudit.numericString ||
+    amountAudit.nonnumeric ||
+    amountAudit.nonFinite ||
+    amountAudit.negative ||
+    rowGroups.ambiguousInvalidStatus ||
+    createdAtAudit.invalid ||
+    updatedAtAudit.invalid;
+  const schemaDecision = descriptionAudit.routinelyAbsent;
+  const assessment = headerIssues
+    ? "NEEDS_HEADER_MIGRATION"
+    : schemaDecision
+      ? "NEEDS_SCHEMA_DECISION"
+      : dataIssues
+        ? "NEEDS_DATA_CLEANUP"
+        : "SAFE_TO_HARDEN";
+  const result = {
+    assessment,
+    reasons: [
+      ...(headerIssues ? ["Configured headers are not an exact match."] : []),
+      ...(schemaDecision
+        ? ["Keterangan is absent in at least half of live rows."]
+        : []),
+      ...(dataIssues
+        ? ["One or more row-quality checks require cleanup."]
+        : []),
+    ],
+    recommendations: {
+      headerMigrationRequired: headerIssues ? "YES" : "NO",
+      rowDataCleanupRequired: dataIssues ? "YES" : "NO",
+      tanggalNormalizationNeeded:
+        dateAudit.otherStringFormat || dateAudit.invalidUnparseable
+          ? "YES"
+          : "NO",
+      nominalNormalizationNeeded:
+        amountAudit.numericString ||
+        amountAudit.nonnumeric ||
+        amountAudit.nonFinite
+          ? "YES"
+          : "NO",
+      decimalNominalValuesExist: amountAudit.decimalFractional ? "YES" : "NO",
+      keteranganOperationallyOptional: descriptionAudit.routinelyAbsent
+        ? "YES"
+        : "NO",
+      inactiveNonDeletedRowsExist: rowGroups.inactiveNonDeleted ? "YES" : "NO",
+      safeControlledBackendFixturesNext:
+        assessment === "SAFE_TO_HARDEN" ? "YES" : "NO",
+    },
+  };
+  log("Compatibility assessment", result);
+  return {
+    ...result,
+    sheetDiscovery: { configuredTable: schema.TABLE, candidates },
+    headerAudit,
+    idAudit,
+    dateAudit,
+    categoryAudit,
+    descriptionAudit,
+    amountAudit,
+    statusAudit: {
+      Deleted: deletedAudit,
+      IsActive: activeAudit,
+      logicalRowGroups: rowGroups,
+    },
+    auditFields: {
+      CreatedAt: createdAtAudit,
+      UpdatedAt: updatedAtAudit,
+      CreatedBy: createdByAudit,
+      UpdatedBy: updatedByAudit,
+    },
+  };
+}
+
+function expenseTestDocument(changes) {
+  return Object.assign(
+    {
+      Tanggal: "2026-07-18",
+      Kategori: `Expense Test ${new Date().getTime()}_${Math.floor(Math.random() * 100000)}`,
+      Keterangan: "Controlled Expense fixture",
+      Nominal: 10,
+    },
+    changes || {},
+  );
+}
+
+function expenseRawById(id) {
+  return (
+    RepositoryBase.mapRows(
+      EXPENSE_SCHEMA,
+      RepositoryReader.raw(EXPENSE_SCHEMA),
+    ).find((row) => row.ID === id) || null
+  );
+}
+
+function expenseAssertFailure(response, message) {
+  if (!response || response.success !== false || response.data !== null)
+    throw new Error(message);
+}
+
+function expenseWithFixture(test, document) {
+  let row = null;
+  try {
+    const response = ExpenseService().create(document || expenseTestDocument());
+    if (!response.success)
+      throw new Error(`Could not create Expense fixture: ${response.message}`);
+    row = response.data;
+    test(row);
+  } finally {
+    if (row) {
+      const stored = expenseRawById(row.ID);
+      if (stored && stored.Deleted !== true) {
+        RepositoryWriter.update(EXPENSE_SCHEMA, row.ID, {
+          Deleted: false,
+          IsActive: true,
+        });
+        ExpenseService().remove(row.ID);
+      }
+      Logger.log(`CLEANUP: Expense fixture ${row.ID} is soft-deleted.`);
+    }
+  }
+}
+
+function testExpenseServicePublicApi() {
+  const actual = Object.keys(ExpenseService()).sort();
+  const expected = [
+    "create",
+    "findAll",
+    "findById",
+    "findDeleted",
+    "remove",
+    "restore",
+    "statistics",
+    "update",
+  ].sort();
+  if (JSON.stringify(actual) !== JSON.stringify(expected))
+    throw new Error("ExpenseService public API is invalid.");
+}
+
+function testExpenseValidationAndNormalization() {
+  expenseAssertFailure(
+    ExpenseService().create(null),
+    "Expense create must require an object.",
+  );
+  [NaN, Infinity, -Infinity, -1].forEach((value) =>
+    expenseAssertFailure(
+      ExpenseService().create(expenseTestDocument({ Nominal: value })),
+      "Invalid Nominal must be rejected.",
+    ),
+  );
+  expenseAssertFailure(
+    ExpenseService().create(expenseTestDocument({ Tanggal: "2026-02-30" })),
+    "Invalid date must fail.",
+  );
+  expenseAssertFailure(
+    ExpenseService().create(expenseTestDocument({ Kategori: "  " })),
+    "Blank Kategori must fail.",
+  );
+  expenseAssertFailure(
+    ExpenseService().create(expenseTestDocument({ Keterangan: "  " })),
+    "Blank Keterangan must fail.",
+  );
+}
+
+function testExpenseCreateNormalization() {
+  [
+    { input: 0, expected: 0 },
+    { input: 10.75, expected: 10.75 },
+    { input: "12.5", expected: 12.5 },
+  ].forEach((sample) =>
+    expenseWithFixture(
+      (row) => {
+        if (row.Nominal !== sample.expected || typeof row.Nominal !== "number")
+          throw new Error("Nominal normalization failed.");
+      },
+      expenseTestDocument({ Nominal: sample.input }),
+    ),
+  );
+}
+
+function testExpenseUpdateValidationAndNormalization() {
+  expenseAssertFailure(
+    ExpenseService().update("", {}),
+    "Expense update must require ID.",
+  );
+  expenseWithFixture((row) => {
+    expenseAssertFailure(
+      ExpenseService().update(row.ID, { ID: "EX_OTHER" }),
+      "Update must require an editable field.",
+    );
+    const response = ExpenseService().update(row.ID, {
+      Kategori: " Updated ",
+      Nominal: "17.25",
+    });
+    if (
+      !response.success ||
+      response.data.Kategori !== "Updated" ||
+      response.data.Nominal !== 17.25 ||
+      typeof response.data.Nominal !== "number"
+    ) {
+      throw new Error("Expense update normalization failed.");
+    }
+  });
+}
+
+function testExpenseSoftDeleteAndActiveReads() {
+  expenseWithFixture((row) => {
+    RepositoryWriter.update(EXPENSE_SCHEMA, row.ID, { IsActive: false });
+    if (
+      ExpenseService()
+        .findAll()
+        .data.some((item) => item.ID === row.ID) ||
+      ExpenseService().findById(row.ID).success
+    ) {
+      throw new Error("Inactive Expense appeared in active reads.");
+    }
+    expenseAssertFailure(
+      ExpenseService().remove(row.ID),
+      "Inactive Expense remove must fail.",
+    );
+    RepositoryWriter.update(EXPENSE_SCHEMA, row.ID, { IsActive: true });
+    if (!ExpenseService().remove(row.ID).success)
+      throw new Error("Expense soft delete failed.");
+    const stored = expenseRawById(row.ID);
+    if (!stored || stored.Deleted !== true || stored.IsActive !== false)
+      throw new Error("Soft-delete state is invalid.");
+  });
+}
+
+function testExpenseFindDeleted() {
+  const emptyShape = ExpenseService().findDeleted();
+  if (!emptyShape.success || !Array.isArray(emptyShape.data))
+    throw new Error("findDeleted response is invalid.");
+  expenseWithFixture((row) => {
+    if (
+      ExpenseService()
+        .findDeleted()
+        .data.some((item) => item.ID === row.ID)
+    )
+      throw new Error("Active Expense appeared in Trash.");
+    ExpenseService().remove(row.ID);
+    const deleted = ExpenseService().findDeleted().data;
+    if (
+      !deleted.some((item) => item.ID === row.ID) ||
+      deleted.some((item) => item.Deleted !== true)
+    )
+      throw new Error("findDeleted filtering failed.");
+  });
+}
+
+function testExpenseRestoreValid() {
+  expenseWithFixture((row) => {
+    ExpenseService().remove(row.ID);
+    const response = ExpenseService().restore(row.ID);
+    if (
+      !response.success ||
+      response.data.Deleted !== false ||
+      response.data.IsActive !== true
+    )
+      throw new Error("Expense restore failed.");
+  });
+}
+
+function testExpenseRestoreRejectsInvalidStates() {
+  expenseWithFixture((row) => {
+    expenseAssertFailure(
+      ExpenseService().restore(row.ID),
+      "Restore must reject active Expense.",
+    );
+    RepositoryWriter.update(EXPENSE_SCHEMA, row.ID, { IsActive: false });
+    expenseAssertFailure(
+      ExpenseService().restore(row.ID),
+      "Restore must reject inactive non-deleted Expense.",
+    );
+  });
+}
+
+function testExpenseRestoreRejectsInvalidStoredRow() {
+  expenseWithFixture((row) => {
+    ExpenseService().remove(row.ID);
+    RepositoryWriter.update(EXPENSE_SCHEMA, row.ID, { Nominal: "invalid" });
+    expenseAssertFailure(
+      ExpenseService().restore(row.ID),
+      "Restore must reject invalid stored Expense.",
+    );
+  });
+}
+
+function testExpenseStatisticsAndDashboardCompatibility() {
+  const response = ExpenseService().statistics();
+  const data = response && response.data;
+  if (
+    !response ||
+    !response.success ||
+    !data ||
+    [data.total, data.active, data.inactive].some(
+      (value) => typeof value !== "number",
+    ) ||
+    data.total !== data.active + data.inactive
+  ) {
+    throw new Error("Expense statistics shape is invalid.");
+  }
+  expenseWithFixture((row) => {
+    const baseline = ExpenseService().statistics().data;
+    RepositoryWriter.update(EXPENSE_SCHEMA, row.ID, { IsActive: false });
+    const inactive = ExpenseService().statistics().data;
+    if (
+      inactive.total !== baseline.total ||
+      inactive.active !== baseline.active - 1 ||
+      inactive.inactive !== baseline.inactive + 1
+    )
+      throw new Error("Inactive statistics failed.");
+    RepositoryWriter.update(EXPENSE_SCHEMA, row.ID, { IsActive: true });
+    ExpenseService().remove(row.ID);
+    if (ExpenseService().statistics().data.total !== baseline.total - 1)
+      throw new Error("Deleted Expense was counted.");
+  });
 }
 
 function auditPurchasingData() {
@@ -2029,23 +2914,49 @@ function auditPurchasingData() {
     const spreadsheet = Database.spreadsheet();
     const candidateNames = ["Purchases", "Purchasings"];
     const targetHeaders = [
-      "ID", "Tanggal", "SupplierID", "ProductID", "Qty", "Harga", "Total",
-      "Deleted", "IsActive", "CreatedAt", "CreatedBy", "UpdatedAt", "UpdatedBy",
+      "ID",
+      "Tanggal",
+      "SupplierID",
+      "ProductID",
+      "Qty",
+      "Harga",
+      "Total",
+      "Deleted",
+      "IsActive",
+      "CreatedAt",
+      "CreatedBy",
+      "UpdatedAt",
+      "UpdatedBy",
     ];
-    const sheets = candidateNames.map((name) => spreadsheet.getSheetByName(name));
+    const sheets = candidateNames.map((name) =>
+      spreadsheet.getSheetByName(name),
+    );
     const found = sheets.filter(Boolean);
     const blocking = [];
     purchasingAuditLog("SECTION", "Sheet discovery");
     candidateNames.forEach((name, index) => {
       const sheet = sheets[index];
-      purchasingAuditLog(sheet ? "PASS" : "WARN", `${name}: ${sheet ? "exists" : "missing"}`, sheet ? {
-        rowCount: purchasingAuditObjects(sheet).rows.length, columnCount: sheet.getLastColumn(),
-      } : undefined);
+      purchasingAuditLog(
+        sheet ? "PASS" : "WARN",
+        `${name}: ${sheet ? "exists" : "missing"}`,
+        sheet
+          ? {
+              rowCount: purchasingAuditObjects(sheet).rows.length,
+              columnCount: sheet.getLastColumn(),
+            }
+          : undefined,
+      );
     });
-    if (found.length === 2) blocking.push("Both Purchases and Purchasings exist; canonical sheet is ambiguous.");
-    if (found.length === 0) blocking.push("Neither Purchases nor Purchasings exists.");
+    if (found.length === 2)
+      blocking.push(
+        "Both Purchases and Purchasings exist; canonical sheet is ambiguous.",
+      );
+    if (found.length === 0)
+      blocking.push("Neither Purchases nor Purchasings exists.");
     if (found.length === 1 && found[0].getName() === "Purchasings") {
-      blocking.push("Only Purchasings exists; sheet rename or source configuration requires a decision.");
+      blocking.push(
+        "Only Purchasings exists; sheet rename or source configuration requires a decision.",
+      );
     }
 
     purchasingAuditLog("SECTION", "Master relation sources");
@@ -2053,10 +2964,18 @@ function auditPurchasingData() {
       partners: purchasingAuditMaster(spreadsheet, PARTNER_SCHEMA),
       products: purchasingAuditMaster(spreadsheet, PRODUCT_SCHEMA),
     };
-    if (!masters.partners.available) blocking.push(`Partner sheet ${PARTNER_SCHEMA.TABLE} is missing.`);
-    if (!masters.products.available) blocking.push(`Product sheet ${PRODUCT_SCHEMA.TABLE} is missing.`);
-    purchasingAuditLog(masters.partners.available ? "PASS" : "FAIL", `Partner source ${PARTNER_SCHEMA.TABLE}`);
-    purchasingAuditLog(masters.products.available ? "PASS" : "FAIL", `Product source ${PRODUCT_SCHEMA.TABLE}`);
+    if (!masters.partners.available)
+      blocking.push(`Partner sheet ${PARTNER_SCHEMA.TABLE} is missing.`);
+    if (!masters.products.available)
+      blocking.push(`Product sheet ${PRODUCT_SCHEMA.TABLE} is missing.`);
+    purchasingAuditLog(
+      masters.partners.available ? "PASS" : "FAIL",
+      `Partner source ${PARTNER_SCHEMA.TABLE}`,
+    );
+    purchasingAuditLog(
+      masters.products.available ? "PASS" : "FAIL",
+      `Product source ${PRODUCT_SCHEMA.TABLE}`,
+    );
 
     const audits = [];
     found.forEach((sheet) => {
@@ -2064,64 +2983,146 @@ function auditPurchasingData() {
       try {
         const audit = purchasingAuditCandidate(sheet, masters, targetHeaders);
         audits.push(audit);
-        purchasingAuditLog(audit.header.compatible ? "PASS" : "FAIL", "Header contract", {
-          exact: audit.headers, missing: audit.header.missing, extra: audit.header.extra,
-          duplicated: audit.header.duplicated, reordered: audit.header.reordered, blank: audit.header.blank,
-        });
+        purchasingAuditLog(
+          audit.header.compatible ? "PASS" : "FAIL",
+          "Header contract",
+          {
+            exact: audit.headers,
+            missing: audit.header.missing,
+            extra: audit.header.extra,
+            duplicated: audit.header.duplicated,
+            reordered: audit.header.reordered,
+            blank: audit.header.blank,
+          },
+        );
         purchasingAuditLog("PASS", "Aggregate row audit", {
-          rows: audit.rowCount, blankIds: audit.blankIds, duplicateIds: audit.duplicateIds,
-          invalidPrefix: audit.invalidPrefix, blankRequired: audit.blankRequired,
-          invalidQty: audit.invalidQty, invalidHarga: audit.invalidHarga, invalidTotal: audit.invalidTotal,
+          rows: audit.rowCount,
+          blankIds: audit.blankIds,
+          duplicateIds: audit.duplicateIds,
+          invalidPrefix: audit.invalidPrefix,
+          blankRequired: audit.blankRequired,
+          invalidQty: audit.invalidQty,
+          invalidHarga: audit.invalidHarga,
+          invalidTotal: audit.invalidTotal,
         });
-        purchasingAuditLog(audit.totalMismatches || audit.totalFormulaCells ? "WARN" : "PASS", "Total behavior", {
-          mismatches: audit.totalMismatches, formulaCells: audit.totalFormulaCells, mode: audit.totalMode,
-          tolerance: audit.decimalToleranceUsed ? "relative 1e-9 for decimal values" : "exact integer comparison",
-        });
+        purchasingAuditLog(
+          audit.totalMismatches || audit.totalFormulaCells ? "WARN" : "PASS",
+          "Total behavior",
+          {
+            mismatches: audit.totalMismatches,
+            formulaCells: audit.totalFormulaCells,
+            mode: audit.totalMode,
+            tolerance: audit.decimalToleranceUsed
+              ? "relative 1e-9 for decimal values"
+              : "exact integer comparison",
+          },
+        );
         purchasingAuditLog("PASS", "Status variants", audit.statuses);
         purchasingAuditLog("PASS", "Relation integrity", {
-          supplier: audit.supplier, product: audit.product,
-          masterSourcesAvailable: { partners: masters.partners.available, products: masters.products.available },
+          supplier: audit.supplier,
+          product: audit.product,
+          masterSourcesAvailable: {
+            partners: masters.partners.available,
+            products: masters.products.available,
+          },
         });
-        purchasingAuditLog(audit.grouping.evidence === "NONE" ? "PASS" : "WARN", "Header-detail evidence", audit.grouping);
-        purchasingAuditLog("PASS", "Safe anonymized row-shape samples", audit.samples);
-        if (!audit.header.compatible) blocking.push(`${audit.sheet} headers do not match the source target contract.`);
-        if (audit.totalFormulaCells > 0) blocking.push(`${audit.sheet} has formula-backed Total cells; Total authority requires a decision.`);
-        if (audit.totalMismatches > 0) blocking.push(`${audit.sheet} has Total values that do not match Qty x Harga.`);
+        purchasingAuditLog(
+          audit.grouping.evidence === "NONE" ? "PASS" : "WARN",
+          "Header-detail evidence",
+          audit.grouping,
+        );
+        purchasingAuditLog(
+          "PASS",
+          "Safe anonymized row-shape samples",
+          audit.samples,
+        );
+        if (!audit.header.compatible)
+          blocking.push(
+            `${audit.sheet} headers do not match the source target contract.`,
+          );
+        if (audit.totalFormulaCells > 0)
+          blocking.push(
+            `${audit.sheet} has formula-backed Total cells; Total authority requires a decision.`,
+          );
+        if (audit.totalMismatches > 0)
+          blocking.push(
+            `${audit.sheet} has Total values that do not match Qty x Harga.`,
+          );
       } catch (error) {
-        blocking.push(`${sheet.getName()} could not be fully audited: ${error.message}`);
-        purchasingAuditLog("FAIL", `${sheet.getName()} candidate audit`, { error: error.message });
+        blocking.push(
+          `${sheet.getName()} could not be fully audited: ${error.message}`,
+        );
+        purchasingAuditLog("FAIL", `${sheet.getName()} candidate audit`, {
+          error: error.message,
+        });
       }
     });
 
-    const canonical = found.length === 1 ? (found[0].getName() === "Purchases" ? "Purchases" : "Purchases (source target; deployed sheet is Purchasings)") : "UNRESOLVED";
+    const canonical =
+      found.length === 1
+        ? found[0].getName() === "Purchases"
+          ? "Purchases"
+          : "Purchases (source target; deployed sheet is Purchasings)"
+        : "UNRESOLVED";
     const audit = audits.length === 1 ? audits[0] : null;
-    const invalidData = audit && (
-      audit.blankIds || audit.duplicateIds || audit.invalidPrefix ||
-      Object.values(audit.blankRequired).some(Boolean) ||
-      Object.values(audit.invalidQty).some(Boolean) || Object.values(audit.invalidHarga).some(Boolean) ||
-      Object.values(audit.invalidTotal).some(Boolean) || audit.totalMismatches ||
-      audit.supplier.missing || audit.supplier.notSupplier || audit.product.missing
-    );
+    const invalidData =
+      audit &&
+      (audit.blankIds ||
+        audit.duplicateIds ||
+        audit.invalidPrefix ||
+        Object.values(audit.blankRequired).some(Boolean) ||
+        Object.values(audit.invalidQty).some(Boolean) ||
+        Object.values(audit.invalidHarga).some(Boolean) ||
+        Object.values(audit.invalidTotal).some(Boolean) ||
+        audit.totalMismatches ||
+        audit.supplier.missing ||
+        audit.supplier.notSupplier ||
+        audit.product.missing);
     const dataMigration = !audit
       ? "UNCERTAIN"
-      : (!audit.header.compatible || invalidData ? "YES" : (audit.totalFormulaCells ? "UNCERTAIN" : "NO"));
-    const renameRequired = found.length !== 1 ? "UNCERTAIN" : (found[0].getName() === "Purchases" ? "NO" : "YES");
-    const relationIssues = audit ? {
-      supplier: audit.supplier, product: audit.product,
-    } : "UNCERTAIN";
+      : !audit.header.compatible || invalidData
+        ? "YES"
+        : audit.totalFormulaCells
+          ? "UNCERTAIN"
+          : "NO";
+    const renameRequired =
+      found.length !== 1
+        ? "UNCERTAIN"
+        : found[0].getName() === "Purchases"
+          ? "NO"
+          : "YES";
+    const relationIssues = audit
+      ? {
+          supplier: audit.supplier,
+          product: audit.product,
+        }
+      : "UNCERTAIN";
     const safe = Boolean(
-      audit && audit.sheet === "Purchases" && audit.header.compatible &&
-      audit.totalFormulaCells === 0 && audit.totalMismatches === 0 && blocking.length === 0,
+      audit &&
+      audit.sheet === "Purchases" &&
+      audit.header.compatible &&
+      audit.totalFormulaCells === 0 &&
+      audit.totalMismatches === 0 &&
+      blocking.length === 0,
     );
     purchasingAuditLog("SECTION", "Final summary");
     purchasingAuditLog(safe ? "PASS" : "FAIL", "Purchasing audit conclusion", {
       candidateSheetFound: found.map((sheet) => sheet.getName()),
       canonicalSheetRecommendation: canonical,
-      headerCompatibility: audit ? (audit.header.compatible ? "COMPATIBLE" : "INCOMPATIBLE") : "UNCERTAIN",
+      headerCompatibility: audit
+        ? audit.header.compatible
+          ? "COMPATIBLE"
+          : "INCOMPATIBLE"
+        : "UNCERTAIN",
       dataMigrationRequired: dataMigration,
       sheetRenameRequired: renameRequired,
-      totalFormulasPresent: audits.some((item) => item.totalFormulaCells > 0) ? "YES" : "NO",
-      totalMismatchesCount: audits.reduce((sum, item) => sum + item.totalMismatches, 0),
+      totalFormulasPresent: audits.some((item) => item.totalFormulaCells > 0)
+        ? "YES"
+        : "NO",
+      totalMismatchesCount: audits.reduce(
+        (sum, item) => sum + item.totalMismatches,
+        0,
+      ),
       relationIssuesSummary: relationIssues,
       headerDetailEvidence: audit ? audit.grouping.evidence : "UNCERTAIN",
       safeToBeginBackendHardening: safe ? "YES" : "NO",
@@ -2130,8 +3131,13 @@ function auditPurchasingData() {
     purchasingAuditLog("COMPLETE", "Purchasing live-data audit");
     return { success: safe, audits, blockingIssues: blocking };
   } catch (error) {
-    purchasingAuditLog("FAIL", "Unexpected Purchasing audit error", { error: error.message });
-    purchasingAuditLog("COMPLETE", "Purchasing live-data audit with unexpected error");
+    purchasingAuditLog("FAIL", "Unexpected Purchasing audit error", {
+      error: error.message,
+    });
+    purchasingAuditLog(
+      "COMPLETE",
+      "Purchasing live-data audit with unexpected error",
+    );
     throw error;
   }
 }
@@ -2140,17 +3146,24 @@ function assertReturnRestoreRejectsInactiveRelation(relation) {
   const transaction = createPickupUpdateTestTransaction(1);
   if (!transaction) return;
   const detail = transaction.details[0];
-  const fixture = { detail, available: Number(detail[PICKUP_DETAIL_FIELDS.QTY]) };
+  const fixture = {
+    detail,
+    available: Number(detail[PICKUP_DETAIL_FIELDS.QTY]),
+  };
   const row = createReturnTestRow(fixture);
-  const schema = relation === "header" ? PICKUP_HEADER_SCHEMA : PICKUP_DETAIL_SCHEMA;
-  const id = relation === "header"
-    ? transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]
-    : detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY];
+  const schema =
+    relation === "header" ? PICKUP_HEADER_SCHEMA : PICKUP_DETAIL_SCHEMA;
+  const id =
+    relation === "header"
+      ? transaction.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]
+      : detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY];
   let relationDeleted = false;
 
   try {
     if (!ReturnService().remove(row.ID).success) {
-      throw new Error("Return fixture could not be deleted before restore validation.");
+      throw new Error(
+        "Return fixture could not be deleted before restore validation.",
+      );
     }
 
     if (!RepositoryWriter.softDelete(schema, id)) {
@@ -2159,11 +3172,15 @@ function assertReturnRestoreRejectsInactiveRelation(relation) {
     relationDeleted = true;
 
     if (ReturnService().restore(row.ID).success) {
-      throw new Error(`Return restore must reject an inactive Pickup ${relation}.`);
+      throw new Error(
+        `Return restore must reject an inactive Pickup ${relation}.`,
+      );
     }
   } finally {
     if (relationDeleted && !RepositoryWriter.restore(schema, id)) {
-      throw new Error(`Pickup ${relation} fixture could not be restored after validation.`);
+      throw new Error(
+        `Pickup ${relation} fixture could not be restored after validation.`,
+      );
     }
 
     if (ReturnService().findById(row.ID).success) {
@@ -2186,13 +3203,26 @@ function testReturnCreateValid() {
   const row = createReturnTestRow(fixture);
 
   try {
-    if (row[RETURN_SCHEMA.SYSTEM.IS_DELETED] !== false) throw new Error("Created Return must not be deleted.");
-    if (row[RETURN_SCHEMA.SYSTEM.IS_ACTIVE] !== true) throw new Error("Created Return must be active.");
-    if (!row[RETURN_SCHEMA.PRIMARY_KEY]) throw new Error("Created Return must have an ID.");
-    if (row[RETURN_FIELDS.PICKUP_ID] !== fixture.detail[PICKUP_DETAIL_FIELDS.PICKUP_ID]) throw new Error("Created Return has an invalid PickupID.");
-    if (row[RETURN_FIELDS.PICKUP_DETAIL_ID] !== fixture.detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]) throw new Error("Created Return has an invalid PickupDetailID.");
-    if (normalizeReturnTestDate(row[RETURN_FIELDS.DATE]) !== "2026-07-17") throw new Error("Created Return has an invalid Tanggal.");
-    if (Number(row[RETURN_FIELDS.QTY]) !== 1) throw new Error("Created Return has an invalid Qty.");
+    if (row[RETURN_SCHEMA.SYSTEM.IS_DELETED] !== false)
+      throw new Error("Created Return must not be deleted.");
+    if (row[RETURN_SCHEMA.SYSTEM.IS_ACTIVE] !== true)
+      throw new Error("Created Return must be active.");
+    if (!row[RETURN_SCHEMA.PRIMARY_KEY])
+      throw new Error("Created Return must have an ID.");
+    if (
+      row[RETURN_FIELDS.PICKUP_ID] !==
+      fixture.detail[PICKUP_DETAIL_FIELDS.PICKUP_ID]
+    )
+      throw new Error("Created Return has an invalid PickupID.");
+    if (
+      row[RETURN_FIELDS.PICKUP_DETAIL_ID] !==
+      fixture.detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]
+    )
+      throw new Error("Created Return has an invalid PickupDetailID.");
+    if (normalizeReturnTestDate(row[RETURN_FIELDS.DATE]) !== "2026-07-17")
+      throw new Error("Created Return has an invalid Tanggal.");
+    if (Number(row[RETURN_FIELDS.QTY]) !== 1)
+      throw new Error("Created Return has an invalid Qty.");
   } finally {
     cleanupReturnTestRow(row);
   }
@@ -2204,7 +3234,11 @@ function testReturnCreateDerivesPickupId() {
   const row = createReturnTestRow(fixture);
 
   try {
-    if (row[RETURN_FIELDS.PICKUP_ID] !== fixture.detail[PICKUP_DETAIL_FIELDS.PICKUP_ID]) throw new Error("Return did not derive PickupID.");
+    if (
+      row[RETURN_FIELDS.PICKUP_ID] !==
+      fixture.detail[PICKUP_DETAIL_FIELDS.PICKUP_ID]
+    )
+      throw new Error("Return did not derive PickupID.");
   } finally {
     cleanupReturnTestRow(row);
   }
@@ -2213,8 +3247,13 @@ function testReturnCreateDerivesPickupId() {
 function testReturnCreateRejectsOverQuantity() {
   const fixture = returnTestFixture();
   if (!fixture) return;
-  const response = ReturnService().create({ PickupDetailID: fixture.detail.ID, Tanggal: "2026-07-17", Qty: fixture.available + 1 });
-  if (response.success) throw new Error("Return create must reject over quantity.");
+  const response = ReturnService().create({
+    PickupDetailID: fixture.detail.ID,
+    Tanggal: "2026-07-17",
+    Qty: fixture.available + 1,
+  });
+  if (response.success)
+    throw new Error("Return create must reject over quantity.");
 }
 
 function testReturnCreateUsesCumulativeQuantity() {
@@ -2223,8 +3262,13 @@ function testReturnCreateUsesCumulativeQuantity() {
   const first = createReturnTestRow(fixture, fixture.available);
 
   try {
-    const response = ReturnService().create({ PickupDetailID: fixture.detail.ID, Tanggal: "2026-07-17", Qty: 1 });
-    if (response.success) throw new Error("Return create must enforce cumulative quantity.");
+    const response = ReturnService().create({
+      PickupDetailID: fixture.detail.ID,
+      Tanggal: "2026-07-17",
+      Qty: 1,
+    });
+    if (response.success)
+      throw new Error("Return create must enforce cumulative quantity.");
   } finally {
     cleanupReturnTestRow(first);
   }
@@ -2236,7 +3280,11 @@ function testReturnUpdateValid() {
   const row = createReturnTestRow(fixture);
 
   try {
-    const response = ReturnService().update(row.ID, { Tanggal: "2026-07-18", Qty: 1, Keterangan: "Updated" });
+    const response = ReturnService().update(row.ID, {
+      Tanggal: "2026-07-18",
+      Qty: 1,
+      Keterangan: "Updated",
+    });
     if (!response.success) throw new Error("Return update should succeed.");
   } finally {
     cleanupReturnTestRow(row);
@@ -2249,8 +3297,17 @@ function testReturnUpdatePreservesRelation() {
   const row = createReturnTestRow(fixture);
 
   try {
-    const response = ReturnService().update(row.ID, { PickupID: "PH_CHANGED", PickupDetailID: "PD_CHANGED", Qty: 1 });
-    if (!response.success || response.data.PickupID !== row.PickupID || response.data.PickupDetailID !== row.PickupDetailID) throw new Error("Return update changed immutable relations.");
+    const response = ReturnService().update(row.ID, {
+      PickupID: "PH_CHANGED",
+      PickupDetailID: "PD_CHANGED",
+      Qty: 1,
+    });
+    if (
+      !response.success ||
+      response.data.PickupID !== row.PickupID ||
+      response.data.PickupDetailID !== row.PickupDetailID
+    )
+      throw new Error("Return update changed immutable relations.");
   } finally {
     cleanupReturnTestRow(row);
   }
@@ -2263,7 +3320,8 @@ function testReturnUpdateExcludesCurrentQty() {
 
   try {
     const response = ReturnService().update(row.ID, { Qty: fixture.available });
-    if (!response.success) throw new Error("Return update double-counted its own Qty.");
+    if (!response.success)
+      throw new Error("Return update double-counted its own Qty.");
   } finally {
     cleanupReturnTestRow(row);
   }
@@ -2275,8 +3333,11 @@ function testReturnUpdateRejectsOverQuantity() {
   const row = createReturnTestRow(fixture);
 
   try {
-    const response = ReturnService().update(row.ID, { Qty: fixture.available + 1 });
-    if (response.success) throw new Error("Return update must reject over quantity.");
+    const response = ReturnService().update(row.ID, {
+      Qty: fixture.available + 1,
+    });
+    if (response.success)
+      throw new Error("Return update must reject over quantity.");
   } finally {
     cleanupReturnTestRow(row);
   }
@@ -2291,7 +3352,8 @@ function testReturnRemoveReleasesQuantity() {
 
   try {
     const response = ReturnService().remove(row.ID);
-    if (!response.success) throw new Error("Return remove should release quantity.");
+    if (!response.success)
+      throw new Error("Return remove should release quantity.");
     removed = true;
     replacement = createReturnTestRow(fixture, fixture.available);
   } finally {
@@ -2320,9 +3382,13 @@ function testReturnRemoveSoftDeleteState() {
       !stored ||
       stored[RETURN_SCHEMA.SYSTEM.IS_DELETED] !== true ||
       stored[RETURN_SCHEMA.SYSTEM.IS_ACTIVE] !== false ||
-      ReturnService().findAll().data.some((item) => item.ID === row.ID)
+      ReturnService()
+        .findAll()
+        .data.some((item) => item.ID === row.ID)
     ) {
-      throw new Error("Return remove did not produce the required soft-delete state.");
+      throw new Error(
+        "Return remove did not produce the required soft-delete state.",
+      );
     }
   } finally {
     if (!removed) cleanupReturnTestRow(row);
@@ -2352,11 +3418,15 @@ function testReturnRestoreRejectsOverQuantity() {
 
   try {
     const removed = ReturnService().remove(deleted.ID);
-    if (!removed.success) throw new Error("Return remove should succeed before restore validation.");
+    if (!removed.success)
+      throw new Error(
+        "Return remove should succeed before restore validation.",
+      );
     deletedRowRemoved = true;
     active = createReturnTestRow(fixture, fixture.available);
     const response = ReturnService().restore(deleted.ID);
-    if (response.success) throw new Error("Return restore must reject over quantity.");
+    if (response.success)
+      throw new Error("Return restore must reject over quantity.");
   } finally {
     cleanupReturnTestRow(active);
     if (!deletedRowRemoved) cleanupReturnTestRow(deleted);
@@ -2370,7 +3440,14 @@ function testReturnFindByIdResolvedData() {
 
   try {
     const response = ReturnService().findById(row.ID);
-    if (!response.success || !response.data.return || !response.data.pickupHeader || !response.data.pickupDetail || typeof response.data.availableQty !== "number") throw new Error("Return findById response is invalid.");
+    if (
+      !response.success ||
+      !response.data.return ||
+      !response.data.pickupHeader ||
+      !response.data.pickupDetail ||
+      typeof response.data.availableQty !== "number"
+    )
+      throw new Error("Return findById response is invalid.");
   } finally {
     cleanupReturnTestRow(row);
   }
@@ -2411,8 +3488,9 @@ function createManualPurchasingFixture() {
     return (
       manualPurchasingStatusFalse(partner[PARTNER_SCHEMA.SYSTEM.IS_DELETED]) &&
       manualPurchasingStatusTrue(partner[PARTNER_SCHEMA.SYSTEM.IS_ACTIVE]) &&
-      String(partner[PARTNER_FIELDS.TYPE] || "").trim().toLowerCase() ===
-        "supplier"
+      String(partner[PARTNER_FIELDS.TYPE] || "")
+        .trim()
+        .toLowerCase() === "supplier"
     );
   });
 
@@ -2447,8 +3525,7 @@ function createManualPurchasingFixture() {
       APP_CONFIG.TIMEZONE,
       "yyyy-MM-dd",
     ),
-    [PURCHASING_FIELDS.SUPPLIER_ID]:
-      supplier[PARTNER_SCHEMA.PRIMARY_KEY],
+    [PURCHASING_FIELDS.SUPPLIER_ID]: supplier[PARTNER_SCHEMA.PRIMARY_KEY],
     [PURCHASING_FIELDS.PRODUCT_ID]: product[PRODUCT_SCHEMA.PRIMARY_KEY],
     [PURCHASING_FIELDS.QTY]: 2,
     [PURCHASING_FIELDS.PRICE]: 10000,
@@ -2550,7 +3627,8 @@ function purchasingTestMasterData(partnerType) {
     Telepon: suffix,
     Jenis: partnerType || "Supplier",
   });
-  if (!partnerResponse.success) throw new Error("Could not create controlled Partner fixture.");
+  if (!partnerResponse.success)
+    throw new Error("Could not create controlled Partner fixture.");
 
   const productResponse = ProductService().create({
     Nama: `Purchasing Test ${suffix}`,
@@ -2575,20 +3653,25 @@ function purchasingCleanupMasterData(fixture) {
 }
 
 function purchasingDocument(fixture, changes) {
-  return Object.assign({
-    Tanggal: "2026-07-17",
-    SupplierID: fixture.partner.ID,
-    ProductID: fixture.product.ID,
-    Qty: 2,
-    Harga: 10,
-  }, changes || {});
+  return Object.assign(
+    {
+      Tanggal: "2026-07-17",
+      SupplierID: fixture.partner.ID,
+      ProductID: fixture.product.ID,
+      Qty: 2,
+      Harga: 10,
+    },
+    changes || {},
+  );
 }
 
 function purchasingWithFixture(test, partnerType) {
   const fixture = purchasingTestMasterData(partnerType);
   let purchase = null;
   try {
-    test(fixture, (row) => { purchase = row; });
+    test(fixture, (row) => {
+      purchase = row;
+    });
   } finally {
     if (purchase && PurchasingService().findById(purchase.ID).success) {
       PurchasingService().remove(purchase.ID);
@@ -2601,60 +3684,106 @@ function purchasingWithFixture(test, partnerType) {
 }
 
 function purchasingCreateFixture(fixture, changes) {
-  const response = PurchasingService().create(purchasingDocument(fixture, changes));
-  if (!response.success) throw new Error(`Could not create Purchasing fixture: ${response.message}`);
+  const response = PurchasingService().create(
+    purchasingDocument(fixture, changes),
+  );
+  if (!response.success)
+    throw new Error(`Could not create Purchasing fixture: ${response.message}`);
   return response.data;
 }
 
 function testPurchasingServicePublicApi() {
   const actual = Object.keys(PurchasingService()).sort();
-  const expected = ["create", "findAll", "findById", "findDeleted", "remove", "restore", "statistics", "update"];
-  if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error("PurchasingService public API is invalid.");
+  const expected = [
+    "create",
+    "findAll",
+    "findById",
+    "findDeleted",
+    "remove",
+    "restore",
+    "statistics",
+    "update",
+  ];
+  if (JSON.stringify(actual) !== JSON.stringify(expected))
+    throw new Error("PurchasingService public API is invalid.");
 }
 
 function purchasingAssertDeletedResponse(response, context) {
   if (!response?.success || !Array.isArray(response.data)) {
     throw new Error(`${context} must return a successful array response.`);
   }
-  if (response.data.some((row) => !purchasingAuditDeleted(row.Deleted) || manualPurchasingStatusTrue(row.IsActive))) {
+  if (
+    response.data.some(
+      (row) =>
+        !purchasingAuditDeleted(row.Deleted) ||
+        manualPurchasingStatusTrue(row.IsActive),
+    )
+  ) {
     throw new Error(`${context} returned an active or nondeleted row.`);
   }
   return response.data;
 }
 
 function testPurchasingFindDeletedEmpty() {
-  const rows = purchasingAssertDeletedResponse(PurchasingService().findDeleted(), "PurchasingService.findDeleted()");
-  if (rows.length) Logger.log("SKIPPED: Empty Purchasing Trash assertion requires no existing deleted rows.");
+  const rows = purchasingAssertDeletedResponse(
+    PurchasingService().findDeleted(),
+    "PurchasingService.findDeleted()",
+  );
+  if (rows.length)
+    Logger.log(
+      "SKIPPED: Empty Purchasing Trash assertion requires no existing deleted rows.",
+    );
 }
 
 function testPurchasingFindDeletedFiltering() {
   purchasingWithFixture((fixture, remember) => {
-    const row = purchasingCreateFixture(fixture); remember(row);
-    const activeRows = purchasingAssertDeletedResponse(PurchasingService().findDeleted(), "PurchasingService.findDeleted()");
-    if (activeRows.some((item) => item.ID === row.ID)) throw new Error("Active Purchasing fixture appeared in Trash.");
-    if (!PurchasingService().remove(row.ID).success) throw new Error("Could not soft-delete Purchasing fixture.");
-    const deletedRows = purchasingAssertDeletedResponse(PurchasingService().findDeleted(), "PurchasingService.findDeleted()");
-    if (!deletedRows.some((item) => item.ID === row.ID)) throw new Error("Deleted Purchasing fixture did not appear in Trash.");
+    const row = purchasingCreateFixture(fixture);
+    remember(row);
+    const activeRows = purchasingAssertDeletedResponse(
+      PurchasingService().findDeleted(),
+      "PurchasingService.findDeleted()",
+    );
+    if (activeRows.some((item) => item.ID === row.ID))
+      throw new Error("Active Purchasing fixture appeared in Trash.");
+    if (!PurchasingService().remove(row.ID).success)
+      throw new Error("Could not soft-delete Purchasing fixture.");
+    const deletedRows = purchasingAssertDeletedResponse(
+      PurchasingService().findDeleted(),
+      "PurchasingService.findDeleted()",
+    );
+    if (!deletedRows.some((item) => item.ID === row.ID))
+      throw new Error("Deleted Purchasing fixture did not appear in Trash.");
   });
 }
 
 function testPurchasingFindDeletedResponseShape() {
   const response = PurchasingService().findDeleted();
-  purchasingAssertControllerResponse(response, "PurchasingService.findDeleted()");
+  purchasingAssertControllerResponse(
+    response,
+    "PurchasingService.findDeleted()",
+  );
   purchasingAssertDeletedResponse(response, "PurchasingService.findDeleted()");
 }
 
 function testPurchasingStatisticsEmpty() {
   const rows = PurchasingService().findAll();
-  if (!rows.success) throw new Error("Purchasing findAll failed during empty statistics test.");
+  if (!rows.success)
+    throw new Error("Purchasing findAll failed during empty statistics test.");
 
   if (rows.data.length !== 0) {
-    Logger.log("SKIPPED: Purchasing statistics empty assertion requires no active Purchasing rows.");
+    Logger.log(
+      "SKIPPED: Purchasing statistics empty assertion requires no active Purchasing rows.",
+    );
     return;
   }
 
   const response = PurchasingService().statistics();
-  if (!response.success || response.data.total !== 0 || response.data.active !== 0 || response.data.inactive !== 0) {
+  if (
+    !response.success ||
+    response.data.total !== 0 ||
+    response.data.active !== 0 ||
+    response.data.inactive !== 0
+  ) {
     throw new Error("Empty Purchasing statistics are invalid.");
   }
 }
@@ -2680,12 +3809,16 @@ function testPurchasingStatisticsResponseShape() {
 function testDashboardPurchasingStatisticsCompatibility() {
   const service = PurchasingService();
   if (typeof service.statistics !== "function") {
-    throw new Error("Dashboard Purchasing statistics compatibility is missing.");
+    throw new Error(
+      "Dashboard Purchasing statistics compatibility is missing.",
+    );
   }
 
   const response = service.statistics();
   if (!response || response.success !== true || !response.data) {
-    throw new Error("Dashboard Purchasing statistics compatibility response is invalid.");
+    throw new Error(
+      "Dashboard Purchasing statistics compatibility response is invalid.",
+    );
   }
 }
 
@@ -2695,24 +3828,39 @@ function testPurchasingStatisticsActiveOnly() {
 
   try {
     const baseline = PurchasingService().statistics();
-    if (!baseline.success) throw new Error("Could not read Purchasing statistics baseline.");
+    if (!baseline.success)
+      throw new Error("Could not read Purchasing statistics baseline.");
 
     row = purchasingCreateFixture(fixture);
 
     const active = PurchasingService().statistics();
-    if (!active.success || active.data.total !== baseline.data.total + 1 || active.data.active !== active.data.total || active.data.inactive !== 0) {
+    if (
+      !active.success ||
+      active.data.total !== baseline.data.total + 1 ||
+      active.data.active !== active.data.total ||
+      active.data.inactive !== 0
+    ) {
       throw new Error("Active Purchasing fixture was not counted correctly.");
     }
 
-    if (!RepositoryWriter.update(PURCHASING_SCHEMA, row.ID, {
-      [PURCHASING_SCHEMA.SYSTEM.IS_ACTIVE]: false,
-    })) {
+    if (
+      !RepositoryWriter.update(PURCHASING_SCHEMA, row.ID, {
+        [PURCHASING_SCHEMA.SYSTEM.IS_ACTIVE]: false,
+      })
+    ) {
       throw new Error("Could not make controlled Purchasing fixture inactive.");
     }
 
     const inactive = PurchasingService().statistics();
-    if (!inactive.success || inactive.data.total !== baseline.data.total || inactive.data.active !== baseline.data.active || inactive.data.inactive !== 0) {
-      throw new Error("Inactive Purchasing fixture was included in statistics.");
+    if (
+      !inactive.success ||
+      inactive.data.total !== baseline.data.total ||
+      inactive.data.active !== baseline.data.active ||
+      inactive.data.inactive !== 0
+    ) {
+      throw new Error(
+        "Inactive Purchasing fixture was included in statistics.",
+      );
     }
 
     RepositoryWriter.update(PURCHASING_SCHEMA, row.ID, {
@@ -2724,7 +3872,12 @@ function testPurchasingStatisticsActiveOnly() {
     }
 
     const deleted = PurchasingService().statistics();
-    if (!deleted.success || deleted.data.total !== baseline.data.total || deleted.data.active !== baseline.data.active || deleted.data.inactive !== 0) {
+    if (
+      !deleted.success ||
+      deleted.data.total !== baseline.data.total ||
+      deleted.data.active !== baseline.data.active ||
+      deleted.data.inactive !== 0
+    ) {
       throw new Error("Deleted Purchasing fixture was included in statistics.");
     }
   } finally {
@@ -2742,7 +3895,9 @@ function testPurchasingStatisticsActiveOnly() {
         PurchasingService().remove(row.ID);
       }
 
-      Logger.log(`CLEANUP: Purchasing statistics fixture ${row.ID} is soft-deleted.`);
+      Logger.log(
+        `CLEANUP: Purchasing statistics fixture ${row.ID} is soft-deleted.`,
+      );
     }
 
     purchasingCleanupMasterData(fixture);
@@ -2792,13 +3947,16 @@ function testPurchasingDeletedControllerPublicApi() {
 
 function testPurchasingDeletedControllerSerialization() {
   const response = getDeletedPurchasing();
-  if (typeof response === "string") throw new Error("getDeletedPurchasing() must return a plain object.");
+  if (typeof response === "string")
+    throw new Error("getDeletedPurchasing() must return a plain object.");
   JSON.stringify(response);
   const values = [response];
   while (values.length) {
     const value = values.pop();
-    if (value instanceof Date || typeof value === "function") throw new Error("Deleted Purchasing response contains an unsafe value.");
-    if (value && typeof value === "object") Object.keys(value).forEach((key) => values.push(value[key]));
+    if (value instanceof Date || typeof value === "function")
+      throw new Error("Deleted Purchasing response contains an unsafe value.");
+    if (value && typeof value === "object")
+      Object.keys(value).forEach((key) => values.push(value[key]));
   }
 }
 
@@ -2836,7 +3994,9 @@ function testPurchasingControllerUpdateValidation() {
   const response = updatePurchasing("", null);
   purchasingAssertControllerResponse(response, 'updatePurchasing("", null)');
   if (response.success || response.data !== null) {
-    throw new Error('updatePurchasing("", null) must return a validation failure.');
+    throw new Error(
+      'updatePurchasing("", null) must return a validation failure.',
+    );
   }
   if (RepositoryReader.count(PURCHASING_SCHEMA) !== count) {
     throw new Error("Invalid Purchasing update must not write data.");
@@ -2872,13 +4032,17 @@ function testPurchasingControllerSerialization() {
   const values = [response];
 
   if (typeof response === "string") {
-    throw new Error("Purchasing Controller response must not be a JSON string.");
+    throw new Error(
+      "Purchasing Controller response must not be a JSON string.",
+    );
   }
 
   while (values.length > 0) {
     const value = values.pop();
     if (value instanceof Date || typeof value === "function") {
-      throw new Error("Purchasing Controller response contains an unsafe value.");
+      throw new Error(
+        "Purchasing Controller response contains an unsafe value.",
+      );
     }
     if (!value || typeof value !== "object") continue;
     Object.keys(value).forEach((key) => values.push(value[key]));
@@ -2887,56 +4051,117 @@ function testPurchasingControllerSerialization() {
   try {
     JSON.stringify(response);
   } catch (error) {
-    throw new Error("Purchasing Controller response must be JSON serializable.");
+    throw new Error(
+      "Purchasing Controller response must be JSON serializable.",
+    );
   }
 
   if (response.meta && response.meta.timestamp instanceof Date) {
-    throw new Error("Purchasing Controller meta timestamp must be serializable.");
+    throw new Error(
+      "Purchasing Controller meta timestamp must be serializable.",
+    );
   }
 }
 
 function testPurchasingFindAllActiveOnly() {
   const response = PurchasingService().findAll();
-  if (!response.success || !Array.isArray(response.data)) throw new Error("Purchasing findAll response is invalid.");
+  if (!response.success || !Array.isArray(response.data))
+    throw new Error("Purchasing findAll response is invalid.");
   response.data.forEach((row) => {
-    if (!(row.Deleted === false || row.Deleted === 0 || String(row.Deleted).toUpperCase() === "FALSE") ||
-        !(row.IsActive === true || row.IsActive === 1 || String(row.IsActive).toUpperCase() === "TRUE")) {
+    if (
+      !(
+        row.Deleted === false ||
+        row.Deleted === 0 ||
+        String(row.Deleted).toUpperCase() === "FALSE"
+      ) ||
+      !(
+        row.IsActive === true ||
+        row.IsActive === 1 ||
+        String(row.IsActive).toUpperCase() === "TRUE"
+      )
+    ) {
       throw new Error("Purchasing findAll returned a deleted or inactive row.");
     }
   });
 }
 
 function testPurchasingFindByIdValidation() {
-  purchasingAssertFailure(PurchasingService().findById(" "), "Purchasing findById must require ID.");
+  purchasingAssertFailure(
+    PurchasingService().findById(" "),
+    "Purchasing findById must require ID.",
+  );
 }
 
 function purchasingAssertCreateFailure(changes, message, partnerType) {
   purchasingWithFixture((fixture) => {
-    purchasingAssertFailure(PurchasingService().create(purchasingDocument(fixture, changes)), message);
+    purchasingAssertFailure(
+      PurchasingService().create(purchasingDocument(fixture, changes)),
+      message,
+    );
   }, partnerType);
 }
 
-function testPurchasingCreateRequiresTanggal() { purchasingAssertCreateFailure({ Tanggal: "" }, "Tanggal must be required."); }
-function testPurchasingCreateRequiresSupplier() { purchasingAssertCreateFailure({ SupplierID: "" }, "Supplier must be required."); }
-function testPurchasingCreateRequiresProduct() { purchasingAssertCreateFailure({ ProductID: "" }, "Product must be required."); }
-function testPurchasingCreateRejectsQtyZero() { purchasingAssertCreateFailure({ Qty: 0 }, "Qty zero must be rejected."); }
-function testPurchasingCreateRejectsQtyNegative() { purchasingAssertCreateFailure({ Qty: -1 }, "Negative Qty must be rejected."); }
-function testPurchasingCreateRejectsQtyInfinity() { purchasingAssertCreateFailure({ Qty: Infinity }, "Infinite Qty must be rejected."); }
-function testPurchasingCreateRejectsHargaNegative() { purchasingAssertCreateFailure({ Harga: -1 }, "Negative Harga must be rejected."); }
-function testPurchasingCreateRejectsHargaInfinity() { purchasingAssertCreateFailure({ Harga: Infinity }, "Infinite Harga must be rejected."); }
-function testPurchasingCreateRejectsNonSupplierPartner() { purchasingAssertCreateFailure({}, "Non-Supplier must be rejected.", "Customer"); }
+function testPurchasingCreateRequiresTanggal() {
+  purchasingAssertCreateFailure({ Tanggal: "" }, "Tanggal must be required.");
+}
+function testPurchasingCreateRequiresSupplier() {
+  purchasingAssertCreateFailure(
+    { SupplierID: "" },
+    "Supplier must be required.",
+  );
+}
+function testPurchasingCreateRequiresProduct() {
+  purchasingAssertCreateFailure({ ProductID: "" }, "Product must be required.");
+}
+function testPurchasingCreateRejectsQtyZero() {
+  purchasingAssertCreateFailure({ Qty: 0 }, "Qty zero must be rejected.");
+}
+function testPurchasingCreateRejectsQtyNegative() {
+  purchasingAssertCreateFailure({ Qty: -1 }, "Negative Qty must be rejected.");
+}
+function testPurchasingCreateRejectsQtyInfinity() {
+  purchasingAssertCreateFailure(
+    { Qty: Infinity },
+    "Infinite Qty must be rejected.",
+  );
+}
+function testPurchasingCreateRejectsHargaNegative() {
+  purchasingAssertCreateFailure(
+    { Harga: -1 },
+    "Negative Harga must be rejected.",
+  );
+}
+function testPurchasingCreateRejectsHargaInfinity() {
+  purchasingAssertCreateFailure(
+    { Harga: Infinity },
+    "Infinite Harga must be rejected.",
+  );
+}
+function testPurchasingCreateRejectsNonSupplierPartner() {
+  purchasingAssertCreateFailure(
+    {},
+    "Non-Supplier must be rejected.",
+    "Customer",
+  );
+}
 
 function testPurchasingCreateRejectsInactiveSupplier() {
   purchasingWithFixture((fixture) => {
     PartnerService().remove(fixture.partner.ID);
-    purchasingAssertFailure(PurchasingService().create(purchasingDocument(fixture)), "Inactive Supplier must be rejected.");
+    purchasingAssertFailure(
+      PurchasingService().create(purchasingDocument(fixture)),
+      "Inactive Supplier must be rejected.",
+    );
   });
 }
 
 function testPurchasingCreateRejectsInactiveProduct() {
   purchasingWithFixture((fixture) => {
     ProductService().remove(fixture.product.ID);
-    purchasingAssertFailure(PurchasingService().create(purchasingDocument(fixture)), "Inactive Product must be rejected.");
+    purchasingAssertFailure(
+      PurchasingService().create(purchasingDocument(fixture)),
+      "Inactive Product must be rejected.",
+    );
   });
 }
 
@@ -2948,17 +4173,35 @@ function purchasingAssertCreate(changes, assertion) {
   });
 }
 
-function testPurchasingCreateValid() { purchasingAssertCreate({}, (row) => { if (!row.ID) throw new Error("Purchasing create did not return an ID."); }); }
-function testPurchasingCreateDerivesTotal() { purchasingAssertCreate({ Qty: 3, Harga: 7 }, (row) => { if (row.Total !== 21) throw new Error("Total was not derived."); }); }
-function testPurchasingCreateIgnoresSuppliedTotal() { purchasingAssertCreate({ Qty: 3, Harga: 7, Total: 999 }, (row) => { if (row.Total !== 21) throw new Error("Caller Total was trusted."); }); }
-function testPurchasingCreateAllowsDecimalQty() { purchasingAssertCreate({ Qty: 1.5, Harga: 8 }, (row) => { if (row.Qty !== 1.5 || row.Total !== 12) throw new Error("Decimal Qty failed."); }); }
+function testPurchasingCreateValid() {
+  purchasingAssertCreate({}, (row) => {
+    if (!row.ID) throw new Error("Purchasing create did not return an ID.");
+  });
+}
+function testPurchasingCreateDerivesTotal() {
+  purchasingAssertCreate({ Qty: 3, Harga: 7 }, (row) => {
+    if (row.Total !== 21) throw new Error("Total was not derived.");
+  });
+}
+function testPurchasingCreateIgnoresSuppliedTotal() {
+  purchasingAssertCreate({ Qty: 3, Harga: 7, Total: 999 }, (row) => {
+    if (row.Total !== 21) throw new Error("Caller Total was trusted.");
+  });
+}
+function testPurchasingCreateAllowsDecimalQty() {
+  purchasingAssertCreate({ Qty: 1.5, Harga: 8 }, (row) => {
+    if (row.Qty !== 1.5 || row.Total !== 12)
+      throw new Error("Decimal Qty failed.");
+  });
+}
 
 function purchasingAssertUpdate(changes, assertion) {
   purchasingWithFixture((fixture, remember) => {
     const row = purchasingCreateFixture(fixture);
     remember(row);
     const response = PurchasingService().update(row.ID, changes);
-    if (!response.success) throw new Error(`Purchasing update failed: ${response.message}`);
+    if (!response.success)
+      throw new Error(`Purchasing update failed: ${response.message}`);
     assertion(response.data, fixture, row);
   });
 }
@@ -2977,7 +4220,8 @@ function testPurchasingUpdateValid() {
       }
 
       if (
-        row[PURCHASING_SCHEMA.PRIMARY_KEY] !== original[PURCHASING_SCHEMA.PRIMARY_KEY] ||
+        row[PURCHASING_SCHEMA.PRIMARY_KEY] !==
+          original[PURCHASING_SCHEMA.PRIMARY_KEY] ||
         row[PURCHASING_FIELDS.SUPPLIER_ID] !== fixture.partner.ID ||
         row[PURCHASING_FIELDS.PRODUCT_ID] !== fixture.product.ID ||
         Number(row[PURCHASING_FIELDS.QTY]) !== 2 ||
@@ -2986,38 +4230,75 @@ function testPurchasingUpdateValid() {
         row[PURCHASING_SCHEMA.SYSTEM.IS_DELETED] !== false ||
         row[PURCHASING_SCHEMA.SYSTEM.IS_ACTIVE] !== true
       ) {
-        throw new Error("Purchasing update did not preserve fixture fields or active state.");
+        throw new Error(
+          "Purchasing update did not preserve fixture fields or active state.",
+        );
       }
     },
   );
 }
-function testPurchasingUpdateRecalculatesTotal() { purchasingAssertUpdate({ Qty: 4, Harga: 6 }, (row) => { if (row.Total !== 24) throw new Error("Update did not recalculate Total."); }); }
-function testPurchasingUpdateTotalOnlyDoesNotOverride() { purchasingAssertUpdate({ Total: 999 }, (row) => { if (row.Total !== 20) throw new Error("Total-only update overrode derived Total."); }); }
+function testPurchasingUpdateRecalculatesTotal() {
+  purchasingAssertUpdate({ Qty: 4, Harga: 6 }, (row) => {
+    if (row.Total !== 24) throw new Error("Update did not recalculate Total.");
+  });
+}
+function testPurchasingUpdateTotalOnlyDoesNotOverride() {
+  purchasingAssertUpdate({ Total: 999 }, (row) => {
+    if (row.Total !== 20)
+      throw new Error("Total-only update overrode derived Total.");
+  });
+}
 function testPurchasingUpdateRejectsInfinity() {
   purchasingWithFixture((fixture, remember) => {
-    const row = purchasingCreateFixture(fixture); remember(row);
-    purchasingAssertFailure(PurchasingService().update(row.ID, { Harga: Infinity }), "Update must reject Infinity.");
+    const row = purchasingCreateFixture(fixture);
+    remember(row);
+    purchasingAssertFailure(
+      PurchasingService().update(row.ID, { Harga: Infinity }),
+      "Update must reject Infinity.",
+    );
   });
 }
 
 function purchasingAssertUpdateRelation(field, relation) {
   purchasingWithFixture((fixture, remember) => {
-    const row = purchasingCreateFixture(fixture); remember(row);
+    const row = purchasingCreateFixture(fixture);
+    remember(row);
     if (relation === "supplier") PartnerService().remove(fixture.partner.ID);
     else ProductService().remove(fixture.product.ID);
-    purchasingAssertFailure(PurchasingService().update(row.ID, { [field]: field === "SupplierID" ? fixture.partner.ID : fixture.product.ID }), "Update must revalidate relations.");
+    purchasingAssertFailure(
+      PurchasingService().update(row.ID, {
+        [field]:
+          field === "SupplierID" ? fixture.partner.ID : fixture.product.ID,
+      }),
+      "Update must revalidate relations.",
+    );
   });
 }
 
-function testPurchasingUpdateRevalidatesSupplier() { purchasingAssertUpdateRelation("SupplierID", "supplier"); }
-function testPurchasingUpdateRevalidatesProduct() { purchasingAssertUpdateRelation("ProductID", "product"); }
+function testPurchasingUpdateRevalidatesSupplier() {
+  purchasingAssertUpdateRelation("SupplierID", "supplier");
+}
+function testPurchasingUpdateRevalidatesProduct() {
+  purchasingAssertUpdateRelation("ProductID", "product");
+}
 
 function testPurchasingRemoveSoftDeleteState() {
   purchasingWithFixture((fixture) => {
     const row = purchasingCreateFixture(fixture);
-    if (!PurchasingService().remove(row.ID).success) throw new Error("Purchasing remove failed.");
-    const stored = RepositoryBase.mapRows(PURCHASING_SCHEMA, RepositoryReader.raw(PURCHASING_SCHEMA)).find((item) => item.ID === row.ID);
-    if (!stored || stored.Deleted !== true || stored.IsActive !== false || PurchasingService().findAll().data.some((item) => item.ID === row.ID)) {
+    if (!PurchasingService().remove(row.ID).success)
+      throw new Error("Purchasing remove failed.");
+    const stored = RepositoryBase.mapRows(
+      PURCHASING_SCHEMA,
+      RepositoryReader.raw(PURCHASING_SCHEMA),
+    ).find((item) => item.ID === row.ID);
+    if (
+      !stored ||
+      stored.Deleted !== true ||
+      stored.IsActive !== false ||
+      PurchasingService()
+        .findAll()
+        .data.some((item) => item.ID === row.ID)
+    ) {
       throw new Error("Purchasing remove did not persist soft-delete state.");
     }
     Logger.log(`CLEANUP: Purchasing fixture ${row.ID} is soft-deleted.`);
@@ -3026,28 +4307,44 @@ function testPurchasingRemoveSoftDeleteState() {
 
 function purchasingAssertRestore(setup, assertion, partnerType) {
   purchasingWithFixture((fixture, remember) => {
-    const row = purchasingCreateFixture(fixture); remember(row);
-    if (!PurchasingService().remove(row.ID).success) throw new Error("Could not delete Purchasing fixture.");
+    const row = purchasingCreateFixture(fixture);
+    remember(row);
+    if (!PurchasingService().remove(row.ID).success)
+      throw new Error("Could not delete Purchasing fixture.");
     setup(fixture, row);
     const response = PurchasingService().restore(row.ID);
     assertion(response, fixture, row);
   }, partnerType);
 }
 
-function testPurchasingRestoreValid() { purchasingAssertRestore(() => {}, (response) => { if (!response.success) throw new Error("Purchasing restore failed."); }); }
+function testPurchasingRestoreValid() {
+  purchasingAssertRestore(
+    () => {},
+    (response) => {
+      if (!response.success) throw new Error("Purchasing restore failed.");
+    },
+  );
+}
 function testPurchasingRestoreAlreadyActive() {
   purchasingWithFixture((fixture, remember) => {
-    const row = purchasingCreateFixture(fixture); remember(row);
-    purchasingAssertFailure(PurchasingService().restore(row.ID), "Restore must reject active rows.");
+    const row = purchasingCreateFixture(fixture);
+    remember(row);
+    purchasingAssertFailure(
+      PurchasingService().restore(row.ID),
+      "Restore must reject active rows.",
+    );
   });
 }
 function testPurchasingRestoreRejectsInactiveNonDeleted() {
   purchasingWithFixture((fixture, remember) => {
-    const row = purchasingCreateFixture(fixture); remember(row);
+    const row = purchasingCreateFixture(fixture);
+    remember(row);
 
-    if (!RepositoryWriter.update(PURCHASING_SCHEMA, row.ID, {
-      [PURCHASING_SCHEMA.SYSTEM.IS_ACTIVE]: false,
-    })) {
+    if (
+      !RepositoryWriter.update(PURCHASING_SCHEMA, row.ID, {
+        [PURCHASING_SCHEMA.SYSTEM.IS_ACTIVE]: false,
+      })
+    ) {
       throw new Error("Could not make controlled Purchasing fixture inactive.");
     }
 
@@ -3063,16 +4360,43 @@ function testPurchasingRestoreRejectsInactiveNonDeleted() {
     }
   });
 }
-function testPurchasingRestoreRejectsInactiveSupplier() { purchasingAssertRestore((fixture) => PartnerService().remove(fixture.partner.ID), (response) => purchasingAssertFailure(response, "Restore must reject inactive Supplier.")); }
-function testPurchasingRestoreRejectsNonSupplierPartner() {
+function testPurchasingRestoreRejectsInactiveSupplier() {
   purchasingAssertRestore(
-    (fixture) => RepositoryWriter.update(PARTNER_SCHEMA, fixture.partner.ID, { Jenis: "Customer" }),
-    (response) => purchasingAssertFailure(response, "Restore must reject non-Supplier."),
+    (fixture) => PartnerService().remove(fixture.partner.ID),
+    (response) =>
+      purchasingAssertFailure(
+        response,
+        "Restore must reject inactive Supplier.",
+      ),
   );
 }
-function testPurchasingRestoreRejectsInactiveProduct() { purchasingAssertRestore((fixture) => ProductService().remove(fixture.product.ID), (response) => purchasingAssertFailure(response, "Restore must reject inactive Product.")); }
+function testPurchasingRestoreRejectsNonSupplierPartner() {
+  purchasingAssertRestore(
+    (fixture) =>
+      RepositoryWriter.update(PARTNER_SCHEMA, fixture.partner.ID, {
+        Jenis: "Customer",
+      }),
+    (response) =>
+      purchasingAssertFailure(response, "Restore must reject non-Supplier."),
+  );
+}
+function testPurchasingRestoreRejectsInactiveProduct() {
+  purchasingAssertRestore(
+    (fixture) => ProductService().remove(fixture.product.ID),
+    (response) =>
+      purchasingAssertFailure(
+        response,
+        "Restore must reject inactive Product.",
+      ),
+  );
+}
 function testPurchasingRestoreRecalculatesTotal() {
-  purchasingAssertRestore((fixture, row) => RepositoryWriter.update(PURCHASING_SCHEMA, row.ID, { Total: 999 }), (response) => {
-    if (!response.success || response.data.Total !== 20) throw new Error("Restore did not recalculate Total.");
-  });
+  purchasingAssertRestore(
+    (fixture, row) =>
+      RepositoryWriter.update(PURCHASING_SCHEMA, row.ID, { Total: 999 }),
+    (response) => {
+      if (!response.success || response.data.Total !== 20)
+        throw new Error("Restore did not recalculate Total.");
+    },
+  );
 }
