@@ -10,7 +10,8 @@
  * =============================================================================
  */
 
-function PickupService() {
+function PickupService(options) {
+  const serviceOptions = options || {};
   const DETAIL_MUTATION_BLOCKED =
     "Detail pickup tidak dapat diubah karena sudah memiliki riwayat retur.";
   const DELETE_BLOCKED =
@@ -164,7 +165,159 @@ function PickupService() {
   }
 
   function physicalRows(schema) {
+    if (typeof serviceOptions.readPhysicalRows === "function") {
+      return serviceOptions.readPhysicalRows(schema).slice();
+    }
     return RepositoryBase.mapRows(schema, RepositoryReader.raw(schema));
+  }
+
+  function evaluateRestoreEligibilityFromRows(pickupId, headers, details, returns) {
+    const header = headers.find((row) => {
+      return row[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] === pickupId;
+    });
+    const pickupDetails = details.filter((detail) => {
+      return detail[PICKUP_DETAIL_FIELDS.PICKUP_ID] === pickupId;
+    });
+    const pickupDetailIds = Object.create(null);
+    const detailById = Object.create(null);
+    const productDetailIds = Object.create(null);
+
+    details.forEach((detail) => {
+      detailById[detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]] = detail;
+    });
+    pickupDetails.forEach((detail) => {
+      const detailId = detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY];
+      const productId = detail[PICKUP_DETAIL_FIELDS.PRODUCT_ID];
+      pickupDetailIds[detailId] = true;
+      if (!productDetailIds[productId]) productDetailIds[productId] = [];
+      productDetailIds[productId].push(detailId);
+    });
+
+    const relatedReturns = returns.filter((row) => {
+      return (
+        row[RETURN_FIELDS.PICKUP_ID] === pickupId ||
+        pickupDetailIds[row[RETURN_FIELDS.PICKUP_DETAIL_ID]] === true
+      );
+    });
+    const referencedDetailIds = Array.from(
+      new Set(
+        relatedReturns.map((row) => row[RETURN_FIELDS.PICKUP_DETAIL_ID]),
+      ),
+    ).sort();
+    const duplicateProducts = Object.keys(productDetailIds)
+      .filter((productId) => productDetailIds[productId].length > 1)
+      .sort();
+    const generationCount = Object.keys(productDetailIds).reduce(
+      (maximum, productId) =>
+        Math.max(maximum, productDetailIds[productId].length),
+      0,
+    );
+    const facts = {
+      detailCount: pickupDetails.length,
+      activeDetailCount: pickupDetails.filter(
+        (detail) =>
+          detail[PICKUP_DETAIL_SCHEMA.SYSTEM.IS_ACTIVE] === true &&
+          detail[PICKUP_DETAIL_SCHEMA.SYSTEM.IS_DELETED] !== true,
+      ).length,
+      deletedDetailCount: pickupDetails.filter(
+        (detail) => detail[PICKUP_DETAIL_SCHEMA.SYSTEM.IS_DELETED] === true,
+      ).length,
+      returnCount: relatedReturns.length,
+      duplicateProducts,
+      referencedDetailIds,
+      generationCount,
+    };
+
+    function result(allowed, code, message) {
+      return { allowed, code, message, facts };
+    }
+
+    if (!header) {
+      return result(false, "NOT_FOUND", "Pickup tidak ditemukan.");
+    }
+    if (header[PICKUP_HEADER_SCHEMA.SYSTEM.IS_DELETED] !== true) {
+      return result(false, "NOT_DELETED", "Pickup belum dihapus.");
+    }
+    if (duplicateProducts.length > 0) {
+      return result(
+        false,
+        "MULTIPLE_DETAIL_GENERATIONS",
+        "Pickup memiliki lebih dari satu generasi detail untuk produk yang sama.",
+      );
+    }
+
+    const referencedProducts = Object.create(null);
+    let ambiguousReturnHistory = false;
+    let missingPickupDetail = false;
+    let relationshipMismatch = false;
+
+    relatedReturns.forEach((row) => {
+      const detailId = row[RETURN_FIELDS.PICKUP_DETAIL_ID];
+      const detail = detailById[detailId];
+      if (!detail) {
+        missingPickupDetail = true;
+        return;
+      }
+
+      const productId = detail[PICKUP_DETAIL_FIELDS.PRODUCT_ID];
+      if (!referencedProducts[productId]) {
+        referencedProducts[productId] = Object.create(null);
+      }
+      referencedProducts[productId][detailId] = true;
+      if (Object.keys(referencedProducts[productId]).length > 1) {
+        ambiguousReturnHistory = true;
+      }
+      if (
+        row[RETURN_FIELDS.PICKUP_ID] !== pickupId ||
+        detail[PICKUP_DETAIL_FIELDS.PICKUP_ID] !== pickupId ||
+        row[RETURN_FIELDS.PICKUP_ID] !==
+          detail[PICKUP_DETAIL_FIELDS.PICKUP_ID]
+      ) {
+        relationshipMismatch = true;
+      }
+    });
+
+    if (ambiguousReturnHistory) {
+      return result(
+        false,
+        "AMBIGUOUS_RETURN_HISTORY",
+        "Riwayat retur mengacu ke lebih dari satu detail untuk produk yang sama.",
+      );
+    }
+    if (missingPickupDetail) {
+      return result(
+        false,
+        "MISSING_PICKUP_DETAIL",
+        "Riwayat retur mengacu ke detail Pickup yang tidak ditemukan.",
+      );
+    }
+    if (relationshipMismatch) {
+      return result(
+        false,
+        "RETURN_RELATIONSHIP_MISMATCH",
+        "Relasi Pickup pada riwayat retur tidak konsisten.",
+      );
+    }
+    return result(true, "SAFE", "Pickup aman untuk dipulihkan.");
+  }
+
+  function evaluateRestoreEligibility(pickupId) {
+    const headers = physicalRows(PICKUP_HEADER_SCHEMA);
+    const header = headers.find((row) => {
+      return row[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] === pickupId;
+    });
+    if (
+      !header ||
+      header[PICKUP_HEADER_SCHEMA.SYSTEM.IS_DELETED] !== true
+    ) {
+      return evaluateRestoreEligibilityFromRows(pickupId, headers, [], []);
+    }
+    return evaluateRestoreEligibilityFromRows(
+      pickupId,
+      headers,
+      physicalRows(PICKUP_DETAIL_SCHEMA),
+      physicalRows(RETURN_SCHEMA),
+    );
   }
 
   function hasReturnHistory(pickupId) {
@@ -359,5 +512,6 @@ function PickupService() {
     update,
     remove,
     restore,
+    evaluateRestoreEligibility,
   });
 }

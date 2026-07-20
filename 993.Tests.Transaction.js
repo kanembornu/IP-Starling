@@ -1430,6 +1430,155 @@ function testPickupRemoveRestoreRoundTrip() {
   }
 }
 
+function pickupRestoreEligibilityFixture(overrides) {
+  const headerId = "PH_ELIGIBILITY";
+  const detailId = "PD_ELIGIBILITY_1";
+  const rows = {
+    headers: [{
+      [PICKUP_HEADER_SCHEMA.PRIMARY_KEY]: headerId,
+      [PICKUP_HEADER_SCHEMA.SYSTEM.IS_ACTIVE]: false,
+      [PICKUP_HEADER_SCHEMA.SYSTEM.IS_DELETED]: true,
+    }],
+    details: [{
+      [PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]: detailId,
+      [PICKUP_DETAIL_FIELDS.PICKUP_ID]: headerId,
+      [PICKUP_DETAIL_FIELDS.PRODUCT_ID]: "PR_ELIGIBILITY",
+      [PICKUP_DETAIL_SCHEMA.SYSTEM.IS_ACTIVE]: false,
+      [PICKUP_DETAIL_SCHEMA.SYSTEM.IS_DELETED]: true,
+    }],
+    returns: [],
+  };
+  Object.keys(overrides || {}).forEach((key) => {
+    rows[key] = overrides[key];
+  });
+  let reads = 0;
+  const service = PickupService({
+    readPhysicalRows(schema) {
+      reads++;
+      if (schema === PICKUP_HEADER_SCHEMA) return rows.headers;
+      if (schema === PICKUP_DETAIL_SCHEMA) return rows.details;
+      if (schema === RETURN_SCHEMA) return rows.returns;
+      throw new Error("Unexpected restore eligibility schema.");
+    },
+  });
+  return { headerId, detailId, rows, service, readCount: () => reads };
+}
+
+function pickupRestoreEligibilityReturn(pickupId, detailId) {
+  return {
+    [RETURN_SCHEMA.PRIMARY_KEY]: `RT_${detailId}`,
+    [RETURN_FIELDS.PICKUP_ID]: pickupId,
+    [RETURN_FIELDS.PICKUP_DETAIL_ID]: detailId,
+  };
+}
+
+function assertPickupRestoreEligibilityCode(result, code, allowed) {
+  if (!result || result.code !== code || result.allowed !== allowed) {
+    throw new Error(`Expected ${code} eligibility result.`);
+  }
+}
+
+function testPickupRestoreEligibilitySafe() {
+  const fixture = pickupRestoreEligibilityFixture();
+  const result = fixture.service.evaluateRestoreEligibility(fixture.headerId);
+  assertPickupRestoreEligibilityCode(result, "SAFE", true);
+  if (
+    result.facts.detailCount !== 1 ||
+    result.facts.deletedDetailCount !== 1 ||
+    result.facts.generationCount !== 1
+  ) throw new Error("SAFE eligibility facts are invalid.");
+}
+
+function testPickupRestoreEligibilityMultipleGenerations() {
+  const fixture = pickupRestoreEligibilityFixture();
+  fixture.rows.details.push(Object.assign({}, fixture.rows.details[0], {
+    [PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]: "PD_ELIGIBILITY_2",
+  }));
+  const result = fixture.service.evaluateRestoreEligibility(fixture.headerId);
+  assertPickupRestoreEligibilityCode(result, "MULTIPLE_DETAIL_GENERATIONS", false);
+  if (result.facts.duplicateProducts.join("|") !== "PR_ELIGIBILITY") {
+    throw new Error("Duplicate products fact is invalid.");
+  }
+}
+
+function testPickupRestoreEligibilityAmbiguousReturns() {
+  const fixture = pickupRestoreEligibilityFixture();
+  fixture.rows.details.push(Object.assign({}, fixture.rows.details[0], {
+    [PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]: "PD_FOREIGN",
+    [PICKUP_DETAIL_FIELDS.PICKUP_ID]: "PH_FOREIGN",
+  }));
+  fixture.rows.returns = [
+    pickupRestoreEligibilityReturn(fixture.headerId, fixture.detailId),
+    pickupRestoreEligibilityReturn(fixture.headerId, "PD_FOREIGN"),
+  ];
+  assertPickupRestoreEligibilityCode(
+    fixture.service.evaluateRestoreEligibility(fixture.headerId),
+    "AMBIGUOUS_RETURN_HISTORY",
+    false,
+  );
+}
+
+function testPickupRestoreEligibilityMissingDetail() {
+  const fixture = pickupRestoreEligibilityFixture();
+  fixture.rows.returns = [
+    pickupRestoreEligibilityReturn(fixture.headerId, "PD_MISSING"),
+  ];
+  assertPickupRestoreEligibilityCode(
+    fixture.service.evaluateRestoreEligibility(fixture.headerId),
+    "MISSING_PICKUP_DETAIL",
+    false,
+  );
+}
+
+function testPickupRestoreEligibilityRelationshipMismatch() {
+  const fixture = pickupRestoreEligibilityFixture();
+  fixture.rows.returns = [
+    pickupRestoreEligibilityReturn("PH_FOREIGN", fixture.detailId),
+  ];
+  assertPickupRestoreEligibilityCode(
+    fixture.service.evaluateRestoreEligibility(fixture.headerId),
+    "RETURN_RELATIONSHIP_MISMATCH",
+    false,
+  );
+}
+
+function testPickupRestoreEligibilityActivePickup() {
+  const fixture = pickupRestoreEligibilityFixture();
+  fixture.rows.headers[0][PICKUP_HEADER_SCHEMA.SYSTEM.IS_DELETED] = false;
+  assertPickupRestoreEligibilityCode(
+    fixture.service.evaluateRestoreEligibility(fixture.headerId),
+    "NOT_DELETED",
+    false,
+  );
+}
+
+function testPickupRestoreEligibilityMissingPickup() {
+  const fixture = pickupRestoreEligibilityFixture({ headers: [] });
+  assertPickupRestoreEligibilityCode(
+    fixture.service.evaluateRestoreEligibility(fixture.headerId),
+    "NOT_FOUND",
+    false,
+  );
+}
+
+function testPickupRestoreEligibilityPerformsZeroWrites() {
+  const fixture = pickupRestoreEligibilityFixture();
+  const before = JSON.stringify(fixture.rows);
+  fixture.service.evaluateRestoreEligibility(fixture.headerId);
+  if (JSON.stringify(fixture.rows) !== before || fixture.readCount() !== 3) {
+    throw new Error("Restore eligibility evaluation must only read each dataset once.");
+  }
+}
+
+function testPickupRestoreEligibilityIsDeterministic() {
+  const fixture = pickupRestoreEligibilityFixture();
+  const first = fixture.service.evaluateRestoreEligibility(fixture.headerId);
+  const second = fixture.service.evaluateRestoreEligibility(fixture.headerId);
+  if (JSON.stringify(first) !== JSON.stringify(second)) {
+    throw new Error("Repeated restore eligibility evaluation changed its result.");
+  }
+}
+
 function pickupIntegrityDocument(transaction, details) {
   return {
     header: {

@@ -124,6 +124,20 @@ function runPickupRemoveRestoreTests() {
   ]);
 }
 
+function runPickupRestoreEligibilityTests() {
+  runTestSuite("Pickup restore eligibility tests", [
+    testPickupRestoreEligibilitySafe,
+    testPickupRestoreEligibilityMultipleGenerations,
+    testPickupRestoreEligibilityAmbiguousReturns,
+    testPickupRestoreEligibilityMissingDetail,
+    testPickupRestoreEligibilityRelationshipMismatch,
+    testPickupRestoreEligibilityActivePickup,
+    testPickupRestoreEligibilityMissingPickup,
+    testPickupRestoreEligibilityPerformsZeroWrites,
+    testPickupRestoreEligibilityIsDeterministic,
+  ]);
+}
+
 /** Manual write suite. Fixtures are created explicitly and may require cleanup. */
 function runPickupReturnIntegrityGuardTests() {
   runTestSuite("Pickup-Return backend integrity guard tests", [
