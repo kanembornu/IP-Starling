@@ -4840,3 +4840,517 @@ function testExpenseDashboardCompatibility() {
     throw new Error("Dashboard compatibility failed after Expense hardening.");
   }
 }
+
+/**
+ * Manual, read-only Pickup/Return production integrity diagnostic.
+ * This deliberately reads physical rows and never calls a service or writer.
+ */
+function runPickupReturnIntegrityDiagnostic() {
+  const before = pickupReturnIntegrityReadPhysicalRows();
+  const beforeSnapshot = JSON.stringify(before);
+  const report = analyzePickupReturnIntegrity(
+    before.pickupHeaders,
+    before.pickupDetails,
+    before.returns,
+  );
+  const after = pickupReturnIntegrityReadPhysicalRows();
+
+  if (JSON.stringify(after) !== beforeSnapshot) {
+    throw new Error(
+      "Pickup/Return diagnostic safety check failed: spreadsheet data changed during the read-only scan.",
+    );
+  }
+
+  logPickupReturnIntegrityReport(report);
+  return report;
+}
+
+function pickupReturnIntegrityReadPhysicalRows() {
+  return {
+    pickupHeaders: RepositoryBase.mapRows(
+      PICKUP_HEADER_SCHEMA,
+      RepositoryReader.raw(PICKUP_HEADER_SCHEMA),
+    ),
+    pickupDetails: RepositoryBase.mapRows(
+      PICKUP_DETAIL_SCHEMA,
+      RepositoryReader.raw(PICKUP_DETAIL_SCHEMA),
+    ),
+    returns: RepositoryBase.mapRows(
+      RETURN_SCHEMA,
+      RepositoryReader.raw(RETURN_SCHEMA),
+    ),
+  };
+}
+
+function pickupReturnIntegrityStatus(row) {
+  const deleted = row && row.Deleted;
+  const active = row && row.IsActive;
+  const deletedTrue =
+    deleted === true ||
+    deleted === 1 ||
+    (typeof deleted === "string" && deleted.trim().toLowerCase() === "true");
+  const activeTrue =
+    active === true ||
+    active === 1 ||
+    (typeof active === "string" && active.trim().toLowerCase() === "true");
+
+  return {
+    active: !deletedTrue && activeTrue,
+    deletedOrInactive: deletedTrue || !activeTrue,
+    deleted: deletedTrue,
+  };
+}
+
+function pickupReturnIntegrityNumber(value) {
+  const number = Number(value);
+  return {
+    valid: value !== "" && value !== null && value !== undefined && Number.isFinite(number),
+    value: Number.isFinite(number) ? number : 0,
+  };
+}
+
+function pickupReturnIntegrityGroup(rows, field) {
+  return rows.reduce((groups, row) => {
+    const key = String(row[field] === undefined || row[field] === null ? "" : row[field]);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(row);
+    return groups;
+  }, {});
+}
+
+function analyzePickupReturnIntegrity(pickupHeaders, pickupDetails, returns, options) {
+  const headers = pickupHeaders.map((row) => Object.assign({}, row));
+  const details = pickupDetails.map((row) => Object.assign({}, row));
+  const returnRows = returns.map((row) => Object.assign({}, row));
+  const headerById = {};
+  const detailById = {};
+  const detailsByPickup = pickupReturnIntegrityGroup(details, "PickupID");
+  const returnsByDetail = pickupReturnIntegrityGroup(returnRows, "PickupDetailID");
+  const issues = {
+    missingPickupHeaderReferences: [],
+    missingPickupDetailReferences: [],
+    pickupHeaderDetailMismatches: [],
+    inactivePickupHeaderReferences: [],
+    inactivePickupDetailReferences: [],
+    activeReturnsWithInactivePickupRelation: [],
+    multipleDetailGenerations: [],
+    duplicateActiveProducts: [],
+    activeReturnQuantityOverruns: [],
+    historicalReturnQuantityOverruns: [],
+    pickupHeaderTotalMismatches: [],
+    potentiallyObsoleteDeletedDetails: [],
+    restoreReactivationRisks: [],
+    invalidNumericQuantities: [],
+  };
+
+  headers.forEach((row) => {
+    headerById[row.ID] = row;
+  });
+  details.forEach((row) => {
+    detailById[row.ID] = row;
+  });
+
+  returnRows.forEach((row) => {
+    const status = pickupReturnIntegrityStatus(row);
+    const identity = {
+      returnId: row.ID || "",
+      pickupId: row.PickupID || "",
+      pickupDetailId: row.PickupDetailID || "",
+      returnState: status.active ? "active" : "deletedOrInactive",
+    };
+    const header = row.PickupID ? headerById[row.PickupID] : null;
+    const detail = row.PickupDetailID ? detailById[row.PickupDetailID] : null;
+    const headerInactive = header && !pickupReturnIntegrityStatus(header).active;
+    const detailInactive = detail && !pickupReturnIntegrityStatus(detail).active;
+    const mismatch = detail && row.PickupID !== detail.PickupID;
+
+    if (!header) {
+      issues.missingPickupHeaderReferences.push(
+        Object.assign({ severity: status.active ? "critical" : "warning" }, identity),
+      );
+    }
+    if (!detail) {
+      issues.missingPickupDetailReferences.push(
+        Object.assign({ severity: status.active ? "critical" : "warning" }, identity),
+      );
+    }
+    if (mismatch) {
+      issues.pickupHeaderDetailMismatches.push(
+        Object.assign(
+          {
+            actualDetailPickupId: detail.PickupID || "",
+            detailState: pickupReturnIntegrityStatus(detail).active
+              ? "active"
+              : "deletedOrInactive",
+            severity: status.active ? "critical" : "warning",
+          },
+          identity,
+        ),
+      );
+    }
+    if (headerInactive) {
+      issues.inactivePickupHeaderReferences.push(
+        Object.assign({ headerState: "deletedOrInactive", severity: status.active ? "critical" : "warning" }, identity),
+      );
+    }
+    if (detailInactive) {
+      issues.inactivePickupDetailReferences.push(
+        Object.assign({ detailState: "deletedOrInactive", severity: status.active ? "critical" : "warning" }, identity),
+      );
+    }
+    if (status.active && (!header || !detail || headerInactive || detailInactive || mismatch)) {
+      const reasons = [];
+      if (!header) reasons.push("missing PickupHeader");
+      if (!detail) reasons.push("missing PickupDetail");
+      if (headerInactive) reasons.push("inactive PickupHeader");
+      if (detailInactive) reasons.push("inactive PickupDetail");
+      if (mismatch) reasons.push("Pickup ownership mismatch");
+      issues.activeReturnsWithInactivePickupRelation.push(
+        Object.assign({ reasons, severity: "critical" }, identity),
+      );
+    }
+  });
+
+  Object.keys(detailsByPickup).forEach((pickupId) => {
+    const rows = detailsByPickup[pickupId];
+    const activeRows = rows.filter((row) => pickupReturnIntegrityStatus(row).active);
+    const inactiveRows = rows.filter((row) => !pickupReturnIntegrityStatus(row).active);
+    if (activeRows.length && inactiveRows.length) {
+      issues.multipleDetailGenerations.push({
+        pickupId,
+        activeDetailIds: activeRows.map((row) => row.ID),
+        deletedOrInactiveDetailIds: inactiveRows.map((row) => row.ID),
+        activeCount: activeRows.length,
+        deletedCount: inactiveRows.length,
+        productIds: rows.map((row) => row.ProductID),
+        reason: "Heuristic: active and deleted/inactive physical detail rows coexist.",
+        severity: "warning",
+      });
+    }
+
+    const activeByProduct = pickupReturnIntegrityGroup(activeRows, "ProductID");
+    Object.keys(activeByProduct).forEach((productId) => {
+      const products = activeByProduct[productId];
+      if (products.length > 1) {
+        issues.duplicateActiveProducts.push({
+          pickupId,
+          productId,
+          detailIds: products.map((row) => row.ID),
+          quantities: products.map((row) => row.Qty),
+          severity: "critical",
+        });
+      }
+    });
+
+    inactiveRows.forEach((detail) => {
+      const history = returnsByDetail[String(detail.ID)] || [];
+      const sameActiveProduct = activeRows.some((row) => row.ProductID === detail.ProductID);
+      const sameInactiveProductCount = inactiveRows.filter(
+        (row) => row.ProductID === detail.ProductID,
+      ).length;
+      const reasons = [];
+      if (history.length) reasons.push("referenced by Return history");
+      if (sameActiveProduct) reasons.push("ProductID also exists in active details");
+      if (sameInactiveProductCount > 1) reasons.push("multiple deleted/inactive details share ProductID");
+      if (activeRows.length && reasons.length) {
+        issues.potentiallyObsoleteDeletedDetails.push({
+          pickupId,
+          pickupDetailId: detail.ID,
+          productId: detail.ProductID,
+          returnIds: history.map((row) => row.ID),
+          reasons,
+          severity: "warning",
+        });
+      }
+    });
+  });
+
+  details.forEach((detail) => {
+    const detailQty = pickupReturnIntegrityNumber(detail.Qty);
+    const relatedReturns = returnsByDetail[String(detail.ID)] || [];
+    let activeQty = 0;
+    let historicalQty = 0;
+    const activeIds = [];
+    const historyIds = [];
+
+    if (!detailQty.valid) {
+      issues.invalidNumericQuantities.push({
+        recordType: "PickupDetail",
+        recordId: detail.ID,
+        field: "Qty",
+        value: String(detail.Qty),
+        severity: "warning",
+      });
+    }
+    relatedReturns.forEach((row) => {
+      const qty = pickupReturnIntegrityNumber(row.Qty);
+      if (!qty.valid) {
+        issues.invalidNumericQuantities.push({
+          recordType: "Return",
+          recordId: row.ID,
+          field: "Qty",
+          value: String(row.Qty),
+          severity: "warning",
+        });
+        return;
+      }
+      historicalQty += qty.value;
+      historyIds.push(row.ID);
+      if (pickupReturnIntegrityStatus(row).active) {
+        activeQty += qty.value;
+        activeIds.push(row.ID);
+      }
+    });
+    if (detailQty.valid && activeQty > detailQty.value) {
+      issues.activeReturnQuantityOverruns.push({
+        pickupId: detail.PickupID,
+        pickupDetailId: detail.ID,
+        productId: detail.ProductID,
+        detailQty: detailQty.value,
+        activeReturnedQty: activeQty,
+        returnIds: activeIds,
+        difference: activeQty - detailQty.value,
+        severity: "critical",
+      });
+    }
+    if (detailQty.valid && historicalQty > detailQty.value) {
+      issues.historicalReturnQuantityOverruns.push({
+        pickupId: detail.PickupID,
+        pickupDetailId: detail.ID,
+        productId: detail.ProductID,
+        detailQty: detailQty.value,
+        historicalReturnedQty: historicalQty,
+        returnIds: historyIds,
+        difference: historicalQty - detailQty.value,
+        reason: "Historical total includes deleted/inactive Returns and may reflect delete/restore cycles.",
+        severity: "warning",
+      });
+    }
+  });
+
+  headers.forEach((header) => {
+    const rows = detailsByPickup[String(header.ID)] || [];
+    const activeRows = rows.filter((row) => pickupReturnIntegrityStatus(row).active);
+    const validQuantities = activeRows.map((row) => pickupReturnIntegrityNumber(row.Qty));
+    const activeQty = validQuantities.reduce(
+      (total, qty) => total + (qty.valid ? qty.value : 0),
+      0,
+    );
+    const headerItem = pickupReturnIntegrityNumber(header.TotalItem);
+    const headerQty = pickupReturnIntegrityNumber(header.TotalQty);
+    if (!headerItem.valid || !headerQty.valid) {
+      if (!headerItem.valid) issues.invalidNumericQuantities.push({ recordType: "PickupHeader", recordId: header.ID, field: "TotalItem", value: String(header.TotalItem), severity: "warning" });
+      if (!headerQty.valid) issues.invalidNumericQuantities.push({ recordType: "PickupHeader", recordId: header.ID, field: "TotalQty", value: String(header.TotalQty), severity: "warning" });
+    }
+    if (!headerItem.valid || !headerQty.valid || headerItem.value !== activeRows.length || headerQty.value !== activeQty) {
+      issues.pickupHeaderTotalMismatches.push({
+        pickupId: header.ID,
+        headerTotalItem: headerItem.valid ? headerItem.value : null,
+        calculatedActiveDetailCount: activeRows.length,
+        headerTotalQty: headerQty.valid ? headerQty.value : null,
+        calculatedActiveQty: activeQty,
+        invalidActiveDetailQtyCount: validQuantities.filter((qty) => !qty.valid).length,
+        severity: "warning",
+      });
+    }
+
+    const productGroups = pickupReturnIntegrityGroup(rows, "ProductID");
+    const returnReferences = {};
+    rows.forEach((row) => {
+      const history = returnsByDetail[String(row.ID)] || [];
+      if (history.length) returnReferences[row.ID] = history.map((item) => item.ID);
+    });
+    const reasons = [];
+    if (Object.keys(productGroups).some((key) => productGroups[key].length > 1)) {
+      reasons.push("restoring all physical details would activate duplicate ProductIDs");
+    }
+    if (rows.some((row) => pickupReturnIntegrityStatus(row).active) && rows.some((row) => !pickupReturnIntegrityStatus(row).active)) {
+      reasons.push("obsolete and current detail candidates coexist");
+    }
+    if (Object.keys(returnReferences).length > 1) reasons.push("different detail rows have Return history");
+    if (headerItem.valid && rows.length > headerItem.value) reasons.push("physical detail count exceeds Header.TotalItem");
+    if ((!pickupReturnIntegrityStatus(header).active && reasons.length) || issues.duplicateActiveProducts.some((item) => item.pickupId === header.ID)) {
+      if (pickupReturnIntegrityStatus(header).active) reasons.push("active duplicate products may indicate a prior unsafe restore");
+      issues.restoreReactivationRisks.push({
+        pickupId: header.ID,
+        detailIdsThatWouldBeRestored: rows.filter((row) => !pickupReturnIntegrityStatus(row).active).map((row) => row.ID),
+        productIdGrouping: Object.keys(productGroups).reduce((result, key) => {
+          result[key] = productGroups[key].map((row) => row.ID);
+          return result;
+        }, {}),
+        returnReferences,
+        reasons,
+        severity: "warning",
+      });
+    }
+  });
+
+  const issueRows = Object.keys(issues).reduce((all, key) => all.concat(issues[key]), []);
+  const criticalIssues = issueRows.filter((issue) => issue.severity === "critical").length;
+  const warningIssues = issueRows.filter((issue) => issue.severity === "warning").length;
+  const timezone =
+    (typeof APP_CONFIG !== "undefined" && APP_CONFIG.TIMEZONE) ||
+    Session.getScriptTimeZone();
+
+  return {
+    generatedAt: (options && options.generatedAt) || new Date().toISOString(),
+    timezone,
+    counts: {
+      pickupHeadersPhysical: headers.length,
+      pickupHeadersActive: headers.filter((row) => pickupReturnIntegrityStatus(row).active).length,
+      pickupHeadersDeletedOrInactive: headers.filter((row) => !pickupReturnIntegrityStatus(row).active).length,
+      pickupDetailsPhysical: details.length,
+      pickupDetailsActive: details.filter((row) => pickupReturnIntegrityStatus(row).active).length,
+      pickupDetailsDeletedOrInactive: details.filter((row) => !pickupReturnIntegrityStatus(row).active).length,
+      returnsPhysical: returnRows.length,
+      returnsActive: returnRows.filter((row) => pickupReturnIntegrityStatus(row).active).length,
+      returnsDeletedOrInactive: returnRows.filter((row) => !pickupReturnIntegrityStatus(row).active).length,
+    },
+    issues,
+    summary: {
+      totalIssues: issueRows.length,
+      criticalIssues,
+      warningIssues,
+      pass: criticalIssues === 0,
+    },
+  };
+}
+
+function logPickupReturnIntegrityReport(report) {
+  const issueLabels = {
+    missingPickupHeaderReferences: "Missing Header References",
+    missingPickupDetailReferences: "Missing Detail References",
+    pickupHeaderDetailMismatches: "Header/Detail Mismatches",
+    inactivePickupHeaderReferences: "Inactive Header References",
+    inactivePickupDetailReferences: "Inactive Detail References",
+    activeReturnsWithInactivePickupRelation: "Active Returns With Inactive Relations",
+    multipleDetailGenerations: "Multiple Detail Generations",
+    duplicateActiveProducts: "Duplicate Active Products",
+    activeReturnQuantityOverruns: "Active Quantity Overruns",
+    historicalReturnQuantityOverruns: "Historical Quantity Overruns",
+    pickupHeaderTotalMismatches: "Header Total Mismatches",
+    potentiallyObsoleteDeletedDetails: "Potentially Obsolete Deleted Details",
+    restoreReactivationRisks: "Restore Reactivation Risks",
+    invalidNumericQuantities: "Invalid Numeric Quantities",
+  };
+  Logger.log("========== Pickup-Return Integrity Diagnostic ==========");
+  Logger.log(`Generated At: ${report.generatedAt}`);
+  Logger.log(`Timezone: ${report.timezone}`);
+  Logger.log(`Pickup Headers: ${report.counts.pickupHeadersPhysical} physical, ${report.counts.pickupHeadersActive} active`);
+  Logger.log(`Pickup Details: ${report.counts.pickupDetailsPhysical} physical, ${report.counts.pickupDetailsActive} active`);
+  Logger.log(`Returns: ${report.counts.returnsPhysical} physical, ${report.counts.returnsActive} active`);
+  Logger.log(`Critical: ${report.summary.criticalIssues}`);
+  Logger.log(`Warnings: ${report.summary.warningIssues}`);
+  Logger.log(`Result: ${report.summary.pass ? "PASS" : "FAIL"}`);
+  Object.keys(report.issues).forEach((key) => {
+    if (!report.issues[key].length) return;
+    Logger.log(`${issueLabels[key]}: ${report.issues[key].length}`);
+    report.issues[key].forEach((issue) => Logger.log(JSON.stringify(issue)));
+  });
+  Logger.log("========================================================");
+}
+
+function pickupReturnIntegrityFixture(overrides) {
+  const fixture = {
+    headers: [{ ID: "PH1", TotalItem: 1, TotalQty: 10, Deleted: false, IsActive: true }],
+    details: [{ ID: "PD1", PickupID: "PH1", ProductID: "P1", Qty: 10, Deleted: false, IsActive: true }],
+    returns: [{ ID: "RT1", PickupID: "PH1", PickupDetailID: "PD1", Qty: 2, Deleted: false, IsActive: true }],
+  };
+  return Object.assign(fixture, overrides || {});
+}
+
+function pickupReturnIntegrityAnalyzeFixture(fixture) {
+  return analyzePickupReturnIntegrity(fixture.headers, fixture.details, fixture.returns, {
+    generatedAt: "2026-07-20T00:00:00.000Z",
+  });
+}
+
+function pickupReturnIntegrityAssert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+function testPickupReturnIntegrityCleanDataset() {
+  const report = pickupReturnIntegrityAnalyzeFixture(pickupReturnIntegrityFixture());
+  pickupReturnIntegrityAssert(report.summary.pass && report.summary.criticalIssues === 0, "Clean integrity fixture must pass.");
+}
+
+function testPickupReturnIntegrityRelationFailures() {
+  let fixture = pickupReturnIntegrityFixture({ details: [] });
+  let report = pickupReturnIntegrityAnalyzeFixture(fixture);
+  pickupReturnIntegrityAssert(report.issues.missingPickupDetailReferences.length === 1 && !report.summary.pass, "Missing active detail must be critical.");
+  fixture = pickupReturnIntegrityFixture({ details: [{ ID: "PD1", PickupID: "PH1", ProductID: "P1", Qty: 10, Deleted: true, IsActive: false }] });
+  report = pickupReturnIntegrityAnalyzeFixture(fixture);
+  pickupReturnIntegrityAssert(report.issues.inactivePickupDetailReferences.length === 1 && report.summary.criticalIssues > 0, "Deleted detail relation must be critical.");
+  fixture = pickupReturnIntegrityFixture({ details: [{ ID: "PD1", PickupID: "PH2", ProductID: "P1", Qty: 10, Deleted: false, IsActive: true }] });
+  report = pickupReturnIntegrityAnalyzeFixture(fixture);
+  pickupReturnIntegrityAssert(report.issues.pickupHeaderDetailMismatches.length === 1, "Pickup ownership mismatch was not reported.");
+}
+
+function testPickupReturnIntegrityQuantityHistory() {
+  let fixture = pickupReturnIntegrityFixture({ returns: [{ ID: "RT1", PickupID: "PH1", PickupDetailID: "PD1", Qty: 11, Deleted: false, IsActive: true }] });
+  let report = pickupReturnIntegrityAnalyzeFixture(fixture);
+  pickupReturnIntegrityAssert(report.issues.activeReturnQuantityOverruns.length === 1, "Active quantity overrun was not reported.");
+  fixture = pickupReturnIntegrityFixture({ returns: [
+    { ID: "RT1", PickupID: "PH1", PickupDetailID: "PD1", Qty: 8, Deleted: false, IsActive: true },
+    { ID: "RT2", PickupID: "PH1", PickupDetailID: "PD1", Qty: 5, Deleted: true, IsActive: false },
+  ] });
+  report = pickupReturnIntegrityAnalyzeFixture(fixture);
+  pickupReturnIntegrityAssert(report.issues.activeReturnQuantityOverruns.length === 0 && report.issues.historicalReturnQuantityOverruns.length === 1, "Deleted Return must affect historical quantity only.");
+}
+
+function testPickupReturnIntegrityDetailGenerationRisks() {
+  const fixture = pickupReturnIntegrityFixture({
+    headers: [{ ID: "PH1", TotalItem: 1, TotalQty: 5, Deleted: true, IsActive: false }],
+    details: [
+      { ID: "PD1", PickupID: "PH1", ProductID: "P1", Qty: 5, Deleted: false, IsActive: true },
+      { ID: "PD2", PickupID: "PH1", ProductID: "P1", Qty: 5, Deleted: true, IsActive: false },
+    ],
+    returns: [{ ID: "RT1", PickupID: "PH1", PickupDetailID: "PD2", Qty: 1, Deleted: true, IsActive: false }],
+  });
+  const report = pickupReturnIntegrityAnalyzeFixture(fixture);
+  pickupReturnIntegrityAssert(report.issues.multipleDetailGenerations.length === 1, "Mixed detail generations warning is missing.");
+  pickupReturnIntegrityAssert(report.issues.potentiallyObsoleteDeletedDetails.length === 1, "Obsolete deleted detail warning is missing.");
+  pickupReturnIntegrityAssert(report.issues.restoreReactivationRisks.length === 1, "Restore reactivation warning is missing.");
+}
+
+function testPickupReturnIntegrityDuplicateProductsAndTotals() {
+  const fixture = pickupReturnIntegrityFixture({
+    details: [
+      { ID: "PD1", PickupID: "PH1", ProductID: "P1", Qty: 4, Deleted: false, IsActive: true },
+      { ID: "PD2", PickupID: "PH1", ProductID: "P1", Qty: 3, Deleted: false, IsActive: true },
+    ],
+    returns: [],
+  });
+  const report = pickupReturnIntegrityAnalyzeFixture(fixture);
+  pickupReturnIntegrityAssert(report.issues.duplicateActiveProducts.length === 1 && !report.summary.pass, "Duplicate active ProductID must be critical.");
+  pickupReturnIntegrityAssert(report.issues.pickupHeaderTotalMismatches.length === 1, "Header totals mismatch was not reported.");
+}
+
+function testPickupReturnIntegrityDecimalAndInvalidNumbers() {
+  let fixture = pickupReturnIntegrityFixture({
+    headers: [{ ID: "PH1", TotalItem: 1, TotalQty: 1.5, Deleted: false, IsActive: true }],
+    details: [{ ID: "PD1", PickupID: "PH1", ProductID: "P1", Qty: 1.5, Deleted: false, IsActive: true }],
+    returns: [{ ID: "RT1", PickupID: "PH1", PickupDetailID: "PD1", Qty: 0.75, Deleted: false, IsActive: true }],
+  });
+  let report = pickupReturnIntegrityAnalyzeFixture(fixture);
+  pickupReturnIntegrityAssert(report.issues.activeReturnQuantityOverruns.length === 0 && report.issues.invalidNumericQuantities.length === 0, "Valid decimal quantities were rejected.");
+  fixture = pickupReturnIntegrityFixture({ returns: [{ ID: "RT1", PickupID: "PH1", PickupDetailID: "PD1", Qty: "not-a-number", Deleted: false, IsActive: true }] });
+  report = pickupReturnIntegrityAnalyzeFixture(fixture);
+  pickupReturnIntegrityAssert(report.issues.invalidNumericQuantities.length === 1 && JSON.stringify(report).indexOf("NaN") === -1, "Invalid Qty must be explicit and must not create NaN.");
+}
+
+function testPickupReturnIntegrityDeterminismAndImmutability() {
+  const fixture = pickupReturnIntegrityFixture();
+  const before = JSON.stringify(fixture);
+  const first = pickupReturnIntegrityAnalyzeFixture(fixture);
+  const second = pickupReturnIntegrityAnalyzeFixture(fixture);
+  pickupReturnIntegrityAssert(JSON.stringify(first) === JSON.stringify(second), "Integrity analysis must be deterministic for the same dataset.");
+  pickupReturnIntegrityAssert(JSON.stringify(fixture) === before, "Integrity analysis mutated its source arrays.");
+}
+
+function testPickupReturnIntegrityReadOnlyConstruction() {
+  const source = runPickupReturnIntegrityDiagnostic.toString() + pickupReturnIntegrityReadPhysicalRows.toString();
+  const forbidden = /RepositoryWriter|\.create\s*\(|\.update\s*\(|\.remove\s*\(|\.restore\s*\(|\.append\s*\(|\.setValue[s]?\s*\(|\.deleteRow\s*\(|\.clear\s*\(/;
+  pickupReturnIntegrityAssert(!forbidden.test(source), "Production integrity diagnostic contains a mutating call.");
+  pickupReturnIntegrityAssert(/RepositoryReader\.raw/.test(source) && /RepositoryBase\.mapRows/.test(source), "Production integrity diagnostic must read mapped physical rows.");
+}

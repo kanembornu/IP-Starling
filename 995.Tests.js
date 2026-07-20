@@ -220,6 +220,20 @@ function runReturnWriteTests() {
   ]);
 }
 
+/** Pure fixture tests only. The production diagnostic remains explicitly manual. */
+function runPickupReturnIntegrityDiagnosticTests() {
+  runTestSuite("Pickup-Return integrity diagnostic tests", [
+    testPickupReturnIntegrityCleanDataset,
+    testPickupReturnIntegrityRelationFailures,
+    testPickupReturnIntegrityQuantityHistory,
+    testPickupReturnIntegrityDetailGenerationRisks,
+    testPickupReturnIntegrityDuplicateProductsAndTotals,
+    testPickupReturnIntegrityDecimalAndInvalidNumbers,
+    testPickupReturnIntegrityDeterminismAndImmutability,
+    testPickupReturnIntegrityReadOnlyConstruction,
+  ]);
+}
+
 function runPurchasingValidationTests() {
   runTestSuite("Purchasing validation tests", [
     testPurchasingServicePublicApi,
