@@ -487,6 +487,125 @@ function testPickupCreateMissingTanggal() {
   });
 }
 
+function testPickupCreateInvalidTanggal() {
+  [
+    "arbitrary",
+    "2026-02-30",
+    "2026-02-30T00:00:00.000Z",
+    "2026-07-20T25:00:00.000Z",
+    new Date("invalid"),
+    1,
+    true,
+    {},
+    [],
+    " ",
+  ].forEach((value) => {
+    assertPickupCreateFailure({
+      header: {
+        [PICKUP_HEADER_FIELDS.DATE]: value,
+        [PICKUP_HEADER_FIELDS.PARTNER_ID]: "PARTNER_TEST",
+      },
+      details: [{}],
+    });
+  });
+}
+
+function pickupCalendarDate(value) {
+  if (value instanceof Date) {
+    return Utilities.formatDate(value, APP_CONFIG.TIMEZONE, "yyyy-MM-dd");
+  }
+
+  return typeof value === "string" ? value : "";
+}
+
+function testPickupDateNormalization() {
+  const partner = findActivePickupTestPartner();
+  const products = findActivePickupTestProducts(1);
+
+  if (!partner || !products) {
+    return;
+  }
+
+  [
+    { input: new Date(2026, 6, 20), expected: "2026-07-20", label: "native Date" },
+    { input: "2026-07-20", expected: "2026-07-20", label: "date-only" },
+    {
+      input: "2026-07-19T17:00:00.000Z",
+      expected: "2026-07-20",
+      label: "ISO one-day regression",
+    },
+  ].forEach((sample) => {
+    const response = PickupService().create({
+      header: {
+        [PICKUP_HEADER_FIELDS.DATE]: sample.input,
+        [PICKUP_HEADER_FIELDS.PARTNER_ID]: partner[PARTNER_SCHEMA.PRIMARY_KEY],
+        [PICKUP_HEADER_FIELDS.NOTES]: `[TEST] Pickup ${sample.label} manual cleanup`,
+      },
+      details: [
+        {
+          [PICKUP_DETAIL_FIELDS.PRODUCT_ID]:
+            products[0][PRODUCT_SCHEMA.PRIMARY_KEY],
+          [PICKUP_DETAIL_FIELDS.QTY]: 1,
+          [PICKUP_DETAIL_FIELDS.NOTES]: "[TEST] Pickup date normalization",
+        },
+      ],
+    });
+
+    if (
+      !response.success ||
+      pickupCalendarDate(response.data.header[PICKUP_HEADER_FIELDS.DATE]) !==
+        sample.expected
+    ) {
+      throw new Error(`Pickup ${sample.label} normalization failed.`);
+    }
+
+    Logger.log(
+      `Pickup date test created header ${response.data.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]}. Manual cleanup required.`,
+    );
+  });
+}
+
+function testPickupPresenterDateContract() {
+  const source = HtmlService.createHtmlOutputFromFile(
+    "974.View.Pickups.Presenter",
+  ).getContent();
+
+  const required = [
+    "function calendarDateValue(value)",
+    "function dateInputValue(value)",
+    "return calendarDateValue(value);",
+    "function formatPickupDate(value)",
+    "formatPickupDate(pickup[FIELD.DATE])",
+    'detailField("Tanggal", formatPickupDate(header[FIELD.DATE]))',
+    "timestamp.getFullYear()",
+    "timestamp.getMonth()",
+    "timestamp.getDate()",
+  ];
+
+  required.forEach((contract) => {
+    if (source.indexOf(contract) === -1) {
+      throw new Error(`Pickup presenter date contract is missing: ${contract}`);
+    }
+  });
+
+  if (/\.slice\(0,\s*10\)/.test(source)) {
+    throw new Error("Pickup presenter must not slice ISO date prefixes.");
+  }
+
+  if (/new Date\(["']\d{4}-\d{2}-\d{2}["']\)/.test(source)) {
+    throw new Error("Pickup presenter must not parse YYYY-MM-DD with new Date().");
+  }
+
+  const searchSection = source.slice(
+    source.indexOf("function filter(keyword"),
+    source.indexOf("// Table Header"),
+  );
+
+  if (searchSection.indexOf("FIELD.DATE") !== -1) {
+    throw new Error("Pickup date search must remain disabled.");
+  }
+}
+
 function testPickupCreateMissingPartnerId() {
   assertPickupCreateFailure({
     header: {

@@ -11,6 +11,69 @@
  */
 
 function PickupService() {
+  function normalizeTanggal(value) {
+    if (value instanceof Date) {
+      if (Number.isNaN(value.getTime())) {
+        return Response.error("Tanggal tidak valid.");
+      }
+
+      return Utilities.formatDate(value, APP_CONFIG.TIMEZONE, "yyyy-MM-dd");
+    }
+
+    if (typeof value !== "string") {
+      return Response.error(
+        "Tanggal harus berupa Date, YYYY-MM-DD, atau ISO timestamp.",
+      );
+    }
+
+    const text = value.trim();
+
+    if (!text) {
+      return Response.error("Tanggal wajib diisi.");
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+      const parts = text.split("-").map(Number);
+      const parsed = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+
+      if (
+        parsed.getUTCFullYear() !== parts[0] ||
+        parsed.getUTCMonth() !== parts[1] - 1 ||
+        parsed.getUTCDate() !== parts[2]
+      ) {
+        return Response.error("Tanggal tidak valid.");
+      }
+
+      return text;
+    }
+
+    const isoTimestamp = /^(\d{4})-(\d{2})-(\d{2})T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+    const isoMatch = isoTimestamp.exec(text);
+
+    if (!isoMatch) {
+      return Response.error(
+        "Tanggal harus berupa Date, YYYY-MM-DD, atau ISO timestamp.",
+      );
+    }
+
+    const isoParts = isoMatch.slice(1, 4).map(Number);
+    const isoDate = new Date(
+      Date.UTC(isoParts[0], isoParts[1] - 1, isoParts[2]),
+    );
+    const timestamp = new Date(text);
+
+    if (
+      isoDate.getUTCFullYear() !== isoParts[0] ||
+      isoDate.getUTCMonth() !== isoParts[1] - 1 ||
+      isoDate.getUTCDate() !== isoParts[2] ||
+      Number.isNaN(timestamp.getTime())
+    ) {
+      return Response.error("Tanggal tidak valid.");
+    }
+
+    return Utilities.formatDate(timestamp, APP_CONFIG.TIMEZONE, "yyyy-MM-dd");
+  }
+
   return TransactionService.create({
     headerSchema: PICKUP_HEADER_SCHEMA,
 
@@ -24,8 +87,12 @@ function PickupService() {
 
         const details = document.details;
 
-        if (!header[PICKUP_HEADER_FIELDS.DATE]) {
-          return Response.error("Tanggal wajib diisi.");
+        const normalizedDate = normalizeTanggal(
+          header[PICKUP_HEADER_FIELDS.DATE],
+        );
+
+        if (normalizedDate && normalizedDate.success === false) {
+          return normalizedDate;
         }
 
         if (!header[PICKUP_HEADER_FIELDS.PARTNER_ID]) {
@@ -86,6 +153,8 @@ function PickupService() {
 
         return {
           header: Object.assign({}, header, {
+            [PICKUP_HEADER_FIELDS.DATE]: normalizedDate,
+
             [PICKUP_HEADER_FIELDS.TOTAL_ITEM]: details.length,
 
             [PICKUP_HEADER_FIELDS.TOTAL_QTY]: totalQty,

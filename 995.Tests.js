@@ -59,6 +59,7 @@ function runPickupCreateValidationTests() {
     testPickupCreateMissingHeader,
     testPickupCreateEmptyDetails,
     testPickupCreateMissingTanggal,
+    testPickupCreateInvalidTanggal,
     testPickupCreateMissingPartnerId,
     testPickupCreateInvalidPartnerId,
     testPickupCreateMissingProductId,
@@ -72,6 +73,13 @@ function runPickupCreateWriteTests() {
   runTestSuite("Pickup create write tests", [
     testPickupCreateValidSingleItem,
     testPickupCreateValidMultiItem,
+    testPickupDateNormalization,
+  ]);
+}
+
+function runPickupPresenterDateTests() {
+  runTestSuite("Pickup presenter date tests", [
+    testPickupPresenterDateContract,
   ]);
 }
 

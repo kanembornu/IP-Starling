@@ -110,7 +110,7 @@
           "font-medium text-slate-800",
         ),
 
-        Components.tableCell(Format.date(pickup[FIELD.DATE])),
+        Components.tableCell(formatPickupDate(pickup[FIELD.DATE])),
 
         Components.tableCell(text(pickup[FIELD.PARTNER_ID])),
 
@@ -440,7 +440,7 @@
         <div class="space-y-6">
           <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2 text-sm">
             ${detailField("Pickup No / ID", header[FIELD.PICKUP_NO] || header[FIELD.ID])}
-            ${detailField("Tanggal", Format.date(header[FIELD.DATE]))}
+            ${detailField("Tanggal", formatPickupDate(header[FIELD.DATE]))}
             ${detailField("Partner", header[FIELD.PARTNER_ID])}
             ${detailField("Status", header[FIELD.STATUS])}
             ${detailField("Total Item", Format.number(header[FIELD.TOTAL_ITEM]))}
@@ -711,9 +711,59 @@
       });
     }
 
+    function calendarDateValue(value) {
+      const text = String(value ?? "").trim();
+      const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+
+      if (dateOnlyMatch) {
+        const year = Number(dateOnlyMatch[1]);
+        const month = Number(dateOnlyMatch[2]);
+        const day = Number(dateOnlyMatch[3]);
+        const date = new Date(year, month - 1, day);
+
+        return date.getFullYear() === year &&
+          date.getMonth() === month - 1 &&
+          date.getDate() === day
+          ? `${dateOnlyMatch[1]}-${dateOnlyMatch[2]}-${dateOnlyMatch[3]}`
+          : "";
+      }
+
+      if (!text) {
+        return "";
+      }
+
+      const timestamp = new Date(text);
+
+      if (Number.isNaN(timestamp.getTime())) {
+        return "";
+      }
+
+      const year = timestamp.getFullYear();
+      const month = String(timestamp.getMonth() + 1).padStart(2, "0");
+      const day = String(timestamp.getDate()).padStart(2, "0");
+
+      return `${year}-${month}-${day}`;
+    }
+
     function dateInputValue(value) {
-      const date = String(value || "").trim();
-      return /^\d{4}-\d{2}-\d{2}/.test(date) ? date.slice(0, 10) : date;
+      return calendarDateValue(value);
+    }
+
+    function formatPickupDate(value) {
+      const calendarDate = calendarDateValue(value);
+
+      if (!calendarDate) {
+        return "-";
+      }
+
+      const [year, month, day] = calendarDate.split("-").map(Number);
+      const date = new Date(year, month - 1, day);
+
+      return new Intl.DateTimeFormat("id-ID", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }).format(date);
     }
 
     function newDetail() {
