@@ -99,8 +99,38 @@ function ExpenseService() {
 
     const text = value.trim();
 
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    if (!text) {
       return Response.error("Tanggal harus berupa Date atau YYYY-MM-DD.");
+    }
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+      const isoTimestamp = /^(\d{4})-(\d{2})-(\d{2})T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+      const isoMatch = isoTimestamp.exec(text);
+
+      if (!isoMatch) {
+        return Response.error("Tanggal harus berupa Date atau YYYY-MM-DD.");
+      }
+
+      const isoParts = isoMatch.slice(1, 4).map(Number);
+      const isoDate = new Date(
+        Date.UTC(isoParts[0], isoParts[1] - 1, isoParts[2]),
+      );
+      const timestamp = new Date(text);
+
+      if (
+        isoDate.getUTCFullYear() !== isoParts[0] ||
+        isoDate.getUTCMonth() !== isoParts[1] - 1 ||
+        isoDate.getUTCDate() !== isoParts[2] ||
+        Number.isNaN(timestamp.getTime())
+      ) {
+        return Response.error("Tanggal tidak valid.");
+      }
+
+      return Utilities.formatDate(
+        timestamp,
+        APP_CONFIG.TIMEZONE,
+        "yyyy-MM-dd",
+      );
     }
 
     const parts = text.split("-").map(Number);
@@ -269,12 +299,6 @@ function ExpenseService() {
 
     if (clean && clean.success === false) {
       return clean;
-    }
-
-    const normalized = base.update(cleanId, clean);
-
-    if (!normalized.success) {
-      return normalized;
     }
 
     return base.restore(cleanId);

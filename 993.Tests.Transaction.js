@@ -2689,6 +2689,21 @@ function expenseAssertFailure(response, message) {
     throw new Error(message);
 }
 
+function expenseCalendarDate(value) {
+  if (value instanceof Date) {
+    return Utilities.formatDate(value, APP_CONFIG.TIMEZONE, "yyyy-MM-dd");
+  }
+
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const timestamp = new Date(value);
+  return Number.isNaN(timestamp.getTime())
+    ? ""
+    : Utilities.formatDate(timestamp, APP_CONFIG.TIMEZONE, "yyyy-MM-dd");
+}
+
 function expenseWithFixture(test, document) {
   let row = null;
   try {
@@ -2744,6 +2759,20 @@ function testExpenseValidationAndNormalization() {
     "Invalid date must fail.",
   );
   expenseAssertFailure(
+    ExpenseService().create(expenseTestDocument({ Tanggal: "invalid date" })),
+    "Invalid date text must fail.",
+  );
+  expenseAssertFailure(
+    ExpenseService().create(
+      expenseTestDocument({ Tanggal: "2026-02-30T00:00:00.000Z" }),
+    ),
+    "Invalid ISO calendar date must fail.",
+  );
+  expenseAssertFailure(
+    ExpenseService().create(expenseTestDocument({ Tanggal: new Date("invalid") })),
+    "Invalid Date object must fail.",
+  );
+  expenseAssertFailure(
     ExpenseService().create(expenseTestDocument({ Kategori: "  " })),
     "Blank Kategori must fail.",
   );
@@ -2751,6 +2780,26 @@ function testExpenseValidationAndNormalization() {
     ExpenseService().create(expenseTestDocument({ Keterangan: "  " })),
     "Blank Keterangan must fail.",
   );
+
+  [
+    { input: "2026-07-20", expected: "2026-07-20", label: "date-only" },
+    {
+      input: new Date(2026, 6, 20),
+      expected: "2026-07-20",
+      label: "native Date",
+    },
+    {
+      input: "2026-07-19T17:00:00.000Z",
+      expected: "2026-07-20",
+      label: "ISO timestamp",
+    },
+  ].forEach((sample) => {
+    expenseWithFixture((row) => {
+      if (expenseCalendarDate(row.Tanggal) !== sample.expected) {
+        throw new Error(`Expense ${sample.label} normalization failed.`);
+      }
+    }, expenseTestDocument({ Tanggal: sample.input }));
+  });
 }
 
 function testExpenseCreateNormalization() {
@@ -2840,15 +2889,40 @@ function testExpenseFindDeleted() {
 }
 
 function testExpenseRestoreValid() {
-  expenseWithFixture((row) => {
-    ExpenseService().remove(row.ID);
-    const response = ExpenseService().restore(row.ID);
-    if (
-      !response.success ||
-      response.data.Deleted !== false ||
-      response.data.IsActive !== true
-    )
-      throw new Error("Expense restore failed.");
+  [
+    { input: new Date(2026, 6, 20), label: "native Date" },
+    { input: "2026-07-20", label: "date-only string" },
+  ].forEach((sample) => {
+    expenseWithFixture((row) => {
+      const before = expenseRawById(row.ID);
+      const expectedDate = expenseCalendarDate(before.Tanggal);
+      const expectedCategory = before.Kategori;
+      const expectedDescription = before.Keterangan;
+      const expectedAmount = before.Nominal;
+
+      ExpenseService().remove(row.ID);
+      const response = ExpenseService().restore(row.ID);
+      const restored = expenseRawById(row.ID);
+
+      if (
+        !response.success ||
+        response.data.Deleted !== false ||
+        response.data.IsActive !== true
+      ) {
+        throw new Error(`Expense restore failed for ${sample.label}.`);
+      }
+
+      if (
+        expenseCalendarDate(restored.Tanggal) !== expectedDate ||
+        restored.Kategori !== expectedCategory ||
+        restored.Keterangan !== expectedDescription ||
+        restored.Nominal !== expectedAmount
+      ) {
+        throw new Error(
+          `Expense restore changed business fields for ${sample.label}.`,
+        );
+      }
+    }, expenseTestDocument({ Tanggal: sample.input }));
   });
 }
 
