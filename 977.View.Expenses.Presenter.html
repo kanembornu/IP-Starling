@@ -34,6 +34,13 @@
 
     let query = "";
 
+    const modeQueries = {
+      active: "",
+      trash: "",
+    };
+
+    let mode = "active";
+
     let createSubmitting = false;
 
     let createForm = null;
@@ -58,14 +65,16 @@
     // Public Render
     //===========================================================================
 
-    function render(expenses = []) {
+    function render(expenses = [], selectedMode = App.getExpenseMode()) {
+      mode = selectedMode === "trash" ? "trash" : "active";
       rows = Array.isArray(expenses) ? expenses.slice() : [];
 
       bindToolbar();
 
       bindActions();
 
-      query = normalize(DOM.$("inp-expense-search")?.value);
+      query = modeQueries[mode];
+      syncModeUi();
 
       renderVisibleRows();
     }
@@ -90,17 +99,19 @@
 
     function search(keyword = "") {
       query = normalize(keyword);
-      rows = App.getExpenses();
+      modeQueries[mode] = query;
+      rows = mode === "trash" ? App.getDeletedExpenses() : App.getExpenses();
       renderVisibleRows();
     }
 
     function matchesSearch(expense = {}) {
-      const date = formatDate(expense[FIELD.DATE]);
+      const dateInput = dateInputValue(expense[FIELD.DATE]);
+      const date = dateInput ? formatDate(expense[FIELD.DATE]) : "";
       const amount = formatCurrency(expense[FIELD.AMOUNT]);
 
       return [
         expense[FIELD.ID],
-        expense[FIELD.DATE],
+        dateInput,
         date,
         expense[FIELD.CATEGORY],
         expense[FIELD.DESCRIPTION],
@@ -122,6 +133,19 @@
 
       const add = DOM.$("btn-expense-add");
 
+      document.querySelectorAll("[data-expense-mode]").forEach((button) => {
+        if (button.dataset.expenseModeBound) return;
+
+        button.dataset.expenseModeBound = "true";
+        button.addEventListener("click", () => {
+          const nextMode = button.dataset.expenseMode;
+          if (nextMode === mode) return;
+
+          modeQueries[mode] = normalize(DOM.$("inp-expense-search")?.value);
+          App.setExpenseMode(nextMode);
+        });
+      });
+
       if (add && !add.dataset.expenseAddBound) {
         add.dataset.expenseAddBound = "true";
         add.addEventListener("click", openCreate);
@@ -133,9 +157,32 @@
 
       refresh.dataset.expenseRefreshBound = "true";
       refresh.addEventListener("click", () => {
+        modeQueries[mode] = "";
         clearSearch();
         App.refresh();
       });
+    }
+
+    function syncModeUi() {
+      document.querySelectorAll("[data-expense-mode]").forEach((button) => {
+        const selected = button.dataset.expenseMode === mode;
+        button.setAttribute("aria-pressed", String(selected));
+        button.classList.toggle("bg-blue-600", selected);
+        button.classList.toggle("text-white", selected);
+        button.classList.toggle("text-slate-600", !selected);
+        button.classList.toggle("hover:bg-slate-100", !selected);
+      });
+
+      const input = DOM.$("inp-expense-search");
+      if (input) {
+        input.value = modeQueries[mode];
+        input.placeholder = mode === "trash"
+          ? "Search deleted expense..."
+          : "Search expense...";
+      }
+
+      const add = DOM.$("btn-expense-add");
+      if (add) add.classList.toggle("hidden", mode === "trash");
     }
 
     //===========================================================================
@@ -450,13 +497,15 @@
         ),
 
         Components.tableCell(
-          SharedPresenter.renderStatus(expense[FIELD.IS_ACTIVE]),
+          mode === "trash"
+            ? '<span class="inline-flex rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700">Deleted</span>'
+            : SharedPresenter.renderStatus(expense[FIELD.IS_ACTIVE]),
 
           "text-center",
         ),
 
         Components.tableCell(
-          renderActions(id),
+          mode === "trash" ? '<span class="text-slate-400">-</span>' : renderActions(id),
           "text-center",
         ),
       ]);
@@ -1201,6 +1250,13 @@
 
     function renderEmpty(type) {
       const noMatch = type === "search";
+      const message = mode === "trash"
+        ? noMatch
+          ? "No deleted Expense matches the current search."
+          : "No deleted Expense records."
+        : noMatch
+          ? "No Expense matches your search. Clear the search to show all active Expenses."
+          : "No active Expense data exists.";
 
       Render.mount(
         "tbl-expenses-body",
@@ -1209,9 +1265,7 @@
         <tr>
           <td colspan="7">
             ${Components.empty(
-              noMatch
-                ? "No Expense matches your search. Clear the search to show all active Expenses."
-                : "No active Expense data exists.",
+              message,
             )}
           </td>
         </tr>
@@ -1219,17 +1273,23 @@
       );
     }
 
-    function renderLoading() {
+    function renderLoading(selectedMode = App.getExpenseMode()) {
+      mode = selectedMode === "trash" ? "trash" : "active";
       bindToolbar();
+      syncModeUi();
+      const label = mode === "trash" ? "Deleted Expenses" : "Expenses";
       Render.mount(
         "tbl-expenses-body",
-        `<tr><td colspan="7">${Components.loading("Loading Expenses...")}</td></tr>`,
+        `<tr><td colspan="7">${Components.loading(`Loading ${label}...`)}</td></tr>`,
       );
-      Render.mount("lbl-expense-info", "Loading Expenses...");
+      Render.mount("lbl-expense-info", `Loading ${label}...`);
     }
 
-    function renderError() {
+    function renderError(selectedMode = App.getExpenseMode()) {
+      mode = selectedMode === "trash" ? "trash" : "active";
       bindToolbar();
+      syncModeUi();
+      const subject = mode === "trash" ? "Deleted Expense" : "Expense";
       Render.mount(
         "tbl-expenses-body",
         `<tr><td colspan="7">
@@ -1237,7 +1297,7 @@
             <i class="fa-solid fa-triangle-exclamation text-5xl text-red-400"></i>
             <h3 class="mt-4 text-lg font-semibold text-red-700">Load failed</h3>
             <p class="mt-2 text-slate-500">
-              Expense data could not be loaded. Use Refresh to try again.
+              ${subject} data could not be loaded. Use Refresh to try again.
             </p>
           </div>
         </td></tr>`,
@@ -1253,7 +1313,7 @@
       Render.mount(
         "lbl-expense-info",
 
-        `${Format.number(total)} Expense`,
+        `${Format.number(total)} ${mode === "trash" ? "Deleted Expense" : "Expense"}`,
       );
     }
 

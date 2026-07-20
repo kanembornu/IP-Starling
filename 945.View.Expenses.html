@@ -28,6 +28,27 @@
 
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
       <div class="flex flex-wrap gap-3 items-center">
+        <div class="inline-flex rounded-lg border border-slate-300 p-1" aria-label="Expense list mode">
+          <button
+            id="btn-expense-active"
+            type="button"
+            data-expense-mode="active"
+            class="rounded-md px-4 py-2 text-sm font-medium transition"
+          >
+            Active Expenses
+          </button>
+
+          <button
+            id="btn-expense-trash"
+            type="button"
+            data-expense-mode="trash"
+            class="rounded-md px-4 py-2 text-sm font-medium transition"
+          >
+            <i class="fa-solid fa-trash-can mr-2"></i>
+            Trash
+          </button>
+        </div>
+
         <div class="flex-1">
           <input
             id="inp-expense-search"
@@ -40,6 +61,7 @@
 
         <button
           id="btn-expense-refresh"
+          type="button"
           class="px-4 py-2 rounded-lg border border-slate-300 hover:bg-slate-100"
         >
           <i class="fa-solid fa-rotate-right"></i>

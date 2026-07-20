@@ -28,6 +28,12 @@
       purchasing: [],
 
       expenses: [],
+
+      deletedExpenses: [],
+
+      expenseMode: "active",
+
+      expenseLoading: false,
     };
 
     let productsLoaded = false;
@@ -38,7 +44,7 @@
 
     let partnersLoading = null;
 
-    let expensesLoading = null;
+    let expenseRequest = 0;
 
     //===========================================================================
     // Initialize
@@ -108,6 +114,16 @@
       return Array.isArray(state.expenses)
         ? Utils.deepClone(state.expenses)
         : [];
+    }
+
+    function getDeletedExpenses() {
+      return Array.isArray(state.deletedExpenses)
+        ? Utils.deepClone(state.deletedExpenses)
+        : [];
+    }
+
+    function getExpenseMode() {
+      return state.expenseMode;
     }
 
     function ensureProductsLoaded() {
@@ -416,47 +432,60 @@
     //===========================================================================
 
     async function loadExpenses() {
-      if (expensesLoading) {
-        return expensesLoading;
-      }
+      const mode = state.expenseMode;
+      const request = ++expenseRequest;
+      const fallback = mode === "trash"
+        ? "Load deleted expenses failed."
+        : "Load expenses failed.";
 
-      ExpensesPresenter.renderLoading();
+      state.expenseLoading = true;
+      ExpensesPresenter.renderLoading(mode);
 
-      expensesLoading = (async () => {
-        let res;
-
-        try {
-          res = await Api.Expense.list();
-        } catch (error) {
-          const message = readableLoadError(error, "Load expenses failed.");
-
-          Toast.error(message);
-          ExpensesPresenter.renderError();
-
-          return;
-        }
-
-        if (!res || !res.success) {
-          const message = res?.message || "Load expenses failed.";
-
-          Toast.error(message);
-          ExpensesPresenter.renderError();
-
-          return;
-        }
-
-        state.expenses = Utils.deepClone(
-          Array.isArray(res.data) ? res.data : [],
-        );
-
-        ExpensesPresenter.render(state.expenses);
-      })();
+      let res;
 
       try {
-        return await expensesLoading;
-      } finally {
-        expensesLoading = null;
+        res = mode === "trash"
+          ? await Api.Expense.listDeleted()
+          : await Api.Expense.list();
+      } catch (error) {
+        if (request !== expenseRequest || mode !== state.expenseMode) return;
+
+        state.expenseLoading = false;
+        Toast.error(readableLoadError(error, fallback));
+        ExpensesPresenter.renderError(mode);
+        return;
       }
+
+      if (request !== expenseRequest || mode !== state.expenseMode) return;
+
+      if (!res || !res.success) {
+        state.expenseLoading = false;
+        Toast.error(res?.message || fallback);
+        ExpensesPresenter.renderError(mode);
+        return;
+      }
+
+      const records = Utils.deepClone(Array.isArray(res.data) ? res.data : []);
+      state.expenseLoading = false;
+
+      if (mode === "trash") {
+        state.deletedExpenses = records;
+      } else {
+        state.expenses = records;
+      }
+
+      ExpensesPresenter.render(records, mode);
+    }
+
+    function setExpenseMode(mode) {
+      const nextMode = mode === "trash" ? "trash" : "active";
+
+      if (state.expenseMode === nextMode) {
+        return Promise.resolve();
+      }
+
+      state.expenseMode = nextMode;
+      return loadExpenses();
     }
 
     //===========================================================================
@@ -553,6 +582,9 @@
       getProducts,
       getPartners,
       getExpenses,
+      getDeletedExpenses,
+      getExpenseMode,
+      setExpenseMode,
 
       loadProducts,
       openCreateProduct,
