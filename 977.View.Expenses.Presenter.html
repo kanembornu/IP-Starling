@@ -48,6 +48,12 @@
 
     let editForm = null;
 
+    let deleteSelection = null;
+
+    let deleteSubmitting = false;
+
+    let deleteRequest = 0;
+
     //===========================================================================
     // Public Render
     //===========================================================================
@@ -415,6 +421,8 @@
           view(button.dataset.expenseId);
         } else if (button.dataset.expenseAction === "edit") {
           openEdit(button.dataset.expenseId);
+        } else if (button.dataset.expenseAction === "delete") {
+          openDelete(button.dataset.expenseId);
         }
       });
     }
@@ -482,7 +490,170 @@
           ${Components.icon("fa-eye")}
           <span>View</span>
         </button>
+        <button
+          type="button"
+          data-expense-action="delete"
+          data-expense-id="${SharedPresenter.text(value)}"
+          title="Delete"
+          class="ml-2 inline-flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-red-700 transition hover:bg-red-100"
+        >
+          ${Components.icon("fa-trash")}
+          <span>Delete</span>
+        </button>
       `;
+    }
+
+    //===========================================================================
+    // Delete Confirmation
+    //===========================================================================
+
+    function openDelete(id) {
+      const normalizedId = String(id ?? "").trim();
+      const expense = rows.find((item) => {
+        return String(item?.[FIELD.ID] ?? "").trim() === normalizedId;
+      });
+
+      if (!normalizedId) {
+        Toast.error("Expense ID is unavailable.");
+        return;
+      }
+
+      if (!expense) {
+        Toast.error("This Expense is no longer available for deletion.");
+        return;
+      }
+
+      if (deleteSubmitting) {
+        return;
+      }
+
+      deleteRequest += 1;
+      deleteSelection = {
+        id: normalizedId,
+        date: expense[FIELD.DATE],
+        category: expense[FIELD.CATEGORY],
+        amount: expense[FIELD.AMOUNT],
+      };
+
+      Modal.open({
+        title: "Delete Expense",
+        width: "sm",
+        body: renderDeleteContext(deleteSelection),
+        footer: renderDeleteFooter(),
+      });
+      bindDeleteControls();
+      setDeleteSubmitting(false);
+    }
+
+    function renderDeleteContext(context) {
+      return `
+        <div class="space-y-4">
+          <p class="font-medium text-red-700">Confirm soft deletion of this Expense.</p>
+          <dl class="grid grid-cols-1 gap-3 rounded-lg bg-slate-50 p-3 text-sm sm:grid-cols-2">
+            ${detailField("ID", context.id)}
+            ${detailField("Tanggal", formatDate(context.date))}
+            ${detailField("Kategori", context.category)}
+            ${detailField("Nominal", formatCurrency(context.amount))}
+          </dl>
+          <p class="text-sm text-slate-600">This removes the Expense from the active list without permanently deleting its sheet row.</p>
+        </div>
+      `;
+    }
+
+    function renderDeleteFooter() {
+      return `
+        <button type="button" data-expense-delete-action="cancel" class="rounded-lg border border-slate-300 px-5 py-2 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50">Cancel</button>
+        <button type="button" id="btn-expense-delete-confirm" data-expense-delete-action="confirm" class="rounded-lg bg-red-600 px-5 py-2 text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">Delete Expense</button>
+      `;
+    }
+
+    function bindDeleteControls() {
+      const cancel = document.querySelector('[data-expense-delete-action="cancel"]');
+      const confirm = DOM.$("btn-expense-delete-confirm");
+      const close = DOM.$("btn-modal-close");
+
+      cancel?.addEventListener("click", closeDelete);
+      confirm?.addEventListener("click", submitDelete);
+
+      if (close) {
+        close.onclick = closeDelete;
+      }
+    }
+
+    function setDeleteSubmitting(submitting) {
+      const confirm = DOM.$("btn-expense-delete-confirm");
+      const cancel = document.querySelector('[data-expense-delete-action="cancel"]');
+      const close = DOM.$("btn-modal-close");
+
+      [confirm, cancel, close].forEach((button) => {
+        if (button) {
+          button.disabled = submitting;
+        }
+      });
+
+      if (confirm) {
+        confirm.textContent = submitting ? "Deleting..." : "Delete Expense";
+      }
+    }
+
+    function closeDelete() {
+      if (deleteSubmitting) {
+        return;
+      }
+
+      deleteRequest += 1;
+      deleteSelection = null;
+      Modal.close();
+    }
+
+    async function submitDelete() {
+      if (deleteSubmitting || !deleteSelection) {
+        return;
+      }
+
+      const selection = deleteSelection;
+      const request = ++deleteRequest;
+      const id = selection.id;
+      deleteSubmitting = true;
+      setDeleteSubmitting(true);
+
+      let response;
+
+      try {
+        response = await Api.Expense.remove(id);
+
+        if (request !== deleteRequest || deleteSelection !== selection) {
+          return;
+        }
+
+        if (!response?.success) {
+          Toast.error(response?.message || "Expense could not be deleted.");
+          return;
+        }
+      } catch (error) {
+        if (request !== deleteRequest || deleteSelection !== selection) {
+          return;
+        }
+
+        Toast.error(
+          typeof error?.message === "string" && error.message.trim()
+            ? error.message
+            : "Expense could not be deleted. Please try again.",
+        );
+        return;
+      } finally {
+        if (request === deleteRequest && deleteSelection === selection) {
+          deleteSubmitting = false;
+          setDeleteSubmitting(false);
+        }
+      }
+
+      Toast.success(response.message || "Expense deleted.");
+      deleteSubmitting = false;
+      deleteRequest += 1;
+      deleteSelection = null;
+      Modal.close();
+      await App.refresh();
     }
 
     //===========================================================================
