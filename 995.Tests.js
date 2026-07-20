@@ -120,7 +120,7 @@ function runPickupRemoveRestoreTests() {
     testPickupRemoveAlreadyDeleted,
     testPickupRestoreMissingId,
     testPickupRestoreUnknownId,
-    testPickupIntegrityRestoreAlwaysBlocked,
+    testPickupIntegrityRestorePreflight,
   ]);
 }
 
@@ -131,7 +131,7 @@ function runPickupReturnIntegrityGuardTests() {
     testPickupIntegrityHeaderOnlyAndReorder,
     testPickupIntegrityBlocksDetailMutations,
     testPickupIntegrityDeletedReturnAndDeleteGuards,
-    testPickupIntegrityRestoreAlwaysBlocked,
+    testPickupIntegrityRestorePreflight,
     testReturnIntegrityRejectsMismatchedPair,
     testReturnCreateValid,
     testReturnUpdateValid,

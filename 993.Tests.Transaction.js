@@ -1490,6 +1490,42 @@ function testPickupIntegrityHeaderOnlyAndReorder() {
   ) {
     throw new Error("Equivalent header-only Pickup update did not preserve details.");
   }
+
+  const numericDocument = pickupIntegrityDocument(transaction, transaction.details);
+  numericDocument.details[0][PICKUP_DETAIL_FIELDS.QTY] =
+    String(numericDocument.details[0][PICKUP_DETAIL_FIELDS.QTY]);
+  if (!PickupService().update(transaction.header.ID, numericDocument).success) {
+    throw new Error("Equivalent numeric Qty representation was treated as changed.");
+  }
+
+  const alternatePartner = RepositoryReader.findAll(PARTNER_SCHEMA).find((partner) => {
+    return (
+      partner[PARTNER_SCHEMA.SYSTEM.IS_ACTIVE] === true &&
+      partner[PARTNER_SCHEMA.PRIMARY_KEY] !==
+        transaction.header[PICKUP_HEADER_FIELDS.PARTNER_ID]
+    );
+  });
+  if (alternatePartner) {
+    const partnerDocument = pickupIntegrityDocument(transaction, transaction.details);
+    partnerDocument.header[PICKUP_HEADER_FIELDS.PARTNER_ID] =
+      alternatePartner[PARTNER_SCHEMA.PRIMARY_KEY];
+    const partnerResponse = PickupService().update(transaction.header.ID, partnerDocument);
+    if (
+      !partnerResponse.success ||
+      partnerResponse.data.details.map((detail) => detail.ID).sort().join("|") !==
+        originalIds.join("|")
+    ) {
+      throw new Error("Partner-only Pickup update did not preserve detail identity.");
+    }
+  } else {
+    Logger.log("SKIPPED: no alternate active Partner for header-only guard test.");
+  }
+
+  const beforeDelete = PickupService().findById(transaction.header.ID).data;
+  if (PickupService().remove(transaction.header.ID).success) {
+    throw new Error("Active Return history must block Pickup delete.");
+  }
+  assertPickupIntegrityUnchanged(transaction, beforeDelete);
 }
 
 function testPickupIntegrityBlocksDetailMutations() {
@@ -1498,7 +1534,8 @@ function testPickupIntegrityBlocksDetailMutations() {
   const transaction = fixture.transaction;
   const mutations = [
     (details) => {
-      details[0][PICKUP_DETAIL_FIELDS.QTY] = Number(details[0][PICKUP_DETAIL_FIELDS.QTY]) + 1;
+      details[0][PICKUP_DETAIL_FIELDS.QTY] =
+        Number(details[0][PICKUP_DETAIL_FIELDS.QTY]) + 0.5;
     },
     (details) => {
       const first = details[0][PICKUP_DETAIL_FIELDS.PRODUCT_ID];
@@ -1559,6 +1596,11 @@ function testPickupIntegrityDeletedReturnAndDeleteGuards() {
   if (!ReturnService().remove(fixture.row.ID).success) {
     throw new Error("Return fixture could not be soft-deleted.");
   }
+  if (!RepositoryWriter.update(RETURN_SCHEMA, fixture.row.ID, {
+    [RETURN_FIELDS.PICKUP_ID]: "",
+  })) {
+    throw new Error("Malformed deleted Return fixture could not be prepared.");
+  }
 
   const headerOnly = PickupService().update(
     transaction.header.ID,
@@ -1581,28 +1623,35 @@ function testPickupIntegrityDeletedReturnAndDeleteGuards() {
   assertPickupIntegrityUnchanged(transaction, before);
 }
 
-function testPickupIntegrityRestoreAlwaysBlocked() {
+function testPickupIntegrityRestorePreflight() {
   const transaction = createPickupUpdateTestTransaction(1);
   if (!transaction) return;
   const identity = assertPickupRemoved(transaction);
-  const beforeHeader = findPickupRecordIncludingDeleted(
-    PICKUP_HEADER_SCHEMA,
-    identity.headerId,
-  );
-  const beforeDetails = findPickupDetailsIncludingDeleted(identity.headerId);
   const response = PickupService().restore(identity.headerId);
-  const afterHeader = findPickupRecordIncludingDeleted(
-    PICKUP_HEADER_SCHEMA,
-    identity.headerId,
-  );
-  const afterDetails = findPickupDetailsIncludingDeleted(identity.headerId);
+  if (!response.success) {
+    throw new Error("A Pickup with one unambiguous detail must restore safely.");
+  }
 
-  if (
-    response.success ||
-    JSON.stringify(beforeHeader) !== JSON.stringify(afterHeader) ||
-    JSON.stringify(beforeDetails) !== JSON.stringify(afterDetails)
-  ) {
-    throw new Error("Pickup restore must fail without mutating rows.");
+  const removedAgain = PickupService().remove(identity.headerId);
+  if (!removedAgain.success) throw new Error("Safe restore fixture cleanup failed.");
+
+  const originalDetail = findPickupDetailsIncludingDeleted(identity.headerId)[0];
+  const duplicate = Object.assign({}, originalDetail, {
+    [PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]: IDGenerator.generate(PICKUP_DETAIL_SCHEMA),
+    [PICKUP_DETAIL_SCHEMA.SYSTEM.IS_DELETED]: true,
+    [PICKUP_DETAIL_SCHEMA.SYSTEM.IS_ACTIVE]: false,
+  });
+  if (!RepositoryWriter.insert(PICKUP_DETAIL_SCHEMA, duplicate)) {
+    throw new Error("Duplicate restore-risk fixture could not be created.");
+  }
+
+  const beforeHeader = findPickupRecordIncludingDeleted(PICKUP_HEADER_SCHEMA, identity.headerId);
+  const beforeDetails = findPickupDetailsIncludingDeleted(identity.headerId);
+  const blocked = PickupService().restore(identity.headerId);
+  const afterHeader = findPickupRecordIncludingDeleted(PICKUP_HEADER_SCHEMA, identity.headerId);
+  const afterDetails = findPickupDetailsIncludingDeleted(identity.headerId);
+  if (blocked.success || JSON.stringify(beforeHeader) !== JSON.stringify(afterHeader) || JSON.stringify(beforeDetails) !== JSON.stringify(afterDetails)) {
+    throw new Error("Ambiguous Pickup restore must fail before mutating rows.");
   }
 }
 
@@ -1620,6 +1669,9 @@ function testReturnIntegrityRejectsMismatchedPair() {
     }
     if (ReturnService().findById(row.ID).success) {
       throw new Error("Return findById must reject a mismatched relation pair.");
+    }
+    if (ReturnService().update(row.ID, { [RETURN_FIELDS.DATE]: row.Tanggal }).success) {
+      throw new Error("Return date-only update must reject a mismatched relation pair.");
     }
     if (ReturnService().update(row.ID, { [RETURN_FIELDS.QTY]: row.Qty }).success) {
       throw new Error("Return Qty update must reject a mismatched relation pair.");

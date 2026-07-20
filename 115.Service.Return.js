@@ -62,7 +62,7 @@ function ReturnService() {
     );
   }
 
-  function resolvePickup(pickupDetailId) {
+  function resolvePickup(pickupDetailId, storedPickupId) {
     if (!isPresent(pickupDetailId)) {
       return Response.error("Pickup Detail wajib diisi.");
     }
@@ -77,6 +77,12 @@ function ReturnService() {
     }
 
     const pickupId = pickupDetail[PICKUP_DETAIL_FIELDS.PICKUP_ID];
+
+    if (arguments.length > 1 && storedPickupId !== pickupId) {
+      return Response.error(
+        "Pickup Detail tidak sesuai dengan Pickup Header Return.",
+      );
+    }
     const pickupHeader = RepositoryReader.findById(
       PICKUP_HEADER_SCHEMA,
       pickupId,
@@ -87,7 +93,6 @@ function ReturnService() {
     }
 
     if (
-      pickupDetail[PICKUP_DETAIL_FIELDS.PICKUP_ID] !== pickupId ||
       pickupHeader[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] !== pickupId
     ) {
       return Response.error("Pickup Detail tidak sesuai dengan Pickup Header.");
@@ -189,14 +194,17 @@ function ReturnService() {
         return Response.error("Return tidak ditemukan.");
       }
 
-      if (data[RETURN_FIELDS.QTY] === undefined) {
-        return data;
-      }
-
-      const resolved = resolvePickup(current[RETURN_FIELDS.PICKUP_DETAIL_ID]);
+      const resolved = resolvePickup(
+        current[RETURN_FIELDS.PICKUP_DETAIL_ID],
+        current[RETURN_FIELDS.PICKUP_ID],
+      );
 
       if (resolved && resolved.success === false) {
         return resolved;
+      }
+
+      if (data[RETURN_FIELDS.QTY] === undefined) {
+        return data;
       }
 
       const qty = validateAvailableQty(resolved.pickupDetail, data[RETURN_FIELDS.QTY], id);
@@ -221,7 +229,10 @@ function ReturnService() {
         return Response.error("Return tidak ditemukan atau tidak dalam status dihapus.");
       }
 
-      const resolved = resolvePickup(current[RETURN_FIELDS.PICKUP_DETAIL_ID]);
+      const resolved = resolvePickup(
+        current[RETURN_FIELDS.PICKUP_DETAIL_ID],
+        current[RETURN_FIELDS.PICKUP_ID],
+      );
 
       if (resolved && resolved.success === false) {
         return resolved;
@@ -273,7 +284,10 @@ function ReturnService() {
       return Response.error("Return tidak ditemukan.");
     }
 
-    const resolved = resolvePickup(row[RETURN_FIELDS.PICKUP_DETAIL_ID]);
+    const resolved = resolvePickup(
+      row[RETURN_FIELDS.PICKUP_DETAIL_ID],
+      row[RETURN_FIELDS.PICKUP_ID],
+    );
 
     if (resolved && resolved.success === false) {
       return resolved;
