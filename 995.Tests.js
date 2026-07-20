@@ -120,11 +120,22 @@ function runPickupRemoveRestoreTests() {
     testPickupRemoveAlreadyDeleted,
     testPickupRestoreMissingId,
     testPickupRestoreUnknownId,
-    testPickupRestoreHeaderAndDetails,
-    testPickupRestorePreservesIdentity,
-    testPickupRestoreDoesNotAffectOtherPickup,
-    testPickupRestoreAlreadyActive,
-    testPickupRemoveRestoreRoundTrip,
+    testPickupIntegrityRestoreAlwaysBlocked,
+  ]);
+}
+
+/** Manual write suite. Fixtures are created explicitly and may require cleanup. */
+function runPickupReturnIntegrityGuardTests() {
+  runTestSuite("Pickup-Return backend integrity guard tests", [
+    testPickupUpdateReplacesActiveDetails,
+    testPickupIntegrityHeaderOnlyAndReorder,
+    testPickupIntegrityBlocksDetailMutations,
+    testPickupIntegrityDeletedReturnAndDeleteGuards,
+    testPickupIntegrityRestoreAlwaysBlocked,
+    testReturnIntegrityRejectsMismatchedPair,
+    testReturnCreateValid,
+    testReturnUpdateValid,
+    testReturnRestoreValid,
   ]);
 }
 

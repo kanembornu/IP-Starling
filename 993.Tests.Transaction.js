@@ -1430,6 +1430,215 @@ function testPickupRemoveRestoreRoundTrip() {
   }
 }
 
+function pickupIntegrityDocument(transaction, details) {
+  return {
+    header: {
+      [PICKUP_HEADER_FIELDS.DATE]: "2026-07-20",
+      [PICKUP_HEADER_FIELDS.PARTNER_ID]:
+        transaction.header[PICKUP_HEADER_FIELDS.PARTNER_ID],
+      [PICKUP_HEADER_FIELDS.NOTES]: "[TEST] integrity header update",
+    },
+    details: details.map((detail) => ({
+      [PICKUP_DETAIL_FIELDS.PRODUCT_ID]:
+        detail[PICKUP_DETAIL_FIELDS.PRODUCT_ID],
+      [PICKUP_DETAIL_FIELDS.QTY]: detail[PICKUP_DETAIL_FIELDS.QTY],
+      [PICKUP_DETAIL_FIELDS.NOTES]: detail[PICKUP_DETAIL_FIELDS.NOTES],
+    })),
+  };
+}
+
+function createPickupIntegrityFixture(detailCount) {
+  const transaction = createPickupUpdateTestTransaction(detailCount);
+  if (!transaction) return null;
+  const detail = transaction.details[0];
+  const row = createReturnTestRow({
+    detail,
+    available: Number(detail[PICKUP_DETAIL_FIELDS.QTY]),
+  });
+
+  Logger.log(
+    `Pickup-Return integrity fixture requires manual cleanup: Pickup ${transaction.header.ID}, Return ${row.ID}.`,
+  );
+  return { transaction, row };
+}
+
+function assertPickupIntegrityUnchanged(transaction, before) {
+  const after = PickupService().findById(transaction.header.ID);
+  if (!after.success || JSON.stringify(after.data) !== JSON.stringify(before)) {
+    throw new Error("Blocked Pickup mutation changed persisted data.");
+  }
+}
+
+function testPickupIntegrityHeaderOnlyAndReorder() {
+  const fixture = createPickupIntegrityFixture(2);
+  if (!fixture) return;
+  const transaction = fixture.transaction;
+  const originalIds = transaction.details.map((detail) => detail.ID).sort();
+  const document = pickupIntegrityDocument(
+    transaction,
+    transaction.details.slice().reverse(),
+  );
+  const response = PickupService().update(transaction.header.ID, document);
+  const active = PickupService().findById(transaction.header.ID);
+
+  if (
+    !response.success ||
+    !active.success ||
+    active.data.details.length !== transaction.details.length ||
+    active.data.details.map((detail) => detail.ID).sort().join("|") !==
+      originalIds.join("|")
+  ) {
+    throw new Error("Equivalent header-only Pickup update did not preserve details.");
+  }
+}
+
+function testPickupIntegrityBlocksDetailMutations() {
+  const fixture = createPickupIntegrityFixture(2);
+  if (!fixture) return;
+  const transaction = fixture.transaction;
+  const mutations = [
+    (details) => {
+      details[0][PICKUP_DETAIL_FIELDS.QTY] = Number(details[0][PICKUP_DETAIL_FIELDS.QTY]) + 1;
+    },
+    (details) => {
+      const first = details[0][PICKUP_DETAIL_FIELDS.PRODUCT_ID];
+      details[0][PICKUP_DETAIL_FIELDS.PRODUCT_ID] =
+        details[1][PICKUP_DETAIL_FIELDS.PRODUCT_ID];
+      details[1][PICKUP_DETAIL_FIELDS.PRODUCT_ID] = first;
+    },
+    (details) => details.pop(),
+    (details) => {
+      details[0][PICKUP_DETAIL_FIELDS.NOTES] = "changed";
+    },
+  ];
+
+  mutations.forEach((mutate) => {
+    const beforeResponse = PickupService().findById(transaction.header.ID);
+    const before = beforeResponse.data;
+    const document = pickupIntegrityDocument(transaction, transaction.details);
+    mutate(document.details);
+    const response = PickupService().update(transaction.header.ID, document);
+    if (response.success) throw new Error("Pickup detail mutation must be blocked.");
+    assertPickupIntegrityUnchanged(transaction, before);
+  });
+
+  const usedProductIds = transaction.details.map(
+    (detail) => detail[PICKUP_DETAIL_FIELDS.PRODUCT_ID],
+  );
+  const additionalProduct = RepositoryReader.findAll(PRODUCT_SCHEMA).find(
+    (product) => {
+      return (
+        product[PRODUCT_SCHEMA.SYSTEM.IS_ACTIVE] === true &&
+        usedProductIds.indexOf(product[PRODUCT_SCHEMA.PRIMARY_KEY]) === -1
+      );
+    },
+  );
+
+  if (additionalProduct) {
+    const before = PickupService().findById(transaction.header.ID).data;
+    const document = pickupIntegrityDocument(transaction, transaction.details);
+    document.details.push({
+      [PICKUP_DETAIL_FIELDS.PRODUCT_ID]:
+        additionalProduct[PRODUCT_SCHEMA.PRIMARY_KEY],
+      [PICKUP_DETAIL_FIELDS.QTY]: 1,
+      [PICKUP_DETAIL_FIELDS.NOTES]: "added detail",
+    });
+    if (PickupService().update(transaction.header.ID, document).success) {
+      throw new Error("Pickup detail addition must be blocked.");
+    }
+    assertPickupIntegrityUnchanged(transaction, before);
+  } else {
+    Logger.log("SKIPPED: no third active Product for detail-addition guard test.");
+  }
+}
+
+function testPickupIntegrityDeletedReturnAndDeleteGuards() {
+  const fixture = createPickupIntegrityFixture(1);
+  if (!fixture) return;
+  const transaction = fixture.transaction;
+  if (!ReturnService().remove(fixture.row.ID).success) {
+    throw new Error("Return fixture could not be soft-deleted.");
+  }
+
+  const headerOnly = PickupService().update(
+    transaction.header.ID,
+    pickupIntegrityDocument(transaction, transaction.details),
+  );
+  if (!headerOnly.success) {
+    throw new Error("Deleted Return history must allow equivalent header update.");
+  }
+
+  const before = PickupService().findById(transaction.header.ID).data;
+  const changed = pickupIntegrityDocument(transaction, transaction.details);
+  changed.details[0][PICKUP_DETAIL_FIELDS.QTY] =
+    Number(changed.details[0][PICKUP_DETAIL_FIELDS.QTY]) + 1;
+  if (PickupService().update(transaction.header.ID, changed).success) {
+    throw new Error("Deleted Return history must block detail mutation.");
+  }
+  if (PickupService().remove(transaction.header.ID).success) {
+    throw new Error("Deleted Return history must block Pickup delete.");
+  }
+  assertPickupIntegrityUnchanged(transaction, before);
+}
+
+function testPickupIntegrityRestoreAlwaysBlocked() {
+  const transaction = createPickupUpdateTestTransaction(1);
+  if (!transaction) return;
+  const identity = assertPickupRemoved(transaction);
+  const beforeHeader = findPickupRecordIncludingDeleted(
+    PICKUP_HEADER_SCHEMA,
+    identity.headerId,
+  );
+  const beforeDetails = findPickupDetailsIncludingDeleted(identity.headerId);
+  const response = PickupService().restore(identity.headerId);
+  const afterHeader = findPickupRecordIncludingDeleted(
+    PICKUP_HEADER_SCHEMA,
+    identity.headerId,
+  );
+  const afterDetails = findPickupDetailsIncludingDeleted(identity.headerId);
+
+  if (
+    response.success ||
+    JSON.stringify(beforeHeader) !== JSON.stringify(afterHeader) ||
+    JSON.stringify(beforeDetails) !== JSON.stringify(afterDetails)
+  ) {
+    throw new Error("Pickup restore must fail without mutating rows.");
+  }
+}
+
+function testReturnIntegrityRejectsMismatchedPair() {
+  const fixture = returnTestFixture();
+  if (!fixture) return;
+  const row = createReturnTestRow(fixture);
+  let deleted = false;
+
+  try {
+    if (!RepositoryWriter.update(RETURN_SCHEMA, row.ID, {
+      [RETURN_FIELDS.PICKUP_ID]: "PH_TEST_MISMATCH",
+    })) {
+      throw new Error("Return mismatch fixture could not be prepared.");
+    }
+    if (ReturnService().findById(row.ID).success) {
+      throw new Error("Return findById must reject a mismatched relation pair.");
+    }
+    if (ReturnService().update(row.ID, { [RETURN_FIELDS.QTY]: row.Qty }).success) {
+      throw new Error("Return Qty update must reject a mismatched relation pair.");
+    }
+    if (!ReturnService().remove(row.ID).success) {
+      throw new Error("Return remove must remain available for invalid history.");
+    }
+    deleted = true;
+    if (ReturnService().restore(row.ID).success) {
+      throw new Error("Return restore must reject a mismatched relation pair.");
+    }
+  } finally {
+    RepositoryWriter.update(RETURN_SCHEMA, row.ID, {
+      [RETURN_FIELDS.PICKUP_ID]: row[RETURN_FIELDS.PICKUP_ID],
+    });
+    if (!deleted) cleanupReturnTestRow(row);
+  }
+}
+
 function createPickupTransactionServiceForTest() {
   return TransactionService.create({
     headerSchema: PICKUP_HEADER_SCHEMA,
