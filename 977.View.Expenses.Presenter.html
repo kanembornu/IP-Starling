@@ -42,6 +42,12 @@
 
     let pendingDetailId = null;
 
+    let editRequest = 0;
+
+    let editSubmitting = false;
+
+    let editForm = null;
+
     //===========================================================================
     // Public Render
     //===========================================================================
@@ -399,13 +405,17 @@
 
       body.dataset.expenseActionsBound = "true";
       body.addEventListener("click", (event) => {
-        const button = event.target.closest('[data-expense-action="view"]');
+        const button = event.target.closest("[data-expense-action]");
 
         if (!button || !body.contains(button)) {
           return;
         }
 
-        view(button.dataset.expenseId);
+        if (button.dataset.expenseAction === "view") {
+          view(button.dataset.expenseId);
+        } else if (button.dataset.expenseAction === "edit") {
+          openEdit(button.dataset.expenseId);
+        }
       });
     }
 
@@ -454,6 +464,16 @@
       return `
         <button
           type="button"
+          data-expense-action="edit"
+          data-expense-id="${SharedPresenter.text(value)}"
+          title="Edit"
+          class="mr-2 inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-blue-700 transition hover:bg-blue-100"
+        >
+          ${Components.icon("fa-pen")}
+          <span>Edit</span>
+        </button>
+        <button
+          type="button"
           data-expense-action="view"
           data-expense-id="${SharedPresenter.text(value)}"
           title="View"
@@ -463,6 +483,309 @@
           <span>View</span>
         </button>
       `;
+    }
+
+    //===========================================================================
+    // Edit Form
+    //===========================================================================
+
+    async function openEdit(id) {
+      const normalizedId = String(id ?? "").trim();
+
+      if (!normalizedId) {
+        Toast.error("Expense ID is unavailable.");
+        return;
+      }
+
+      if (editSubmitting) {
+        return;
+      }
+
+      const request = ++editRequest;
+      editForm = null;
+
+      Modal.open({
+        title: "Edit Expense",
+        width: "md",
+        body: Components.loading("Loading expense for editing..."),
+        footer: renderEditFooter(true),
+      });
+      setEditLoading(true);
+
+      try {
+        const response = await Api.Expense.get(normalizedId);
+
+        if (request !== editRequest) {
+          return;
+        }
+
+        if (!isDetailResponse(response)) {
+          handleEditLoadFailure(response?.message || "Expense could not be loaded for editing.");
+          return;
+        }
+
+        editForm = prepareEditForm(normalizedId, response.data);
+
+        Modal.body(renderEditForm());
+        Modal.footer(renderEditFooter(false));
+        bindEditForm();
+        setEditLoading(false);
+        DOM.$("inp-expense-edit-date")?.focus();
+      } catch (error) {
+        if (request !== editRequest) {
+          return;
+        }
+
+        handleEditLoadFailure(
+          typeof error?.message === "string" && error.message.trim()
+            ? error.message
+            : "Expense could not be loaded for editing. Please try again.",
+        );
+      }
+    }
+
+    function prepareEditForm(id, expense = {}) {
+      return {
+        id,
+        Tanggal: dateInputValue(expense[FIELD.DATE]),
+        Kategori: String(expense[FIELD.CATEGORY] ?? ""),
+        Keterangan: String(expense[FIELD.DESCRIPTION] ?? ""),
+        Nominal: numericInputValue(expense[FIELD.AMOUNT]),
+      };
+    }
+
+    function dateInputValue(value) {
+      const text = String(value ?? "").trim();
+      const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+
+      if (dateOnlyMatch) {
+        const candidate = `${dateOnlyMatch[1]}-${dateOnlyMatch[2]}-${dateOnlyMatch[3]}`;
+        const year = Number(dateOnlyMatch[1]);
+        const month = Number(dateOnlyMatch[2]);
+        const day = Number(dateOnlyMatch[3]);
+        const date = new Date(year, month - 1, day);
+
+        return date.getFullYear() === year &&
+          date.getMonth() === month - 1 &&
+          date.getDate() === day
+          ? candidate
+          : "";
+      }
+
+      if (!text) {
+        return "";
+      }
+
+      const timestamp = new Date(text);
+
+      if (Number.isNaN(timestamp.getTime())) {
+        return "";
+      }
+
+      const year = timestamp.getFullYear();
+      const month = String(timestamp.getMonth() + 1).padStart(2, "0");
+      const day = String(timestamp.getDate()).padStart(2, "0");
+
+      return `${year}-${month}-${day}`;
+    }
+
+    function numericInputValue(value) {
+      if (value === null || value === undefined || value === "") {
+        return "";
+      }
+
+      const number = Number(value);
+      return Number.isFinite(number) ? String(number) : "";
+    }
+
+    function renderEditForm() {
+      return `
+        <form id="expense-edit-form" class="space-y-4" novalidate>
+          <p class="text-sm text-slate-500">Expense ID <strong class="ml-1 text-slate-800">${SharedPresenter.text(editForm.id)}</strong></p>
+          ${renderEditInput("Date", "Tanggal", "date", editForm.Tanggal, "inp-expense-edit-date")}
+          ${renderEditInput("Category", "Kategori", "text", editForm.Kategori, "inp-expense-edit-category")}
+          <div>
+            <label for="inp-expense-edit-description" class="mb-1 block text-sm font-medium text-slate-700">Description</label>
+            <textarea id="inp-expense-edit-description" data-expense-edit-field="Keterangan" rows="3" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">${SharedPresenter.text(editForm.Keterangan)}</textarea>
+            ${renderEditError("Keterangan")}
+          </div>
+          ${renderEditInput("Amount", "Nominal", "number", editForm.Nominal, "inp-expense-edit-amount", 'min="0" step="any" inputmode="decimal"')}
+        </form>
+      `;
+    }
+
+    function renderEditInput(label, field, type, value, id, attributes = "") {
+      return `<div><label for="${id}" class="mb-1 block text-sm font-medium text-slate-700">${label}</label><input id="${id}" data-expense-edit-field="${field}" type="${type}" ${attributes} value="${SharedPresenter.text(value)}" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />${renderEditError(field)}</div>`;
+    }
+
+    function renderEditError(field) {
+      return `<p data-expense-edit-error="${field}" class="mt-1 hidden text-sm text-red-600"></p>`;
+    }
+
+    function renderEditFooter(loading) {
+      return `<button type="button" data-expense-edit-action="cancel" ${loading ? "disabled" : ""} class="rounded-lg border border-slate-300 px-5 py-2 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50">Cancel</button><button type="submit" form="expense-edit-form" id="btn-expense-edit-save" ${loading ? "disabled" : ""} class="rounded-lg bg-blue-600 px-5 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">${loading ? "Loading..." : "Save Changes"}</button>`;
+    }
+
+    function bindEditForm() {
+      const form = DOM.$("expense-edit-form");
+      const cancel = document.querySelector('[data-expense-edit-action="cancel"]');
+      const close = DOM.$("btn-modal-close");
+
+      form?.addEventListener("input", handleEditInput);
+      form?.addEventListener("submit", (event) => {
+        event.preventDefault();
+        submitEdit();
+      });
+      cancel?.addEventListener("click", closeEdit);
+
+      if (close) {
+        close.onclick = closeEdit;
+      }
+    }
+
+    function handleEditInput(event) {
+      const field = event.target.dataset.expenseEditField;
+
+      if (!field || !editForm) {
+        return;
+      }
+
+      editForm[field] = event.target.value;
+      clearEditError(field);
+    }
+
+    function validateEdit() {
+      const id = String(editForm?.id ?? "").trim();
+      const date = String(editForm?.Tanggal ?? "").trim();
+      const category = String(editForm?.Kategori ?? "").trim();
+      const description = String(editForm?.Keterangan ?? "").trim();
+      const amountText = String(editForm?.Nominal ?? "").trim();
+      const amount = Number(amountText);
+
+      if (!id) return invalidEdit("ID", "Expense ID is unavailable.");
+      if (!date) return invalidEdit("Tanggal", "Date is required.", "inp-expense-edit-date");
+      if (!dateInputValue(date)) return invalidEdit("Tanggal", "Date must use YYYY-MM-DD.", "inp-expense-edit-date");
+      if (!category) return invalidEdit("Kategori", "Category is required.", "inp-expense-edit-category");
+      if (!amountText) return invalidEdit("Nominal", "Amount is required.", "inp-expense-edit-amount");
+      if (!Number.isFinite(amount)) return invalidEdit("Nominal", "Amount must be a valid number.", "inp-expense-edit-amount");
+      if (amount < 0) return invalidEdit("Nominal", "Amount cannot be negative.", "inp-expense-edit-amount");
+
+      return {
+        valid: true,
+        id,
+        payload: { Tanggal: date, Kategori: category, Keterangan: description, Nominal: amount },
+      };
+    }
+
+    function invalidEdit(field, message, elementId) {
+      return { valid: false, field, message, element: DOM.$(elementId) };
+    }
+
+    function showEditError(field, message) {
+      const element = document.querySelector(`[data-expense-edit-error="${field}"]`);
+
+      if (element) {
+        element.textContent = message;
+        element.classList.remove("hidden");
+      } else {
+        Toast.error(message);
+      }
+    }
+
+    function clearEditError(field) {
+      const element = document.querySelector(`[data-expense-edit-error="${field}"]`);
+      if (element) {
+        element.textContent = "";
+        element.classList.add("hidden");
+      }
+    }
+
+    function clearEditErrors() {
+      document.querySelectorAll("[data-expense-edit-error]").forEach((element) => {
+        element.textContent = "";
+        element.classList.add("hidden");
+      });
+    }
+
+    function setEditLoading(loading) {
+      const close = DOM.$("btn-modal-close");
+      if (close) {
+        close.disabled = loading;
+        close.classList.toggle("cursor-not-allowed", loading);
+        close.classList.toggle("opacity-50", loading);
+      }
+    }
+
+    function setEditSubmitting(submitting) {
+      const save = DOM.$("btn-expense-edit-save");
+      const cancel = document.querySelector('[data-expense-edit-action="cancel"]');
+      const close = DOM.$("btn-modal-close");
+
+      [save, cancel, close].forEach((button) => {
+        if (button) button.disabled = submitting;
+      });
+      if (save) {
+        save.textContent = submitting ? "Updating..." : "Save Changes";
+        save.classList.toggle("cursor-not-allowed", submitting);
+        save.classList.toggle("opacity-50", submitting);
+      }
+    }
+
+    async function submitEdit() {
+      if (editSubmitting || !editForm) return;
+
+      clearEditErrors();
+      const validation = validateEdit();
+
+      if (!validation.valid) {
+        showEditError(validation.field, validation.message);
+        validation.element?.focus();
+        return;
+      }
+
+      editSubmitting = true;
+      setEditSubmitting(true);
+      let response;
+
+      try {
+        response = await Api.Expense.update(validation.id, validation.payload);
+        if (!response?.success) {
+          Toast.error(response?.message || "Expense could not be updated.");
+          return;
+        }
+      } catch (error) {
+        Toast.error(
+          typeof error?.message === "string" && error.message.trim()
+            ? error.message
+            : "Expense could not be updated. Please try again.",
+        );
+        return;
+      } finally {
+        editSubmitting = false;
+        setEditSubmitting(false);
+      }
+
+      Toast.success(response.message || "Expense updated.");
+      editRequest += 1;
+      editForm = null;
+      Modal.close();
+      await App.refresh();
+    }
+
+    function closeEdit() {
+      if (editSubmitting) return;
+
+      editRequest += 1;
+      editForm = null;
+      setEditLoading(false);
+      Modal.close();
+    }
+
+    function handleEditLoadFailure(message) {
+      editForm = null;
+      setEditLoading(false);
+      Toast.error(String(message ?? "").trim() || "Expense could not be loaded for editing.");
+      Modal.close();
     }
 
     //===========================================================================
@@ -662,31 +985,20 @@
     }
 
     function formatDate(value) {
-      const text = String(value ?? "").trim();
-      const match = /^(\d{4})-(\d{2})-(\d{2})(?:$|T)/.exec(text);
+      const valueForInput = dateInputValue(value);
 
-      if (match) {
-        const year = Number(match[1]);
-        const month = Number(match[2]);
-        const day = Number(match[3]);
-        const date = new Date(year, month - 1, day);
-
-        if (
-          date.getFullYear() === year &&
-          date.getMonth() === month - 1 &&
-          date.getDate() === day
-        ) {
-          return date.toLocaleDateString("id-ID");
-        }
-      }
-
-      if (!text) {
+      if (!valueForInput) {
         return "-";
       }
 
-      const date = new Date(value);
+      const [year, month, day] = valueForInput.split("-").map(Number);
+      const date = new Date(year, month - 1, day);
 
-      return Number.isNaN(date.getTime()) ? "-" : date.toLocaleDateString("id-ID");
+      return new Intl.DateTimeFormat("id-ID", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }).format(date);
     }
 
     function formatCurrency(value) {
