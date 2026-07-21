@@ -10,7 +10,11 @@
  * =============================================================================
  */
 
-function ReturnService() {
+function ReturnService(options = {}) {
+  const RETURN_MUTATION_LOCK_TIMEOUT_MS = 10000;
+  const getReturnMutationLock =
+    options.getMutationLock || (() => LockService.getScriptLock());
+
   function isPresent(id) {
     return typeof id === "string" ? id.trim() !== "" : !!id;
   }
@@ -139,6 +143,90 @@ function ReturnService() {
     }
 
     return requestedQty;
+  }
+
+  function withReturnMutationLock(callback) {
+    const lock = getReturnMutationLock();
+
+    if (!lock.tryLock(RETURN_MUTATION_LOCK_TIMEOUT_MS)) {
+      return Response.error("Proses retur sedang digunakan. Silakan coba lagi.");
+    }
+
+    try {
+      RepositoryCache.clear(RETURN_SCHEMA);
+
+      const result = callback();
+
+      if (result && result.success === true) {
+        RepositoryCache.clear(RETURN_SCHEMA);
+      }
+
+      return result;
+    } finally {
+      lock.releaseLock();
+    }
+  }
+
+  function createLocked(document, id) {
+    let object = Utils.deepClone(document);
+    const headers = RepositoryBase.headers(RETURN_SCHEMA);
+    const clean = {};
+
+    Object.keys(object).forEach((key) => {
+      if (headers.indexOf(key) !== -1) {
+        clean[key] = object[key];
+      }
+    });
+
+    object = Utils.trimObject(clean);
+
+    const resolved = resolvePickup(object[RETURN_FIELDS.PICKUP_DETAIL_ID]);
+
+    if (resolved && resolved.success === false) {
+      return resolved;
+    }
+
+    object[RETURN_FIELDS.PICKUP_ID] = resolved.pickupId;
+
+    const validation = Validator.validate(RETURN_SCHEMA, object);
+
+    if (!validation.valid) {
+      return Response.validation(validation);
+    }
+
+    const qty = validateAvailableQty(
+      resolved.pickupDetail,
+      object[RETURN_FIELDS.QTY],
+    );
+
+    if (qty && qty.success === false) {
+      return qty;
+    }
+
+    const now = Utils.now();
+    object = Utils.merge(RETURN_SCHEMA.DEFAULT, object);
+    object[RETURN_SCHEMA.PRIMARY_KEY] = id;
+    object[RETURN_FIELDS.PICKUP_ID] = resolved.pickupId;
+    object[RETURN_FIELDS.QTY] = qty;
+    object = Utils.merge(object, {
+      [RETURN_SCHEMA.SYSTEM.CREATED_AT]: now,
+      [RETURN_SCHEMA.SYSTEM.CREATED_BY]: Utils.currentUser(),
+      [RETURN_SCHEMA.SYSTEM.UPDATED_AT]: now,
+      [RETURN_SCHEMA.SYSTEM.UPDATED_BY]: Utils.currentUser(),
+      [RETURN_SCHEMA.SYSTEM.IS_DELETED]: false,
+      [RETURN_SCHEMA.SYSTEM.IS_ACTIVE]: true,
+    });
+
+    if (!RepositoryWriter.insert(RETURN_SCHEMA, object)) {
+      return Response.error("Gagal menyimpan data.");
+    }
+
+    RepositoryCache.clear(RETURN_SCHEMA);
+
+    return Response.success(
+      RepositoryReader.findById(RETURN_SCHEMA, id),
+      `${RETURN_SCHEMA.NAME} berhasil dibuat.`,
+    );
   }
 
   const base = BaseService.create(RETURN_SCHEMA, {
@@ -313,7 +401,9 @@ function ReturnService() {
       return Response.error("Data Return wajib diisi.");
     }
 
-    return base.create(document);
+    const id = IDGenerator.generate(RETURN_SCHEMA);
+
+    return withReturnMutationLock(() => createLocked(document, id));
   }
 
   function update(id, document) {
@@ -325,13 +415,15 @@ function ReturnService() {
       return Response.error("Data Return wajib diisi.");
     }
 
-    return base.update(id, Utils.pick(document, [
-      RETURN_FIELDS.DATE,
+    return withReturnMutationLock(() => {
+      return base.update(id, Utils.pick(document, [
+        RETURN_FIELDS.DATE,
 
-      RETURN_FIELDS.QTY,
+        RETURN_FIELDS.QTY,
 
-      RETURN_FIELDS.NOTE,
-    ]));
+        RETURN_FIELDS.NOTE,
+      ]));
+    });
   }
 
   function remove(id) {
@@ -347,7 +439,7 @@ function ReturnService() {
       return Response.error("ID Return wajib diisi.");
     }
 
-    return base.restore(id);
+    return withReturnMutationLock(() => base.restore(id));
   }
 
   return Object.freeze({

@@ -256,6 +256,29 @@ function runReturnWriteTests() {
   ]);
 }
 
+/** Manual write suite for serialized Return quantity mutation guards. */
+function runReturnConcurrencyGuardTests() {
+  runTestSuite("Return concurrency guard tests", [
+    testReturnConcurrencyLockStructure,
+    testReturnMutationLockTimeoutIsControlledAndWriteFree,
+    testReturnSequentialRestoresRevalidateCumulativeQty,
+    testReturnCreateThenRestoreRevalidatesCumulativeQty,
+    testReturnUpdateThenRestoreRevalidatesCumulativeQty,
+    testReturnCreateValid,
+    testReturnCreateRejectsOverQuantity,
+    testReturnUpdateValid,
+    testReturnUpdateRejectsOverQuantity,
+    testReturnRestoreValid,
+    testReturnRestoreRejectsOverQuantity,
+    testReturnRestoreAlreadyActive,
+    testReturnRestoreRejectsInactivePickupHeader,
+    testReturnRestoreRejectsInactivePickupDetail,
+    testReturnIntegrityRejectsMismatchedPair,
+    testReturnRemoveReleasesQuantity,
+    testReturnUpdatePreservesRelation,
+  ]);
+}
+
 /** Pure fixture tests only. The production diagnostic remains explicitly manual. */
 function runPickupReturnIntegrityDiagnosticTests() {
   runTestSuite("Pickup-Return integrity diagnostic tests", [
@@ -430,6 +453,7 @@ function runReturnAllTests() {
   runReturnDeletedListTests();
   runReturnRestoreValidationTests();
   runReturnWriteTests();
+  runReturnConcurrencyGuardTests();
 
   Logger.log("COMPLETE: Return all tests");
 }

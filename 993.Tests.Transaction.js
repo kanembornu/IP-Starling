@@ -4267,6 +4267,136 @@ function testReturnRestoreRejectsOverQuantity() {
   }
 }
 
+function testReturnMutationLockTimeoutIsControlledAndWriteFree() {
+  let released = false;
+  let timeout = null;
+  const before = JSON.stringify(RepositoryReader.raw(RETURN_SCHEMA));
+  const service = ReturnService({
+    getMutationLock() {
+      return {
+        tryLock(value) {
+          timeout = value;
+          return false;
+        },
+        releaseLock() {
+          released = true;
+        },
+      };
+    },
+  });
+  const response = service.restore("RT_LOCK_TIMEOUT_TEST");
+  const after = JSON.stringify(RepositoryReader.raw(RETURN_SCHEMA));
+
+  if (
+    response.success ||
+    response.message !== "Proses retur sedang digunakan. Silakan coba lagi."
+  ) {
+    throw new Error("Return lock timeout must return a controlled failure.");
+  }
+  if (timeout !== 10000 || released) {
+    throw new Error("Return lock timeout behavior is invalid.");
+  }
+  if (before !== after) {
+    throw new Error("Return lock timeout must perform zero writes.");
+  }
+}
+
+function testReturnSequentialRestoresRevalidateCumulativeQty() {
+  const fixture = returnTestFixture();
+  if (!fixture) return;
+  const first = createReturnTestRow(fixture, fixture.available);
+  let second = null;
+  let firstRestored = false;
+
+  try {
+    if (!ReturnService().remove(first.ID).success) {
+      throw new Error("First Return concurrency fixture could not be deleted.");
+    }
+    second = createReturnTestRow(fixture, fixture.available);
+    if (!ReturnService().remove(second.ID).success) {
+      throw new Error("Second Return concurrency fixture could not be deleted.");
+    }
+
+    const firstResponse = ReturnService().restore(first.ID);
+    firstRestored = firstResponse.success;
+    const secondResponse = ReturnService().restore(second.ID);
+
+    if (!firstResponse.success || secondResponse.success) {
+      throw new Error("Sequential restores reused a stale quantity snapshot.");
+    }
+  } finally {
+    if (firstRestored) cleanupReturnTestRow(first);
+  }
+}
+
+function testReturnCreateThenRestoreRevalidatesCumulativeQty() {
+  const fixture = returnTestFixture();
+  if (!fixture) return;
+  const deleted = createReturnTestRow(fixture, fixture.available);
+  let active = null;
+
+  try {
+    if (!ReturnService().remove(deleted.ID).success) {
+      throw new Error("Return restore fixture could not be deleted.");
+    }
+    active = createReturnTestRow(fixture, fixture.available);
+
+    if (ReturnService().restore(deleted.ID).success) {
+      throw new Error("Create plus restore exceeded cumulative Return Qty.");
+    }
+  } finally {
+    cleanupReturnTestRow(active);
+  }
+}
+
+function testReturnUpdateThenRestoreRevalidatesCumulativeQty() {
+  const fixture = returnTestFixture();
+  if (!fixture || fixture.available < 2) return;
+  const deleted = createReturnTestRow(fixture, 1);
+  let active = null;
+
+  try {
+    if (!ReturnService().remove(deleted.ID).success) {
+      throw new Error("Return restore fixture could not be deleted.");
+    }
+    active = createReturnTestRow(fixture, 1);
+    const updated = ReturnService().update(active.ID, {
+      Qty: fixture.available,
+    });
+
+    if (!updated.success || ReturnService().restore(deleted.ID).success) {
+      throw new Error("Qty update plus restore exceeded cumulative Return Qty.");
+    }
+  } finally {
+    cleanupReturnTestRow(active);
+  }
+}
+
+function testReturnConcurrencyLockStructure() {
+  const source = ReturnService.toString();
+  const helper = source.slice(
+    source.indexOf("function withReturnMutationLock"),
+    source.indexOf("function createLocked"),
+  );
+
+  if (
+    !/tryLock\(RETURN_MUTATION_LOCK_TIMEOUT_MS\)/.test(helper) ||
+    !/try\s*\{[\s\S]*callback\(\)[\s\S]*\}\s*finally\s*\{[\s\S]*releaseLock\(\)/.test(helper) ||
+    helper.indexOf("RepositoryCache.clear(RETURN_SCHEMA)") >
+      helper.indexOf("releaseLock()")
+  ) {
+    throw new Error("Return mutation lock structure is invalid.");
+  }
+
+  if (
+    !/withReturnMutationLock\(\(\) => createLocked/.test(source) ||
+    !/withReturnMutationLock\(\(\) => \{[\s\S]*base\.update/.test(source) ||
+    !/withReturnMutationLock\(\(\) => base\.restore/.test(source)
+  ) {
+    throw new Error("Return quantity mutation paths are not all locked.");
+  }
+}
+
 function testReturnFindByIdResolvedData() {
   const fixture = returnTestFixture();
   if (!fixture) return;
