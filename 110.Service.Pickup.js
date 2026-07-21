@@ -320,6 +320,105 @@ function PickupService(options) {
     );
   }
 
+  function listDeleted(options) {
+    const request = options === undefined ? {} : options;
+    if (!request || typeof request !== "object" || Array.isArray(request)) {
+      return Response.error("Opsi daftar Pickup tidak valid.");
+    }
+    if (
+      request.search !== undefined &&
+      request.search !== null &&
+      typeof request.search !== "string"
+    ) {
+      return Response.error("Pencarian Pickup harus berupa teks.");
+    }
+
+    const headers = physicalRows(PICKUP_HEADER_SCHEMA);
+    const details = physicalRows(PICKUP_DETAIL_SCHEMA);
+    const partners = physicalRows(PARTNER_SCHEMA);
+    const products = physicalRows(PRODUCT_SCHEMA);
+    const partnerById = Object.create(null);
+    const productById = Object.create(null);
+
+    partners.forEach((partner) => {
+      partnerById[partner[PARTNER_SCHEMA.PRIMARY_KEY]] = partner;
+    });
+    products.forEach((product) => {
+      productById[product[PRODUCT_SCHEMA.PRIMARY_KEY]] = product;
+    });
+
+    const search = String(request.search || "").trim().toLowerCase();
+    const rows = headers
+      .filter((header) => {
+        return header[PICKUP_HEADER_SCHEMA.SYSTEM.IS_DELETED] === true;
+      })
+      .filter((header) => {
+        if (!search) return true;
+        return [
+          header[PICKUP_HEADER_FIELDS.NUMBER],
+          header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY],
+          header[PICKUP_HEADER_FIELDS.PARTNER_ID],
+          header[PICKUP_HEADER_FIELDS.STATUS],
+          header[PICKUP_HEADER_FIELDS.NOTES],
+        ].some((value) => String(value || "").toLowerCase().includes(search));
+      })
+      .map((header) => {
+        const pickupId = header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY];
+        const partnerId = header[PICKUP_HEADER_FIELDS.PARTNER_ID];
+        const partner = partnerById[partnerId];
+        const pickupDetails = details
+          .filter((detail) => {
+            return detail[PICKUP_DETAIL_FIELDS.PICKUP_ID] === pickupId;
+          })
+          .map((detail) => {
+            const productId = detail[PICKUP_DETAIL_FIELDS.PRODUCT_ID];
+            const product = productById[productId];
+            return Object.assign({}, detail, {
+              productName: product ? product[PRODUCT_FIELDS.NAME] : "",
+              [PICKUP_DETAIL_FIELDS.QTY]: Number(
+                detail[PICKUP_DETAIL_FIELDS.QTY],
+              ),
+            });
+          });
+        const totalQty = pickupDetails.reduce((total, detail) => {
+          const qty = detail[PICKUP_DETAIL_FIELDS.QTY];
+          return total + (Number.isFinite(qty) ? qty : 0);
+        }, 0);
+        const normalizedDate = normalizeTanggal(
+          header[PICKUP_HEADER_FIELDS.DATE],
+        );
+
+        return Object.assign({}, header, {
+          [PICKUP_HEADER_FIELDS.DATE]:
+            normalizedDate && normalizedDate.success === false
+              ? header[PICKUP_HEADER_FIELDS.DATE]
+              : normalizedDate,
+          [PICKUP_HEADER_FIELDS.TOTAL_QTY]: totalQty,
+          partnerName: partner ? partner[PARTNER_FIELDS.NAME] : "",
+          details: pickupDetails,
+          detailSummary: pickupDetails
+            .map((detail) => {
+              const name = detail.productName || detail[PICKUP_DETAIL_FIELDS.PRODUCT_ID];
+              return `${name} (${detail[PICKUP_DETAIL_FIELDS.QTY]})`;
+            })
+            .join(", "),
+          restoreEligibility: evaluateRestoreEligibility(pickupId),
+        });
+      });
+
+    rows.sort((left, right) => {
+      const dateOrder = String(right[PICKUP_HEADER_FIELDS.DATE] || "").localeCompare(
+        String(left[PICKUP_HEADER_FIELDS.DATE] || ""),
+      );
+      if (dateOrder !== 0) return dateOrder;
+      return String(left[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] || "").localeCompare(
+        String(right[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] || ""),
+      );
+    });
+
+    return Response.success(rows);
+  }
+
   function hasReturnHistory(pickupId) {
     const detailIds = Object.create(null);
     physicalRows(PICKUP_DETAIL_SCHEMA).forEach((detail) => {
@@ -513,5 +612,6 @@ function PickupService(options) {
     remove,
     restore,
     evaluateRestoreEligibility,
+    listDeleted,
   });
 }

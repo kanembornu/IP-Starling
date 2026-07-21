@@ -113,6 +113,10 @@
         return run("getPickups");
       },
 
+      findDeleted(options = {}) {
+        return run("getDeletedPickups", options);
+      },
+
       findById(id) {
         return run("getPickup", id);
       },

@@ -3,8 +3,10 @@ function testPickupServicePublicApi() {
 
   const expectedKeys = [
     "create",
+    "evaluateRestoreEligibility",
     "findAll",
     "findById",
+    "listDeleted",
     "remove",
     "restore",
     "update",
@@ -40,6 +42,7 @@ function testPickupServiceFindByIdValidation() {
 function testPickupControllerPublicApi() {
   const functions = [
     getPickups,
+    getDeletedPickups,
     getPickup,
     createPickup,
     updatePickup,
@@ -1576,6 +1579,234 @@ function testPickupRestoreEligibilityIsDeterministic() {
   const second = fixture.service.evaluateRestoreEligibility(fixture.headerId);
   if (JSON.stringify(first) !== JSON.stringify(second)) {
     throw new Error("Repeated restore eligibility evaluation changed its result.");
+  }
+}
+
+function pickupTrashReadFixture(overrides) {
+  const rows = {
+    headers: [
+      {
+        ID: "PH_TRASH_B",
+        PickupNo: "PH_TRASH_B",
+        Tanggal: "2026-07-20",
+        PartnerID: "PA_TRASH_DELETED",
+        TotalQty: 999,
+        Status: "Posted",
+        Notes: "blocked pickup",
+        Deleted: true,
+        IsActive: false,
+      },
+      {
+        ID: "PH_TRASH_A",
+        PickupNo: "PH_TRASH_A",
+        Tanggal: "2026-07-20",
+        PartnerID: "PA_TRASH_ACTIVE",
+        TotalQty: 999,
+        Status: "Posted",
+        Notes: "safe pickup",
+        Deleted: true,
+        IsActive: false,
+      },
+      {
+        ID: "PH_TRASH_OLD",
+        PickupNo: "PH_TRASH_OLD",
+        Tanggal: "2026-07-19",
+        PartnerID: "PA_TRASH_ACTIVE",
+        Status: "Posted",
+        Notes: "older pickup",
+        Deleted: true,
+        IsActive: false,
+      },
+      {
+        ID: "PH_TRASH_ACTIVE",
+        PickupNo: "PH_TRASH_ACTIVE",
+        Tanggal: "2026-07-21",
+        PartnerID: "PA_TRASH_ACTIVE",
+        Status: "Posted",
+        Notes: "active pickup",
+        Deleted: false,
+        IsActive: true,
+      },
+    ],
+    details: [
+      {
+        ID: "PD_TRASH_A",
+        PickupID: "PH_TRASH_A",
+        ProductID: "PR_TRASH_ACTIVE",
+        Qty: 1.25,
+        Deleted: true,
+        IsActive: false,
+      },
+      {
+        ID: "PD_TRASH_B1",
+        PickupID: "PH_TRASH_B",
+        ProductID: "PR_TRASH_DELETED",
+        Qty: 2,
+        Deleted: true,
+        IsActive: false,
+      },
+      {
+        ID: "PD_TRASH_B2",
+        PickupID: "PH_TRASH_B",
+        ProductID: "PR_TRASH_DELETED",
+        Qty: 0.5,
+        Deleted: true,
+        IsActive: false,
+      },
+    ],
+    returns: [],
+    partners: [
+      { ID: "PA_TRASH_ACTIVE", Nama: "Partner Active", Deleted: false, IsActive: true },
+      { ID: "PA_TRASH_DELETED", Nama: "Partner Deleted", Deleted: true, IsActive: false },
+    ],
+    products: [
+      { ID: "PR_TRASH_ACTIVE", Nama: "Product Active", Deleted: false, IsActive: true },
+      { ID: "PR_TRASH_DELETED", Nama: "Product Deleted", Deleted: true, IsActive: false },
+    ],
+  };
+  Object.keys(overrides || {}).forEach((key) => {
+    rows[key] = overrides[key];
+  });
+  let reads = 0;
+  const service = PickupService({
+    readPhysicalRows(schema) {
+      reads++;
+      if (schema === PICKUP_HEADER_SCHEMA) return rows.headers;
+      if (schema === PICKUP_DETAIL_SCHEMA) return rows.details;
+      if (schema === RETURN_SCHEMA) return rows.returns;
+      if (schema === PARTNER_SCHEMA) return rows.partners;
+      if (schema === PRODUCT_SCHEMA) return rows.products;
+      throw new Error("Unexpected Pickup Trash schema.");
+    },
+  });
+  return { rows, service, readCount: () => reads };
+}
+
+function pickupTrashRows(response) {
+  if (!response || !response.success || !Array.isArray(response.data)) {
+    throw new Error("PickupService.listDeleted() response is invalid.");
+  }
+  return response.data;
+}
+
+function testPickupTrashReadFilteringAndShape() {
+  const rows = pickupTrashRows(pickupTrashReadFixture().service.listDeleted());
+  if (rows.length !== 3 || rows.some((row) => row.Deleted !== true)) {
+    throw new Error("Pickup Trash filtering failed.");
+  }
+  if (rows.some((row) => row.ID === "PH_TRASH_ACTIVE")) {
+    throw new Error("Active Pickup appeared in Pickup Trash.");
+  }
+  const safe = rows.find((row) => row.ID === "PH_TRASH_A");
+  if (
+    safe.partnerName !== "Partner Active" ||
+    safe.details[0].productName !== "Product Active" ||
+    safe.details[0].Qty !== 1.25 ||
+    safe.TotalQty !== 1.25 ||
+    !safe.detailSummary.includes("Product Active")
+  ) {
+    throw new Error("Pickup Trash display data or decimal Qty is invalid.");
+  }
+  const blocked = rows.find((row) => row.ID === "PH_TRASH_B");
+  if (
+    blocked.partnerName !== "Partner Deleted" ||
+    blocked.details.some((detail) => detail.productName !== "Product Deleted") ||
+    blocked.TotalQty !== 2.5
+  ) {
+    throw new Error("Deleted master-data display handling is invalid.");
+  }
+}
+
+function testPickupTrashReadSortingAndSearch() {
+  const fixture = pickupTrashReadFixture();
+  const rows = pickupTrashRows(fixture.service.listDeleted());
+  if (rows.map((row) => row.ID).join("|") !== "PH_TRASH_A|PH_TRASH_B|PH_TRASH_OLD") {
+    throw new Error("Pickup Trash sort order is invalid.");
+  }
+  const searched = pickupTrashRows(
+    fixture.service.listDeleted({ search: "blocked pickup" }),
+  );
+  if (searched.length !== 1 || searched[0].ID !== "PH_TRASH_B") {
+    throw new Error("Pickup Trash search does not follow the Pickup list contract.");
+  }
+  if (fixture.service.listDeleted({ search: 1 }).success) {
+    throw new Error("Pickup Trash accepted an invalid search option.");
+  }
+  const empty = pickupTrashReadFixture({ headers: [] });
+  if (pickupTrashRows(empty.service.listDeleted()).length !== 0) {
+    throw new Error("Empty Pickup Trash must return a successful empty list.");
+  }
+}
+
+function testPickupTrashReadEligibilityResults() {
+  const rows = pickupTrashRows(pickupTrashReadFixture().service.listDeleted());
+  const safe = rows.find((row) => row.ID === "PH_TRASH_A");
+  const blocked = rows.find((row) => row.ID === "PH_TRASH_B");
+  assertPickupRestoreEligibilityCode(safe.restoreEligibility, "SAFE", true);
+  assertPickupRestoreEligibilityCode(
+    blocked.restoreEligibility,
+    "MULTIPLE_DETAIL_GENERATIONS",
+    false,
+  );
+  if (rows.length !== 3) {
+    throw new Error("Blocked eligibility failed the full Pickup Trash list.");
+  }
+}
+
+function testPickupTrashReadMissingEligibility() {
+  const fixture = pickupTrashReadFixture();
+  let headerReads = 0;
+  fixture.service = PickupService({
+    readPhysicalRows(schema) {
+      if (schema === PICKUP_HEADER_SCHEMA) {
+        headerReads++;
+        return headerReads === 1 ? fixture.rows.headers : [];
+      }
+      if (schema === PICKUP_DETAIL_SCHEMA) return fixture.rows.details;
+      if (schema === RETURN_SCHEMA) return fixture.rows.returns;
+      if (schema === PARTNER_SCHEMA) return fixture.rows.partners;
+      if (schema === PRODUCT_SCHEMA) return fixture.rows.products;
+      throw new Error("Unexpected Pickup Trash schema.");
+    },
+  });
+  const rows = pickupTrashRows(fixture.service.listDeleted());
+  if (
+    rows.length !== 3 ||
+    rows.some((row) => row.restoreEligibility.code !== "NOT_FOUND")
+  ) {
+    throw new Error("Pickup Trash NOT_FOUND eligibility behavior is not explicit.");
+  }
+}
+
+function testPickupTrashReadPerformsZeroWrites() {
+  const fixture = pickupTrashReadFixture();
+  const before = JSON.stringify(fixture.rows);
+  const first = fixture.service.listDeleted();
+  const second = fixture.service.listDeleted();
+  if (JSON.stringify(fixture.rows) !== before) {
+    throw new Error("Pickup Trash read changed physical fixture data.");
+  }
+  if (JSON.stringify(first) !== JSON.stringify(second)) {
+    throw new Error("Repeated Pickup Trash reads are not deterministic.");
+  }
+  if (fixture.readCount() === 0) {
+    throw new Error("Pickup Trash test did not exercise physical reads.");
+  }
+}
+
+function testPickupTrashReadController() {
+  const beforeHeaders = RepositoryReader.count(PICKUP_HEADER_SCHEMA);
+  const beforeDetails = RepositoryReader.count(PICKUP_DETAIL_SCHEMA);
+  const response = getDeletedPickups({ search: "" });
+  if (!response || !response.success || !Array.isArray(response.data)) {
+    throw new Error("getDeletedPickups() response is invalid.");
+  }
+  JSON.stringify(response);
+  if (
+    RepositoryReader.count(PICKUP_HEADER_SCHEMA) !== beforeHeaders ||
+    RepositoryReader.count(PICKUP_DETAIL_SCHEMA) !== beforeDetails
+  ) {
+    throw new Error("getDeletedPickups() must perform zero writes.");
   }
 }
 

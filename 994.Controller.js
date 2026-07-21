@@ -100,6 +100,10 @@ function getPickups() {
   return _pickupControllerResponse(() => PickupService().findAll());
 }
 
+function getDeletedPickups(options) {
+  return _pickupControllerResponse(() => PickupService().listDeleted(options));
+}
+
 function getPickup(id) {
   return _pickupControllerResponse(() => PickupService().findById(id));
 }

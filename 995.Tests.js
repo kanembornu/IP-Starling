@@ -138,6 +138,17 @@ function runPickupRestoreEligibilityTests() {
   ]);
 }
 
+function runPickupTrashReadTests() {
+  runTestSuite("Pickup Trash read tests", [
+    testPickupTrashReadFilteringAndShape,
+    testPickupTrashReadSortingAndSearch,
+    testPickupTrashReadEligibilityResults,
+    testPickupTrashReadMissingEligibility,
+    testPickupTrashReadPerformsZeroWrites,
+    testPickupTrashReadController,
+  ]);
+}
+
 /** Manual write suite. Fixtures are created explicitly and may require cleanup. */
 function runPickupReturnIntegrityGuardTests() {
   runTestSuite("Pickup-Return backend integrity guard tests", [
