@@ -12,8 +12,100 @@
 
 function ReturnService(options = {}) {
   const RETURN_MUTATION_LOCK_TIMEOUT_MS = 10000;
+  const PRODUCT_NOT_FOUND = "Produk tidak ditemukan";
+  const PRODUCT_DETAIL_NOT_FOUND =
+    "Produk tidak tersedia karena detail Pickup tidak ditemukan";
+  const PARTNER_NOT_FOUND = "Mitra tidak ditemukan";
+  const PARTNER_PICKUP_NOT_FOUND =
+    "Mitra tidak tersedia karena Pickup tidak ditemukan";
   const getReturnMutationLock =
     options.getMutationLock || (() => LockService.getScriptLock());
+
+  function physicalRows(schema) {
+    if (typeof options.readPhysicalRows === "function") {
+      return options.readPhysicalRows(schema);
+    }
+
+    return RepositoryBase.mapRows(schema, RepositoryReader.raw(schema));
+  }
+
+  function rowsById(rows, schema) {
+    return rows.reduce((lookup, row) => {
+      const id = row && row[schema.PRIMARY_KEY];
+
+      if (isPresent(id)) lookup[id] = row;
+
+      return lookup;
+    }, Object.create(null));
+  }
+
+  function buildReturnDisplayContext() {
+    return {
+      pickupDetails: rowsById(
+        physicalRows(PICKUP_DETAIL_SCHEMA),
+        PICKUP_DETAIL_SCHEMA,
+      ),
+      pickupHeaders: rowsById(
+        physicalRows(PICKUP_HEADER_SCHEMA),
+        PICKUP_HEADER_SCHEMA,
+      ),
+      products: rowsById(physicalRows(PRODUCT_SCHEMA), PRODUCT_SCHEMA),
+      partners: rowsById(physicalRows(PARTNER_SCHEMA), PARTNER_SCHEMA),
+    };
+  }
+
+  function enrichReturnRow(row, context) {
+    const enriched = Object.assign({}, row);
+    const pickupDetail =
+      context.pickupDetails[row[RETURN_FIELDS.PICKUP_DETAIL_ID]] || null;
+    const pickupHeader =
+      context.pickupHeaders[row[RETURN_FIELDS.PICKUP_ID]] || null;
+    const detailMatchesReturn =
+      pickupDetail &&
+      pickupDetail[PICKUP_DETAIL_FIELDS.PICKUP_ID] ===
+        row[RETURN_FIELDS.PICKUP_ID];
+    const productId = pickupDetail
+      ? pickupDetail[PICKUP_DETAIL_FIELDS.PRODUCT_ID]
+      : "";
+    const partnerId = pickupHeader
+      ? pickupHeader[PICKUP_HEADER_FIELDS.PARTNER_ID]
+      : "";
+    const product = productId ? context.products[productId] : null;
+    const partner = partnerId ? context.partners[partnerId] : null;
+
+    enriched.ProductID = productId || "";
+    enriched.ProductName = pickupDetail
+      ? product && product[PRODUCT_FIELDS.NAME]
+        ? product[PRODUCT_FIELDS.NAME]
+        : PRODUCT_NOT_FOUND
+      : PRODUCT_DETAIL_NOT_FOUND;
+    enriched.PartnerID = partnerId || "";
+    enriched.PartnerName = pickupHeader
+      ? partner && partner[PARTNER_FIELDS.NAME]
+        ? partner[PARTNER_FIELDS.NAME]
+        : PARTNER_NOT_FOUND
+      : PARTNER_PICKUP_NOT_FOUND;
+    enriched.PickupDate = pickupHeader
+      ? pickupHeader[PICKUP_HEADER_FIELDS.DATE] || ""
+      : "";
+    enriched.PickupDetailQty = pickupDetail
+      ? pickupDetail[PICKUP_DETAIL_FIELDS.QTY]
+      : "";
+
+    // Ownership mismatches remain visible in lists and never rewrite stored IDs.
+    if (pickupDetail && !detailMatchesReturn) {
+      enriched.PickupID = row[RETURN_FIELDS.PICKUP_ID];
+    }
+
+    return enriched;
+  }
+
+  function enrichReturnRows(rows) {
+    if (!rows.length) return [];
+
+    const context = buildReturnDisplayContext();
+    return rows.map((row) => enrichReturnRow(row, context));
+  }
 
   function isPresent(id) {
     return typeof id === "string" ? id.trim() !== "" : !!id;
@@ -340,25 +432,26 @@ function ReturnService(options = {}) {
   });
 
   function findAll() {
-    const rows = RepositoryReader.findAll(RETURN_SCHEMA).filter((row) => {
+    const sourceRows =
+      typeof options.readActiveReturns === "function"
+        ? options.readActiveReturns()
+        : RepositoryReader.findAll(RETURN_SCHEMA);
+    const rows = sourceRows.filter((row) => {
       return row[RETURN_SCHEMA.SYSTEM.IS_ACTIVE] === true;
     });
 
-    return Response.success(rows);
+    return Response.success(enrichReturnRows(rows));
   }
 
   function findDeleted() {
-    const rows = RepositoryBase.mapRows(
-      RETURN_SCHEMA,
-      RepositoryReader.raw(RETURN_SCHEMA),
-    ).filter((row) => {
+    const rows = physicalRows(RETURN_SCHEMA).filter((row) => {
       return (
         isTrueEquivalent(row[RETURN_SCHEMA.SYSTEM.IS_DELETED]) &&
         isFalseEquivalent(row[RETURN_SCHEMA.SYSTEM.IS_ACTIVE])
       );
     });
 
-    return Response.success(rows);
+    return Response.success(enrichReturnRows(rows));
   }
 
   function findById(id) {
@@ -386,7 +479,7 @@ function ReturnService(options = {}) {
       activeReturnedQty(row[RETURN_FIELDS.PICKUP_DETAIL_ID]);
 
     return Response.success({
-      return: row,
+      return: enrichReturnRow(row, buildReturnDisplayContext()),
 
       pickupHeader: resolved.pickupHeader,
 

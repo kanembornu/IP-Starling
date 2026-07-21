@@ -2484,6 +2484,231 @@ function testReturnFindDeletedStatusCompatibility() {
   }
 }
 
+function returnDisplayFixtureOptions(overrides) {
+  const fixture = Object.assign(
+    {
+      returns: [
+        {
+          ID: "RT-DISPLAY-1",
+          PickupID: "PH-DISPLAY-1",
+          PickupDetailID: "PD-DISPLAY-1",
+          Tanggal: "2026-07-21",
+          Qty: 1.25,
+          Keterangan: "Display fixture",
+          Deleted: false,
+          IsActive: true,
+        },
+      ],
+      pickupDetails: [
+        {
+          ID: "PD-DISPLAY-1",
+          PickupID: "PH-DISPLAY-1",
+          ProductID: "PR-DISPLAY-1",
+          Qty: 3.5,
+          Deleted: true,
+          IsActive: false,
+        },
+      ],
+      pickupHeaders: [
+        {
+          ID: "PH-DISPLAY-1",
+          Tanggal: "2026-07-20",
+          PartnerID: "PT-DISPLAY-1",
+          Deleted: true,
+          IsActive: false,
+        },
+      ],
+      products: [
+        {
+          ID: "PR-DISPLAY-1",
+          Nama: "Produk historis",
+          Deleted: true,
+          IsActive: false,
+        },
+      ],
+      partners: [
+        {
+          ID: "PT-DISPLAY-1",
+          Nama: "Mitra historis",
+          Deleted: true,
+          IsActive: false,
+        },
+      ],
+    },
+    overrides || {},
+  );
+  const reads = Object.create(null);
+
+  return {
+    fixture,
+    reads,
+    options: {
+      readActiveReturns() {
+        return fixture.returns;
+      },
+      readPhysicalRows(schema) {
+        reads[schema.NAME] = (reads[schema.NAME] || 0) + 1;
+
+        if (schema === RETURN_SCHEMA) return fixture.returns;
+        if (schema === PICKUP_DETAIL_SCHEMA) return fixture.pickupDetails;
+        if (schema === PICKUP_HEADER_SCHEMA) return fixture.pickupHeaders;
+        if (schema === PRODUCT_SCHEMA) return fixture.products;
+        if (schema === PARTNER_SCHEMA) return fixture.partners;
+        throw new Error(`Unexpected display fixture schema: ${schema.NAME}`);
+      },
+    },
+  };
+}
+
+function assertReturnDisplayFields(row) {
+  if (
+    row.ProductID !== "PR-DISPLAY-1" ||
+    row.ProductName !== "Produk historis" ||
+    row.PartnerID !== "PT-DISPLAY-1" ||
+    row.PartnerName !== "Mitra historis"
+  ) {
+    throw new Error("Return relationship display fields were not resolved.");
+  }
+}
+
+function testReturnDisplayActiveAndHistoricalResolution() {
+  const setup = returnDisplayFixtureOptions();
+  const active = ReturnService(setup.options).findAll();
+
+  if (!active.success || active.data.length !== 1) {
+    throw new Error("Active Return display response is invalid.");
+  }
+
+  const activeRow = active.data[0];
+  assertReturnDisplayFields(activeRow);
+
+  if (
+    activeRow.ID !== "RT-DISPLAY-1" ||
+    activeRow.PickupID !== "PH-DISPLAY-1" ||
+    activeRow.PickupDetailID !== "PD-DISPLAY-1" ||
+    activeRow.Qty !== 1.25 ||
+    activeRow.PickupDate !== "2026-07-20" ||
+    activeRow.PickupDetailQty !== 3.5
+  ) {
+    throw new Error("Return source fields changed during display enrichment.");
+  }
+
+  setup.fixture.returns[0].Deleted = true;
+  setup.fixture.returns[0].IsActive = false;
+  const deleted = ReturnService(setup.options).findDeleted();
+
+  if (!deleted.success || deleted.data.length !== 1) {
+    throw new Error("Deleted Return disappeared during display enrichment.");
+  }
+
+  assertReturnDisplayFields(deleted.data[0]);
+}
+
+function testReturnDisplayMissingRelationshipFallbacks() {
+  const missingMaster = returnDisplayFixtureOptions({
+    products: [],
+    partners: [],
+  });
+  const masterRow = ReturnService(missingMaster.options).findAll().data[0];
+
+  if (
+    masterRow.ProductName !== "Produk tidak ditemukan" ||
+    masterRow.PartnerName !== "Mitra tidak ditemukan"
+  ) {
+    throw new Error("Missing Product or Partner fallback is invalid.");
+  }
+
+  const missingRelations = returnDisplayFixtureOptions({
+    pickupDetails: [],
+    pickupHeaders: [],
+  });
+  missingRelations.fixture.returns[0].Deleted = true;
+  missingRelations.fixture.returns[0].IsActive = false;
+  const relationRows = ReturnService(missingRelations.options).findDeleted();
+  const relationRow = relationRows.data[0];
+
+  if (
+    relationRows.data.length !== 1 ||
+    relationRow.ProductID !== "" ||
+    relationRow.PartnerID !== "" ||
+    relationRow.ProductName !==
+      "Produk tidak tersedia karena detail Pickup tidak ditemukan" ||
+    relationRow.PartnerName !==
+      "Mitra tidak tersedia karena Pickup tidak ditemukan"
+  ) {
+    throw new Error("Missing historical relationship fallback is invalid.");
+  }
+}
+
+function testReturnDisplayMismatchPreservesStoredRelationship() {
+  const setup = returnDisplayFixtureOptions();
+  setup.fixture.pickupDetails[0].PickupID = "PH-OTHER";
+  setup.fixture.returns[0].Deleted = true;
+  setup.fixture.returns[0].IsActive = false;
+  const response = ReturnService(setup.options).findDeleted();
+
+  if (
+    !response.success ||
+    response.data.length !== 1 ||
+    response.data[0].PickupID !== "PH-DISPLAY-1" ||
+    response.data[0].PickupDetailID !== "PD-DISPLAY-1"
+  ) {
+    throw new Error("Return relationship mismatch changed or hid the row.");
+  }
+}
+
+function testReturnDisplayBatchReadsAndDeterminism() {
+  const setup = returnDisplayFixtureOptions();
+  setup.fixture.returns.push(
+    Object.assign({}, setup.fixture.returns[0], { ID: "RT-DISPLAY-2" }),
+  );
+  const first = ReturnService(setup.options).findAll();
+
+  ["PickupDetail", "PickupHeader", "Product", "Partner"].forEach((name) => {
+    if (setup.reads[name] !== 1) {
+      throw new Error(`${name} must be physically read once per list request.`);
+    }
+  });
+
+  const secondSetup = returnDisplayFixtureOptions({
+    returns: setup.fixture.returns,
+  });
+  const second = ReturnService(secondSetup.options).findAll();
+
+  if (JSON.stringify(first.data) !== JSON.stringify(second.data)) {
+    throw new Error("Return display enrichment is not deterministic.");
+  }
+}
+
+function testReturnDisplayEmptyListsAndReadOnlyStructure() {
+  const setup = returnDisplayFixtureOptions({ returns: [] });
+  const active = ReturnService(setup.options).findAll();
+  const deleted = ReturnService(setup.options).findDeleted();
+
+  if (
+    !active.success ||
+    active.data.length !== 0 ||
+    !deleted.success ||
+    deleted.data.length !== 0
+  ) {
+    throw new Error("Empty Return display lists must succeed.");
+  }
+
+  const source = ReturnService.toString();
+  const readSection = source.slice(
+    source.indexOf("function findAll"),
+    source.indexOf("function create(document)"),
+  );
+
+  if (/RepositoryWriter|RepositoryCache\.clear|\.update\(|\.insert\(/.test(readSection)) {
+    throw new Error("Return display read paths must perform zero writes.");
+  }
+
+  if (!/resolvePickup\([\s\S]*storedPickupId !== pickupId/.test(source)) {
+    throw new Error("Return findById relationship mismatch guard was weakened.");
+  }
+}
+
 function testReturnCreateMissingDocument() {
   if (ReturnService().create(null).success)
     throw new Error("Return create must reject a missing document.");

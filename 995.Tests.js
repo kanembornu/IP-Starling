@@ -201,6 +201,16 @@ function runReturnDeletedListTests() {
   ]);
 }
 
+function runReturnDisplayEnrichmentTests() {
+  runTestSuite("Return display enrichment tests", [
+    testReturnDisplayActiveAndHistoricalResolution,
+    testReturnDisplayMissingRelationshipFallbacks,
+    testReturnDisplayMismatchPreservesStoredRelationship,
+    testReturnDisplayBatchReadsAndDeterminism,
+    testReturnDisplayEmptyListsAndReadOnlyStructure,
+  ]);
+}
+
 function runReturnRestoreValidationTests() {
   runTestSuite("Return restore validation tests", [
     testReturnRestoreMissingId,
@@ -448,6 +458,7 @@ function runReturnAllTests() {
   runReturnSchemaTests();
   runReturnValidationTests();
   runReturnControllerTests();
+  runReturnDisplayEnrichmentTests();
 
   Logger.log("RETURN TESTS: CONTROLLED WRITE FIXTURES");
   runReturnDeletedListTests();
