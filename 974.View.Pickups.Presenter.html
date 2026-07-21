@@ -34,6 +34,10 @@
 
     let pickups = [];
 
+    let mode = "active";
+
+    let activeQuery = "";
+
     let detailRequest = 0;
 
     let pendingDeleteId = null;
@@ -54,7 +58,8 @@
     // Public Render
     //===========================================================================
 
-    function render(data) {
+    function render(data, selectedMode = App.getPickupMode()) {
+      mode = selectedMode === "trash" ? "trash" : "active";
       pickups = normalize(data);
 
       updateHeaders();
@@ -63,7 +68,25 @@
 
       bindActions();
 
-      renderList(pickups);
+      syncModeUi();
+
+      renderList(
+        mode === "active"
+          ? filter(activeQuery)
+          : filterTrash(App.getPickupSearch()),
+      );
+    }
+
+    function search(keyword = "") {
+      if (mode === "trash") {
+        pickups = App.getDeletedPickups();
+        renderList(filterTrash(keyword));
+        return;
+      }
+
+      activeQuery = String(keyword ?? "").trim();
+      pickups = App.getPickups();
+      renderList(filter(activeQuery));
     }
 
     //===========================================================================
@@ -90,7 +113,11 @@
       renderInfo(list.length);
 
       if (!list.length) {
-        renderEmpty();
+        renderEmpty(
+          mode === "trash" && pickups.length && normalizeSearch(App.getPickupSearch())
+            ? "search"
+            : "database",
+        );
 
         return;
       }
@@ -98,8 +125,71 @@
       Render.mount(
         "tbl-pickups-body",
 
-        list.map(renderRow).join(""),
+        list.map(mode === "trash" ? renderTrashRow : renderRow).join(""),
       );
+    }
+
+    function renderTrashRow(pickup = {}) {
+      const eligibility = pickup.restoreEligibility || {};
+
+      return Components.tableRow([
+        Components.tableCell(text(pickup[FIELD.ID]), "font-medium text-slate-800"),
+        Components.tableCell(formatPickupDate(pickup[FIELD.DATE])),
+        Components.tableCell(text(pickup.partnerName || pickup[FIELD.PARTNER_ID])),
+        Components.tableCell(renderTrashDetails(pickup.details)),
+        Components.tableCell(formatQty(pickup[FIELD.TOTAL_QTY]), "text-right"),
+        Components.tableCell(renderEligibilityStatus(eligibility), "text-center"),
+        Components.tableCell(renderEligibilityReason(eligibility)),
+        Components.tableCell(renderRestorePreview(), "text-center"),
+      ]);
+    }
+
+    function renderTrashDetails(details) {
+      const rows = Array.isArray(details) ? details : [];
+
+      if (!rows.length) return "-";
+
+      return `<ul class="space-y-1">${rows.map((detail) => `
+        <li>
+          <span class="font-medium text-slate-700">${text(detail.productName || detail.ProductID)}</span>
+          <span class="text-slate-500">&times; ${formatQty(detail.Qty)}</span>
+        </li>
+      `).join("")}</ul>`;
+    }
+
+    function renderEligibilityStatus(eligibility) {
+      const allowed = eligibility.allowed === true;
+      const label = allowed ? "Aman dipulihkan" : "Tidak dapat dipulihkan";
+      const colors = allowed
+        ? "border-green-200 bg-green-50 text-green-700"
+        : "border-red-200 bg-red-50 text-red-700";
+
+      return `<span class="inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${colors}">${label}</span>`;
+    }
+
+    function renderEligibilityReason(eligibility) {
+      if (eligibility.allowed === true) return "-";
+
+      const code = Utils.isEmpty(eligibility.code)
+        ? ""
+        : `<div class="mt-1 text-xs text-slate-400">${text(eligibility.code)}</div>`;
+
+      return `<div class="text-sm text-slate-600">${text(eligibility.message)}${code}</div>`;
+    }
+
+    function renderRestorePreview() {
+      return `
+        <button
+          type="button"
+          disabled
+          aria-disabled="true"
+          title="Aksi pemulihan akan tersedia pada sprint berikutnya."
+          class="inline-flex cursor-not-allowed items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-slate-400 opacity-70"
+        >
+          ${Components.icon("fa-rotate-left")}
+          <span>Restore</span>
+        </button>
+      `;
     }
 
     function renderRow(pickup = {}) {
@@ -184,14 +274,20 @@
     // Empty and Info
     //===========================================================================
 
-    function renderEmpty() {
+    function renderEmpty(type = "database") {
       Render.mount(
         "tbl-pickups-body",
 
         `
         <tr>
-          <td colspan="7">
-            ${Components.empty("No pickups available.")}
+          <td colspan="${mode === "trash" ? "8" : "7"}">
+            ${Components.empty(
+              mode === "trash"
+                ? type === "search"
+                  ? "Tidak ada data Pickup Trash yang cocok dengan pencarian."
+                  : "Belum ada data Pickup di Trash."
+                : "No pickups available.",
+            )}
           </td>
         </tr>
       `,
@@ -202,7 +298,7 @@
       Render.mount(
         "lbl-pickup-info",
 
-        `${Format.number(total)} Pickup`,
+        `${Format.number(total)} ${mode === "trash" ? "Pickup di Trash" : "Pickup"}`,
       );
     }
 
@@ -239,13 +335,18 @@
     function bindToolbar() {
       const search = DOM.$("inp-pickup-search");
 
-      if (search && !search.dataset.pickupBound) {
-        search.dataset.pickupBound = "true";
+      document.querySelectorAll("[data-pickup-mode]").forEach((button) => {
+        if (button.dataset.pickupModeBound) return;
 
-        search.addEventListener("input", () => {
-          renderList(filter(search.value));
+        button.dataset.pickupModeBound = "true";
+        button.addEventListener("click", () => {
+          const nextMode = button.dataset.pickupMode;
+          if (nextMode === mode) return;
+
+          if (mode === "active") activeQuery = String(search?.value ?? "").trim();
+          App.setPickupMode(nextMode);
         });
-      }
+      });
 
       const refresh = DOM.$("btn-pickup-refresh");
 
@@ -253,7 +354,6 @@
         refresh.dataset.pickupBound = "true";
 
         refresh.addEventListener("click", () => {
-          clearSearch();
           App.refresh();
         });
       }
@@ -265,6 +365,28 @@
 
         add.addEventListener("click", openCreate);
       }
+    }
+
+    function syncModeUi() {
+      document.querySelectorAll("[data-pickup-mode]").forEach((button) => {
+        const selected = button.dataset.pickupMode === mode;
+        button.setAttribute("aria-pressed", String(selected));
+        button.classList.toggle("bg-blue-600", selected);
+        button.classList.toggle("text-white", selected);
+        button.classList.toggle("text-slate-600", !selected);
+        button.classList.toggle("hover:bg-slate-100", !selected);
+      });
+
+      const input = DOM.$("inp-pickup-search");
+      if (input) {
+        input.value = mode === "trash" ? App.getPickupSearch() : activeQuery;
+        input.placeholder = mode === "trash"
+          ? "Search deleted pickup..."
+          : "Search pickup...";
+      }
+
+      const add = DOM.$("btn-pickup-add");
+      if (add) add.classList.toggle("hidden", mode === "trash");
     }
 
     function bindActions() {
@@ -1178,6 +1300,35 @@
       });
     }
 
+    function filterTrash(keyword = "") {
+      const value = normalizeSearch(keyword);
+
+      if (!value) return pickups;
+
+      return pickups.filter((pickup = {}) => {
+        const headerMatch = [
+          pickup[FIELD.ID],
+          pickup[FIELD.PARTNER_ID],
+          pickup.partnerName,
+          pickup[FIELD.DATE],
+          formatPickupDate(pickup[FIELD.DATE]),
+        ].some((field) => normalizeSearch(field).includes(value));
+
+        if (headerMatch) return true;
+
+        const details = Array.isArray(pickup.details) ? pickup.details : [];
+        return details.some((detail = {}) => {
+          return [detail.ProductID, detail.productName].some((field) => {
+            return normalizeSearch(field).includes(value);
+          });
+        });
+      });
+    }
+
+    function normalizeSearch(value) {
+      return String(value ?? "").trim().toLowerCase();
+    }
+
     //===========================================================================
     // Table Header
     //===========================================================================
@@ -1185,7 +1336,16 @@
     function updateHeaders() {
       const headers = document.querySelectorAll("#tbl-pickups thead th");
 
-      const labels = [
+      const labels = mode === "trash" ? [
+        "ID Pickup",
+        "Tanggal",
+        "Mitra",
+        "Detail Produk",
+        "Total Qty",
+        "Status Restore",
+        "Alasan",
+        "Aksi",
+      ] : [
         "Pickup No / ID",
 
         "Date",
@@ -1205,7 +1365,40 @@
         if (labels[index]) {
           header.textContent = labels[index];
         }
+
+        header.classList.toggle("hidden", mode === "active" && index === 7);
       });
+    }
+
+    function renderLoading(selectedMode = App.getPickupMode()) {
+      mode = selectedMode === "trash" ? "trash" : "active";
+      bindToolbar();
+      syncModeUi();
+      updateHeaders();
+      const label = mode === "trash" ? "Pickup Trash" : "Pickups";
+      Render.mount(
+        "tbl-pickups-body",
+        `<tr><td colspan="${mode === "trash" ? "8" : "7"}">${Components.loading(`Loading ${label}...`)}</td></tr>`,
+      );
+      Render.mount("lbl-pickup-info", `Loading ${label}...`);
+    }
+
+    function renderError(selectedMode = App.getPickupMode()) {
+      mode = selectedMode === "trash" ? "trash" : "active";
+      bindToolbar();
+      syncModeUi();
+      updateHeaders();
+      Render.mount(
+        "tbl-pickups-body",
+        `<tr><td colspan="${mode === "trash" ? "8" : "7"}">
+          <div class="flex flex-col items-center justify-center py-16 text-center">
+            <i class="fa-solid fa-triangle-exclamation text-5xl text-red-400"></i>
+            <h3 class="mt-4 text-lg font-semibold text-red-700">Load failed</h3>
+            <p class="mt-2 text-slate-500">Pickup data could not be loaded. Use Refresh to try again.</p>
+          </div>
+        </td></tr>`,
+      );
+      Render.mount("lbl-pickup-info", "Pickup count unavailable");
     }
 
     //===========================================================================
@@ -1220,6 +1413,15 @@
       return Utils.escapeHTML(value);
     }
 
+    function formatQty(value) {
+      const number = Number(value);
+
+      if (!Number.isFinite(number)) return "0";
+
+      const decimalText = String(number).split(".")[1] || "";
+      return Format.number(number, Math.min(decimalText.length, 6));
+    }
+
     function escape(value) {
       return Utils.escapeHTML(String(value ?? ""));
     }
@@ -1230,6 +1432,12 @@
 
     return Object.freeze({
       render,
+
+      renderLoading,
+
+      renderError,
+
+      search,
 
       view,
 

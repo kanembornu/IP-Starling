@@ -29,9 +29,31 @@
 
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
       <div class="flex flex-wrap gap-3 items-center">
+        <div class="inline-flex rounded-lg border border-slate-300 p-1" aria-label="Pickup list mode">
+          <button
+            id="btn-pickup-active"
+            type="button"
+            data-pickup-mode="active"
+            class="rounded-md px-4 py-2 text-sm font-medium transition"
+          >
+            Active Pickups
+          </button>
+
+          <button
+            id="btn-pickup-trash"
+            type="button"
+            data-pickup-mode="trash"
+            class="rounded-md px-4 py-2 text-sm font-medium transition"
+          >
+            <i class="fa-solid fa-trash-can mr-2"></i>
+            Trash
+          </button>
+        </div>
+
         <div class="flex-1">
           <input
             id="inp-pickup-search"
+            data-module="pickups"
             type="text"
             placeholder="Search pickup..."
             class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -70,6 +92,8 @@
             <th class="px-4 py-3 text-center">Status</th>
 
             <th class="px-4 py-3 text-center">Action</th>
+
+            <th class="hidden px-4 py-3 text-center"></th>
           </tr>
         </thead>
 

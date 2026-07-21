@@ -23,6 +23,14 @@
 
       pickups: [],
 
+      deletedPickups: [],
+
+      pickupMode: "active",
+
+      pickupSearch: "",
+
+      pickupLoading: false,
+
       returns: [],
 
       purchasing: [],
@@ -45,6 +53,8 @@
     let partnersLoading = null;
 
     let expenseRequest = 0;
+
+    let pickupRequest = 0;
 
     //===========================================================================
     // Initialize
@@ -114,6 +124,26 @@
       return Array.isArray(state.expenses)
         ? Utils.deepClone(state.expenses)
         : [];
+    }
+
+    function getPickups() {
+      return Array.isArray(state.pickups)
+        ? Utils.deepClone(state.pickups)
+        : [];
+    }
+
+    function getDeletedPickups() {
+      return Array.isArray(state.deletedPickups)
+        ? Utils.deepClone(state.deletedPickups)
+        : [];
+    }
+
+    function getPickupMode() {
+      return state.pickupMode;
+    }
+
+    function getPickupSearch() {
+      return state.pickupSearch;
     }
 
     function getDeletedExpenses() {
@@ -364,17 +394,76 @@
     //===========================================================================
 
     async function loadPickups() {
-      const res = await Api.Pickup.list();
+      const mode = state.pickupMode;
+      const request = ++pickupRequest;
+      const fallback = mode === "trash"
+        ? "Load deleted pickups failed."
+        : "Load pickups failed.";
+
+      state.pickupLoading = true;
+      PickupsPresenter.renderLoading(mode);
+
+      let res;
+
+      try {
+        res = mode === "trash"
+          ? await Api.Pickup.findDeleted({})
+          : await Api.Pickup.list();
+      } catch (error) {
+        if (request !== pickupRequest || mode !== state.pickupMode) return;
+
+        state.pickupLoading = false;
+        Toast.error(readableLoadError(error, fallback));
+        PickupsPresenter.renderError(mode);
+        return;
+      }
+
+      if (request !== pickupRequest || mode !== state.pickupMode) return;
 
       if (!res || !res.success) {
-        Components.toast(res?.message || "Load pickups failed.");
+        state.pickupLoading = false;
+        Toast.error(res?.message || fallback);
+        PickupsPresenter.renderError(mode);
 
         return;
       }
 
-      state.pickups = Utils.deepClone(res.data);
+      const records = Utils.deepClone(Array.isArray(res.data) ? res.data : []);
+      state.pickupLoading = false;
 
-      Render.pickups(state.pickups);
+      if (mode === "trash") {
+        state.deletedPickups = records;
+      } else {
+        state.pickups = records;
+      }
+
+      PickupsPresenter.render(records, mode);
+    }
+
+    function setPickupMode(mode) {
+      const nextMode = mode === "trash" ? "trash" : "active";
+
+      if (state.pickupMode === nextMode) {
+        return Promise.resolve();
+      }
+
+      state.pickupMode = nextMode;
+      return loadPickups();
+    }
+
+    function searchPickups(keyword = "") {
+      const value = String(keyword ?? "").trim();
+
+      if (state.pickupMode === "trash") {
+        if (state.pickupSearch === value) return Promise.resolve();
+
+        state.pickupSearch = value;
+        PickupsPresenter.search(value);
+        return Promise.resolve();
+      }
+
+      PickupsPresenter.search(value);
+      return Promise.resolve();
     }
 
     //===========================================================================
@@ -509,6 +598,11 @@
 
           break;
 
+        case "pickups":
+          searchPickups(keyword);
+
+          break;
+
         default:
           break;
       }
@@ -581,6 +675,11 @@
 
       getProducts,
       getPartners,
+      getPickups,
+      getDeletedPickups,
+      getPickupMode,
+      getPickupSearch,
+      setPickupMode,
       getExpenses,
       getDeletedExpenses,
       getExpenseMode,
