@@ -130,6 +130,8 @@ const ID_PREFIX = Object.freeze({
   PURCHASE: "PC",
 
   EXPENSE: "EX",
+
+  SETTING: "ST",
 });
 
 /**
@@ -164,4 +166,6 @@ const ROUTES = Object.freeze({
   PURCHASES: "940.View.Purchasing",
 
   EXPENSES: "945.View.Expenses",
+
+  SETTINGS: "947.View.Settings",
 });

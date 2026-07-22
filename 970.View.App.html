@@ -17,7 +17,11 @@
 
       dashboard: null,
 
-      dashboardRange: { preset: "CURRENT_MONTH", startDate: "", endDate: "" },
+      dashboardRange: { preset: "", startDate: "", endDate: "" },
+
+      settings: [],
+
+      settingBusyKey: null,
 
       products: [],
 
@@ -76,6 +80,8 @@
 
     let dashboardRequest = 0;
 
+    let settingsRequest = 0;
+
     //===========================================================================
     // Initialize
     //===========================================================================
@@ -93,6 +99,8 @@
 
       Events.init();
 
+      bindSettingsActions();
+
       await refresh();
     }
 
@@ -106,6 +114,8 @@
       }
 
       if (state.page === "dashboard") DashboardPresenter.destroyCharts();
+
+      if (state.page === "settings") settingsRequest += 1;
 
       state.page = page;
 
@@ -314,7 +324,92 @@
           await loadExpenses();
 
           break;
+
+        case "settings":
+          await loadSettings();
+
+          break;
       }
+    }
+
+    //===========================================================================
+    // Settings
+    //===========================================================================
+
+    async function loadSettings() {
+      const request = ++settingsRequest;
+      SettingsPresenter.renderLoading();
+      let response;
+      try {
+        response = await Api.Settings.list();
+      } catch (error) {
+        if (request !== settingsRequest || state.page !== "settings") return;
+        Toast.error(readableLoadError(error, "Settings could not be loaded."));
+        SettingsPresenter.renderError();
+        return;
+      }
+      if (request !== settingsRequest || state.page !== "settings") return;
+      if (!response?.success || !Array.isArray(response.data)) {
+        Toast.error(response?.message || "Settings could not be loaded.");
+        SettingsPresenter.renderError(response?.message);
+        return;
+      }
+      state.settings = Utils.deepClone(response.data);
+      state.settingBusyKey = null;
+      SettingsPresenter.render(state.settings);
+    }
+
+    function settingInputValue(key) {
+      const input = document.querySelector(`[data-setting-input="${CSS.escape(key)}"]`);
+      const setting = state.settings.find((item) => item.key === key);
+      if (!input || !setting) throw new Error("Setting input is unavailable.");
+      if (setting.type === "BOOLEAN") return input.checked;
+      if (setting.type === "JSON") {
+        try { JSON.parse(input.value); } catch (error) { throw new Error("Value must be valid JSON."); }
+      }
+      return input.value;
+    }
+
+    async function mutateSetting(key, reset) {
+      if (state.settingBusyKey || state.page !== "settings") return false;
+      const setting = state.settings.find((item) => item.key === key);
+      if (!setting || !setting.editable) return false;
+      let value;
+      try { value = reset ? undefined : settingInputValue(key); }
+      catch (error) { Toast.error(error.message); return false; }
+      state.settingBusyKey = key;
+      SettingsPresenter.render(state.settings, key);
+      const request = ++settingsRequest;
+      try {
+        const response = reset ? await Api.Settings.reset(key) : await Api.Settings.update(key, value);
+        if (request !== settingsRequest || state.page !== "settings") return false;
+        if (!response?.success) {
+          Toast.error(response?.errors?.[0]?.message || response?.message || "Setting could not be saved.");
+          state.settingBusyKey = null;
+          SettingsPresenter.render(state.settings);
+          return false;
+        }
+        Toast.success(reset ? "Setting reset to default." : "Setting saved.");
+        await loadSettings();
+        return true;
+      } catch (error) {
+        if (request !== settingsRequest || state.page !== "settings") return false;
+        Toast.error(readableLoadError(error, "Setting could not be saved."));
+        state.settingBusyKey = null;
+        SettingsPresenter.render(state.settings);
+        return false;
+      }
+    }
+
+    function bindSettingsActions() {
+      document.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-settings-action]");
+        if (!button || state.page !== "settings") return;
+        const action = button.dataset.settingsAction;
+        if (action === "refresh") loadSettings();
+        if (action === "save") mutateSetting(button.dataset.key, false);
+        if (action === "reset") mutateSetting(button.dataset.key, true);
+      });
     }
 
     //===========================================================================

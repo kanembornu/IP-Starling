@@ -73,6 +73,12 @@ const DatabaseSetup = (() => {
       return;
     }
 
+    // Settings may already contain production configuration. Its dedicated
+    // audit/migration path must resolve mismatched headers without data loss.
+    if (schema.TABLE === SHEET_NAMES.SETTINGS && currentHeaders.length > 0) {
+      throw new Error("Settings headers differ from SETTINGS_SCHEMA; run the read-only Settings audit before migration.");
+    }
+
     /**
      * Reset Header
      */

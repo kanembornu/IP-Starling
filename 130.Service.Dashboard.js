@@ -7,6 +7,7 @@ function DashboardService(dependencies = {}) {
   const purchases = dependencies.purchases || PurchasingService();
   const expenses = dependencies.expenses || ExpenseService();
   const now = typeof dependencies.now === "function" ? dependencies.now : Utils.now;
+  const settings = dependencies.settings || SettingsService();
   const timezone = APP_CONFIG.TIMEZONE;
   const DAY_MS = 86400000;
 
@@ -49,7 +50,14 @@ function DashboardService(dependencies = {}) {
   }
 
   function resolveRange(request = {}) {
-    const preset = String(request.preset || "CURRENT_MONTH").toUpperCase();
+    let defaultPreset = "CURRENT_MONTH";
+    if (!request.preset) {
+      const configured = settings.getResolved("DASHBOARD_DEFAULT_RANGE");
+      if (configured && configured.success && configured.data && configured.data.valid !== false) {
+        defaultPreset = configured.data.value;
+      }
+    }
+    const preset = String(request.preset || defaultPreset).toUpperCase();
     const allowed = ["TODAY", "LAST_7_DAYS", "CURRENT_MONTH", "PREVIOUS_MONTH", "CURRENT_YEAR", "CUSTOM"];
     if (allowed.indexOf(preset) < 0) return rangeError("INVALID_PRESET", "Dashboard preset is invalid.", "preset");
     const todayValue = today();

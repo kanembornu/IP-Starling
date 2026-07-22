@@ -103,7 +103,13 @@ const RepositoryQuery = (() => {
    * Paginate
    * --------------------------------------------------------------------------
    */
-  function paginate(data, page = 1, perPage = PAGINATION_CONFIG.DEFAULT_LIMIT) {
+  function paginate(data, page = 1, perPage = null) {
+    if (perPage === null || typeof perPage === "undefined" || perPage === "") {
+      const configured = SettingsService().getResolved("ROWS_PER_PAGE");
+      perPage = configured && configured.success && configured.data && configured.data.valid !== false
+        ? configured.data.value
+        : PAGINATION_CONFIG.DEFAULT_LIMIT;
+    }
     if (!Array.isArray(data)) {
       return {
         data: [],

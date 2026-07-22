@@ -770,3 +770,53 @@ function runAllSafeTests() {
   runReturnSchemaTests();
   runReturnValidationTests();
 }
+
+/** Sprint 7.0.0 controlled Settings acceptance entry point. */
+function runSettingsModuleAcceptance() {
+  let failure = null;
+  try {
+    const service = SettingsService();
+    let audit = service.audit();
+    if (!audit.success) throw new Error(audit.message || "Settings production audit failed.");
+    if (["NEEDS_DATA_CLEANUP", "BLOCKING_SCHEMA_DEFECT"].indexOf(audit.data.classification) >= 0) {
+      throw new Error(`Settings production audit blocked controlled tests: ${audit.data.classification}.`);
+    }
+    if (audit.data.classification === "NEEDS_SEED") {
+      const seeded = service.seedMissing();
+      if (!seeded.success) throw new Error(seeded.message || "Settings seed failed.");
+      audit = service.audit();
+      if (audit.data.classification !== "SAFE") throw new Error(`Settings audit after seed is ${audit.data.classification}.`);
+    }
+    runSettingsFocusedTests();
+  } catch (error) {
+    failure = error;
+  }
+  Logger.log(`SETTINGS MODULE ACCEPTANCE: ${failure ? `FAIL - ${failure.message}` : "PASS"}`);
+  if (failure) throw failure;
+}
+
+/** Independent read-only physical Settings schema diagnostic. */
+function runSettingsSchemaCompatibilityDiagnostic() {
+  try {
+    return settingsSchemaCompatibilityDiagnostic();
+  } catch (error) {
+    const report = {
+      classification: "AMBIGUOUS_DATA",
+      sheetExists: false,
+      physicalDataRows: 0,
+      headerCompatible: false,
+      safeAutomaticInitialization: false,
+      safeAutomaticMigration: false,
+      manualActionRequired: true,
+      result: "FAIL",
+      error: error.message,
+    };
+    Logger.log(`SETTINGS SCHEMA DIAGNOSTIC SUMMARY: ${JSON.stringify(report)}`);
+    return report;
+  }
+}
+
+/** One-time guarded migration from legacy Key/Value Settings storage. */
+function runSettingsLegacySchemaMigration() {
+  return settingsLegacySchemaMigration();
+}

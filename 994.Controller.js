@@ -35,6 +35,30 @@ function getDashboard(range) {
 }
 
 //=============================================================================
+// Settings
+//=============================================================================
+
+function _settingsControllerResponse(operation) {
+  try {
+    return JSON.parse(JSON.stringify(operation()));
+  } catch (error) {
+    return JSON.parse(JSON.stringify(Response.error("Terjadi kesalahan saat memproses settings.")));
+  }
+}
+
+function getSettings() {
+  return _settingsControllerResponse(() => SettingsService().listResolved());
+}
+
+function updateSettingValue(key, rawValue) {
+  return _settingsControllerResponse(() => SettingsService().updateValue(key, rawValue));
+}
+
+function resetSettingValue(key) {
+  return _settingsControllerResponse(() => SettingsService().resetToDefault(key));
+}
+
+//=============================================================================
 // Products
 //=============================================================================
 

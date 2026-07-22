@@ -45,6 +45,24 @@
     });
 
     //===========================================================================
+    // Settings
+    //===========================================================================
+
+    const Settings = Object.freeze({
+      list() {
+        return run("getSettings");
+      },
+
+      update(key, value) {
+        return run("updateSettingValue", key, value);
+      },
+
+      reset(key) {
+        return run("resetSettingValue", key);
+      },
+    });
+
+    //===========================================================================
     // Product
     //===========================================================================
 
@@ -270,6 +288,8 @@
 
     return Object.freeze({
       Dashboard,
+
+      Settings,
 
       Product,
 

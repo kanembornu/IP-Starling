@@ -695,6 +695,52 @@ const EXPENSE_SCHEMA = createSchema({
 
 /**
  * =============================================================================
+ * SETTINGS
+ * =============================================================================
+ */
+
+const SETTINGS_FIELDS = Object.freeze({
+  ID: SYSTEM_COLUMNS.PRIMARY_KEY,
+  KEY: "Key",
+  VALUE: "Value",
+  TYPE: "Type",
+  GROUP: "Group",
+  LABEL: "Label",
+  DESCRIPTION: "Description",
+  IS_EDITABLE: "IsEditable",
+});
+
+const SETTINGS_SCHEMA = createSchema({
+  NAME: "Setting",
+  TABLE: SHEET_NAMES.SETTINGS,
+  PRIMARY_KEY: SETTINGS_FIELDS.ID,
+  DISPLAY_FIELD: SETTINGS_FIELDS.LABEL,
+  ID_PREFIX: ID_PREFIX.SETTING,
+  FIELDS: SETTINGS_FIELDS,
+  DEFAULT: {
+    [SYSTEM_COLUMNS.IS_DELETED]: false,
+    [SYSTEM_COLUMNS.IS_ACTIVE]: true,
+  },
+  VALIDATION: {},
+  READONLY: {
+    [SETTINGS_FIELDS.ID]: true,
+    [SETTINGS_FIELDS.KEY]: true,
+    [SETTINGS_FIELDS.TYPE]: true,
+    [SETTINGS_FIELDS.GROUP]: true,
+    [AUDIT_COLUMNS.CREATED_AT]: true,
+    [AUDIT_COLUMNS.CREATED_BY]: true,
+  },
+  SEARCHABLE: [SETTINGS_FIELDS.KEY, SETTINGS_FIELDS.LABEL],
+  UI: {
+    TITLE: "Settings",
+    ICON: "gear",
+    COLOR: "slate",
+    SEARCH_PLACEHOLDER: "Search settings...",
+  },
+});
+
+/**
+ * =============================================================================
  * SCHEMA REGISTRY
  * =============================================================================
  */
@@ -713,4 +759,6 @@ const SCHEMA = Object.freeze({
   PURCHASE: PURCHASING_SCHEMA,
 
   EXPENSE: EXPENSE_SCHEMA,
+
+  SETTINGS: SETTINGS_SCHEMA,
 });
