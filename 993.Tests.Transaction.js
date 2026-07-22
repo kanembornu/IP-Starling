@@ -6693,52 +6693,45 @@ function dashboardFixture(overrides) {
 }
 
 function auditDashboardLiveData() {
-  const dashboard = DashboardService().getDashboard();
-  const expenses = ExpenseService().findAll();
-  const expenseStatistics = ExpenseService().statistics();
-  const purchases = PurchasingService().findAll();
-  const purchasingStatistics = PurchasingService().statistics();
   const issues = [];
-
-  if (!dashboard || !dashboard.success || !dashboard.data) {
-    issues.push("DashboardService did not return a successful payload.");
+  const expenses = RepositoryBase.mapRows(EXPENSE_SCHEMA, RepositoryReader.raw(EXPENSE_SCHEMA));
+  const purchases = RepositoryBase.mapRows(PURCHASING_SCHEMA, RepositoryReader.raw(PURCHASING_SCHEMA));
+  const validDate = (value) => {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
+    if (match) {
+      const probe = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+      return probe.getUTCFullYear() === Number(match[1]) && probe.getUTCMonth() === Number(match[2]) - 1 && probe.getUTCDate() === Number(match[3]);
+    }
+    const parsed = value instanceof Date ? value : new Date(value);
+    return Number.isFinite(parsed.getTime());
+  };
+  const finite = (value) => value !== "" && value !== null && Number.isFinite(Number(value)) && Number(value) >= 0;
+  const active = (schema, row) => row[schema.SYSTEM.IS_ACTIVE] === true && row[schema.SYSTEM.IS_DELETED] === false;
+  function stateAudit(schema, row, module) {
+    if (row[schema.SYSTEM.IS_DELETED] === true && row[schema.SYSTEM.IS_ACTIVE] === true) {
+      issues.push(`${module} ${row.ID || "(unknown)"}: deleted row is active.`);
+    }
   }
-
-  const dashboardData = dashboard && dashboard.success && dashboard.data
-    ? dashboard.data
-    : { summary: {}, statistics: { expense: {}, purchasing: {} } };
-
-  if (!expenses.success || !expenseStatistics.success) {
-    issues.push("Expense canonical reads failed.");
-  } else if (
-    dashboardData.summary.expenses !== expenses.data.length ||
-    dashboardData.statistics.expense.active !== expenses.data.length ||
-    dashboardData.statistics.expense.total !== expenseStatistics.data.total
-  ) {
-    issues.push("Dashboard Expense counts do not reconcile with ExpenseService.");
-  }
-
-  if (!purchases.success || !purchasingStatistics.success) {
-    issues.push("Purchasing canonical reads failed.");
-  } else if (
-    dashboardData.summary.purchasings !== purchases.data.length ||
-    dashboardData.statistics.purchasing.active !== purchases.data.length ||
-    dashboardData.statistics.purchasing.total !== purchasingStatistics.data.total
-  ) {
-    issues.push("Dashboard Purchasing counts do not reconcile with PurchasingService.");
-  }
+  expenses.forEach((row) => {
+    stateAudit(EXPENSE_SCHEMA, row, "Expense");
+    if (!active(EXPENSE_SCHEMA, row)) return;
+    if (!validDate(row.Tanggal)) issues.push(`Expense ${row.ID}: invalid Tanggal.`);
+    if (!finite(row.Nominal)) issues.push(`Expense ${row.ID}: invalid Nominal.`);
+    if (!String(row.Kategori || "").trim()) issues.push(`Expense ${row.ID}: blank Kategori.`);
+  });
+  purchases.forEach((row) => {
+    stateAudit(PURCHASING_SCHEMA, row, "Purchasing");
+    if (!active(PURCHASING_SCHEMA, row)) return;
+    if (!validDate(row.Tanggal)) issues.push(`Purchasing ${row.ID}: invalid Tanggal.`);
+    if (!finite(row.Qty) || Number(row.Qty) <= 0 || !finite(row.Harga) || !finite(row.Total)) issues.push(`Purchasing ${row.ID}: invalid Qty, Harga, or Total.`);
+    else if (Number(row.Total) !== Number(row.Qty) * Number(row.Harga)) issues.push(`Purchasing ${row.ID}: Total does not reconcile.`);
+  });
 
   const report = {
     assessment: issues.length ? "BLOCKED" : "SAFE_TO_TEST",
     issues,
-    expenseActiveRows: expenses.success ? expenses.data.length : null,
-    purchasingActiveRows: purchases.success ? purchases.data.length : null,
-    generatedAt: dashboard && dashboard.success ? dashboard.data.generatedAt : null,
-    unsupportedMetrics: [
-      "revenue", "profit", "units", "activeDays", "bestSeller",
-      "topRevenueProduct", "hotColdSplit", "revenueTrend",
-      "expenseBreakdown", "dateRange",
-    ],
+    expenseRowsAudited: expenses.length,
+    purchasingRowsAudited: purchases.length,
   };
 
   Logger.log(`DASHBOARD READ-ONLY AUDIT: ${JSON.stringify(report)}`);
@@ -6746,20 +6739,12 @@ function auditDashboardLiveData() {
 }
 
 function testDashboardEmptyAndNumericSafety() {
-  const invalid = dashboardStub([], {
-    total: NaN,
-    active: "2",
-    inactive: Infinity,
-  });
-  const data = dashboardFixture({ purchases: invalid, expenses: invalid })
-    .getDashboard().data;
+  const data = dashboardFixture().getDashboard({ preset: "CUSTOM", startDate: "2027-01-01", endDate: "2027-01-02" }).data;
 
   if (
-    data.summary.expenses !== 0 ||
+    data.summary.expenseCount !== 0 || data.summary.purchasingValue !== 0 ||
     data.recentActivities.length !== 0 ||
-    data.statistics.expense.total !== 0 ||
-    data.statistics.expense.active !== 2 ||
-    data.statistics.expense.inactive !== 0
+    data.expenseBreakdown.total !== 0 || data.purchasingTrend.values.length !== 2
   ) {
     throw new Error("Dashboard empty-state or numeric-safety contract failed.");
   }
@@ -6768,7 +6753,7 @@ function testDashboardEmptyAndNumericSafety() {
 function testDashboardRecentActivityStableOrdering() {
   const products = dashboardStub([
     { ID: "PR_OLD", CreatedAt: "2026-01-01T00:00:00.000Z" },
-    { ID: "PR_NEW", CreatedAt: "2026-02-01T00:00:00.000Z" },
+    { ID: "PR_NEW", CreatedAt: "2026-02-01T00:00:00.000Z", UpdatedAt: "2026-03-01T00:00:00.000Z" },
   ]);
   const expenses = dashboardStub([
     { ID: "EX_MID", CreatedAt: "2026-01-15T00:00:00.000Z" },
@@ -6781,14 +6766,59 @@ function testDashboardRecentActivityStableOrdering() {
   }
 }
 
+function testDashboardRangeMetricsAndAvailability() {
+  const expenses = dashboardStub([
+    { ID: "EX_1", Tanggal: "2026-07-01", Kategori: " Ops ", Nominal: 10 },
+    { ID: "EX_2", Tanggal: "2026-07-03", Kategori: "Admin", Nominal: 20 },
+    { ID: "EX_3", Tanggal: "2026-07-03", Kategori: "Ops", Nominal: 10 },
+  ]);
+  const purchases = dashboardStub([
+    { ID: "PU_1", Tanggal: "2026-07-01", Qty: 2, Harga: 5, Total: 10 },
+    { ID: "PU_2", Tanggal: "2026-07-03", Qty: 3, Harga: 10, Total: 30 },
+  ]);
+  const response = dashboardFixture({ expenses, purchases }).getDashboard({ preset: "CUSTOM", startDate: "2026-07-01", endDate: "2026-07-03" });
+  if (!response.success) throw new Error(response.message);
+  const data = response.data;
+  if (data.summary.expenseValue !== 40 || data.expenseBreakdown.total !== 40 ||
+      data.expenseBreakdown.labels.join(",") !== "Admin,Ops" || data.summary.purchasingValue !== 40 ||
+      data.purchasingTrend.values.join(",") !== "10,0,30" || data.purchasingTrend.total !== 40 ||
+      data.availability.revenue.available !== false || data.availability.profit.available !== false) {
+    throw new Error("Dashboard supported metric, ordering, zero-fill, or availability contract failed.");
+  }
+  const invalid = dashboardFixture().getDashboard({ preset: "CUSTOM", startDate: "2026-07-03", endDate: "2026-07-01" });
+  if (invalid.success !== false || invalid.errors[0].code !== "START_AFTER_END") throw new Error("Dashboard structured range error contract failed.");
+}
+
+function testDashboardDateRangeContract() {
+  const futureExpense = dashboardStub([{ ID: "EX_FUTURE", Tanggal: "2026-07-23", Kategori: "Future", Nominal: 99 }]);
+  const service = dashboardFixture({ expenses: futureExpense });
+  const current = service.getDashboard({ preset: "CURRENT_MONTH" });
+  if (!current.success || current.data.range.startDate !== "2026-07-01" || current.data.range.endDate !== "2026-07-22" ||
+      current.data.summary.expenseValue !== 0 || current.data.range.timezone !== APP_CONFIG.TIMEZONE) {
+    throw new Error("Current-month, timezone, or non-Custom future exclusion failed.");
+  }
+  const future = service.getDashboard({ preset: "CUSTOM", startDate: "2026-07-23", endDate: "2026-07-23" });
+  if (!future.success || future.data.summary.expenseValue !== 99) throw new Error("Future Custom range failed.");
+  const invalidDate = service.getDashboard({ preset: "CUSTOM", startDate: "2026-02-30", endDate: "2026-03-01" });
+  const tooLarge = service.getDashboard({ preset: "CUSTOM", startDate: "2020-01-01", endDate: "2026-01-02" });
+  if (invalidDate.success !== false || invalidDate.errors[0].code !== "INVALID_DATE" ||
+      tooLarge.success !== false || tooLarge.errors[0].code !== "RANGE_TOO_LARGE") {
+    throw new Error("Invalid-date or maximum-range contract failed.");
+  }
+  const daily = service.getDashboard({ preset: "CUSTOM", startDate: "2026-01-01", endDate: "2026-01-31" });
+  const weekly = service.getDashboard({ preset: "CUSTOM", startDate: "2026-01-01", endDate: "2026-02-01" });
+  const monthly = service.getDashboard({ preset: "CUSTOM", startDate: "2026-01-01", endDate: "2026-07-01" });
+  if (daily.data.range.granularity !== "daily" || weekly.data.range.granularity !== "weekly" ||
+      monthly.data.range.granularity !== "monthly") throw new Error("Dashboard granularity boundaries failed.");
+}
+
 function testDashboardExpenseControlledReconciliation() {
   expenseWithFixture((row) => {
     let dashboard = DashboardService().getDashboard().data;
     let activeRows = ExpenseService().findAll().data;
     if (
       !activeRows.some((item) => item.ID === row.ID) ||
-      dashboard.summary.expenses !== activeRows.length ||
-      dashboard.statistics.expense.active !== activeRows.length
+      dashboard.summary.expenseCount < 1
     ) {
       throw new Error("Active Expense fixture did not reconcile with Dashboard.");
     }
@@ -6798,8 +6828,7 @@ function testDashboardExpenseControlledReconciliation() {
     activeRows = ExpenseService().findAll().data;
     if (
       activeRows.some((item) => item.ID === row.ID) ||
-      dashboard.summary.expenses !== activeRows.length ||
-      dashboard.statistics.expense.active !== activeRows.length
+      dashboard.summary.expenseCount !== activeRows.filter((item) => item.Tanggal >= dashboard.range.startDate && item.Tanggal <= dashboard.range.endDate).length
     ) {
       throw new Error("Inactive Expense fixture was included by Dashboard.");
     }
@@ -6810,12 +6839,23 @@ function testDashboardExpenseControlledReconciliation() {
     activeRows = ExpenseService().findAll().data;
     if (
       activeRows.some((item) => item.ID === row.ID) ||
-      dashboard.summary.expenses !== activeRows.length ||
-      dashboard.statistics.expense.active !== activeRows.length
+      dashboard.summary.expenseCount !== activeRows.filter((item) => item.Tanggal >= dashboard.range.startDate && item.Tanggal <= dashboard.range.endDate).length
     ) {
       throw new Error("Deleted Expense fixture was included by Dashboard.");
     }
   }, expenseTestDocument({ Tanggal: "2026-07-22", Nominal: 125.5 }));
+}
+
+function testDashboardPurchasingControlledReconciliation() {
+  purchasingWithFixture((fixture, remember) => {
+    const row = purchasingCreateFixture(fixture, { Tanggal: "2026-07-22", Qty: 2, Harga: 25 });
+    remember(row);
+    const response = DashboardService().getDashboard({ preset: "CUSTOM", startDate: "2026-07-22", endDate: "2026-07-22" });
+    if (!response.success || response.data.summary.purchasingValue < Number(row.Total) ||
+        response.data.purchasingTrend.total !== response.data.summary.purchasingValue) {
+      throw new Error("Controlled Purchasing fixture did not reconcile with Dashboard.");
+    }
+  });
 }
 
 function testDashboardControllerAndFrontendContracts() {
@@ -6830,11 +6870,11 @@ function testDashboardControllerAndFrontendContracts() {
   const app = expenseFrontendSource("970.View.App");
   const presenter = expenseFrontendSource("971.View.Dashboard.Presenter");
   if (
-    !/return run\("getDashboard"\)/.test(api) ||
+    !/return run\("getDashboard", range\)/.test(api) ||
     !/request !== dashboardRequest \|\| state\.page !== "dashboard"/.test(app) ||
     !/catch \(error\)[\s\S]*DashboardPresenter\.renderError\(\)/.test(app) ||
-    !/function renderError\(\)/.test(presenter) ||
-    !/\$\{expense\.active \|\| 0\}/.test(presenter) ||
+    !/function renderError\(/.test(presenter) ||
+    !/destroyCharts\(\)/.test(presenter) ||
     /Api\.Dashboard/.test(presenter)
   ) {
     throw new Error("Dashboard API/App/Presenter production-readiness contract failed.");

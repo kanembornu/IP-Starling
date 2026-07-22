@@ -39,8 +39,8 @@
     //===========================================================================
 
     const Dashboard = Object.freeze({
-      get() {
-        return run("getDashboard");
+      get(range) {
+        return run("getDashboard", range);
       },
     });
 

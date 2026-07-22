@@ -476,10 +476,37 @@ function runExpenseModuleAcceptance() {
 function runDashboardFocusedTests() {
   runTestSuite("Dashboard focused tests", [
     testDashboardEmptyAndNumericSafety,
+    testDashboardRangeMetricsAndAvailability,
+    testDashboardDateRangeContract,
     testDashboardRecentActivityStableOrdering,
     testDashboardControllerAndFrontendContracts,
     testDashboardExpenseControlledReconciliation,
+    testDashboardPurchasingControlledReconciliation,
   ]);
+}
+
+/** Sprint 6.3.0: the only function the user must execute manually. */
+function runDashboardSupportedMetricsAcceptance() {
+  if (activeTestRegistry) throw new Error("An aggregate test run is already active.");
+  let finalResult = "FAIL";
+  let finalDetail = "";
+  try {
+    Logger.log("DASHBOARD 6.3.0: READ-ONLY PRODUCTION AUDIT");
+    const audit = auditDashboardLiveData();
+    if (!audit || audit.assessment !== "SAFE_TO_TEST") {
+      throw new Error(`Dashboard production audit BLOCKED: ${(audit?.issues || []).join(" | ")}`);
+    }
+    activeTestRegistry = new Set();
+    runDashboardFocusedTests();
+    finalResult = "PASS";
+    finalDetail = `${activeTestRegistry.size} unique tests`;
+  } catch (error) {
+    finalDetail = error.message;
+    throw error;
+  } finally {
+    activeTestRegistry = null;
+    Logger.log(`DASHBOARD SUPPORTED METRICS ACCEPTANCE SUMMARY: ${finalResult} - ${finalDetail}`);
+  }
 }
 
 /**

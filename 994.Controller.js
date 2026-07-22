@@ -30,8 +30,8 @@ function _dashboardControllerResponse(operation) {
   }
 }
 
-function getDashboard() {
-  return _dashboardControllerResponse(() => DashboardService().getDashboard());
+function getDashboard(range) {
+  return _dashboardControllerResponse(() => DashboardService().getDashboard(range));
 }
 
 //=============================================================================

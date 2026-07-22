@@ -17,6 +17,8 @@
 
       dashboard: null,
 
+      dashboardRange: { preset: "CURRENT_MONTH", startDate: "", endDate: "" },
+
       products: [],
 
       partners: [],
@@ -102,6 +104,8 @@
       if (state.page === page) {
         return;
       }
+
+      if (state.page === "dashboard") DashboardPresenter.destroyCharts();
 
       state.page = page;
 
@@ -318,6 +322,7 @@
     //===========================================================================
 
     async function loadDashboard() {
+      DashboardPresenter.bindRangeControls(state.dashboardRange, setDashboardRange);
       const request = ++dashboardRequest;
 
       Render.mount(
@@ -331,7 +336,7 @@
       let res;
 
       try {
-        res = await Api.Dashboard.get();
+        res = await Api.Dashboard.get(Utils.deepClone(state.dashboardRange));
       } catch (error) {
         if (request !== dashboardRequest || state.page !== "dashboard") return;
 
@@ -344,14 +349,27 @@
 
       if (!res || !res.success) {
         Toast.error(res?.message || "Dashboard failed.");
-        DashboardPresenter.renderError();
+        DashboardPresenter.renderRangeError(res);
 
         return;
       }
 
       state.dashboard = Utils.deepClone(res.data);
 
+      state.dashboardRange = {
+        preset: res.data.range.preset,
+        startDate: res.data.range.startDate,
+        endDate: res.data.range.endDate,
+      };
+
       DashboardPresenter.render(state.dashboard);
+
+      DashboardPresenter.bindRangeControls(state.dashboardRange, setDashboardRange);
+    }
+
+    function setDashboardRange(range) {
+      state.dashboardRange = Utils.deepClone(range);
+      loadDashboard();
     }
 
     //===========================================================================
