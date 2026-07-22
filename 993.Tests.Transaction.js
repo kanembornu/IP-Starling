@@ -5303,6 +5303,51 @@ function testPurchasingDeletedControllerSerialization() {
   }
 }
 
+function purchasingApiSource() {
+  return HtmlService.createHtmlOutputFromFile("965.View.API").getContent();
+}
+
+function testPurchasingApiPublicApi() {
+  const source = purchasingApiSource();
+  const purchasingBlock = source.match(
+    /const Purchasing = Object\.freeze\(\{([\s\S]*?)\n\s*\}\);/,
+  );
+
+  if (!purchasingBlock) throw new Error("Api.Purchasing namespace was not found.");
+
+  const methods = {
+    findAll: 'run("getPurchasing")',
+    findDeleted: 'run("getDeletedPurchasing")',
+    findById: 'run("getPurchasingById", id)',
+    create: 'run("createPurchasing", data)',
+    update: 'run("updatePurchasing", id, data)',
+    remove: 'run("deletePurchasing", id)',
+    restore: 'run("restorePurchasing", id)',
+    list: "this.findAll()",
+    get: "this.findById(id)",
+  };
+
+  Object.keys(methods).forEach((name) => {
+    const definitions =
+      purchasingBlock[1].match(new RegExp(`(?:^|\\n)\\s*${name}\\s*\\(`, "g")) || [];
+    if (definitions.length !== 1 || !purchasingBlock[1].includes(methods[name])) {
+      throw new Error(`Api.Purchasing.${name} is missing, duplicated, or invalid.`);
+    }
+  });
+}
+
+function testPurchasingApiPromiseTransportBoundary() {
+  const source = purchasingApiSource();
+
+  if (
+    !/function run\(fn, \.\.\.args\)[\s\S]*return new Promise/.test(source) ||
+    !/withSuccessHandler\(\(result\) => \{[\s\S]*resolve\(result\)/.test(source) ||
+    !/withFailureHandler\(\(error\) => \{[\s\S]*reject\(error\)/.test(source)
+  ) {
+    throw new Error("Purchasing browser API transport boundary is invalid.");
+  }
+}
+
 function testPurchasingControllerGetAll() {
   const response = getPurchasing();
   purchasingAssertControllerResponse(response, "getPurchasing()");

@@ -286,7 +286,7 @@
       if (restoreSubmitting) return;
       const row = trashRows.find((item) => String(item?.[FIELD.ID] ?? "") === String(id ?? ""));
       if (!row || !isDeletedRow(row)) {
-        Components.toast("Deleted Purchasing record is unavailable.", "error");
+        Toast.error("Deleted Purchasing record is unavailable.");
         return;
       }
       pendingRestore = row;
@@ -644,18 +644,12 @@
         response = await Api.Purchasing.create(validation.payload);
 
         if (!response?.success) {
-          Components.toast(
-            response?.message || "Purchasing could not be created.",
-            "error",
-          );
+          Toast.error(response?.message || "Purchasing could not be created.");
 
           return;
         }
       } catch (error) {
-        Components.toast(
-          "Purchasing could not be created. Please try again.",
-          "error",
-        );
+        Toast.error("Purchasing could not be created. Please try again.");
 
         return;
       } finally {
@@ -663,7 +657,7 @@
         setCreateLoading(false);
       }
 
-      Components.toast(response.message || "Purchasing created.", "success");
+      Toast.success(response.message || "Purchasing created.");
       closeCreate();
       await App.refresh();
     }
@@ -748,7 +742,7 @@
       );
 
       if (!error) {
-        Components.toast(message, "error");
+        Toast.error(message);
 
         return;
       }
@@ -927,12 +921,12 @@
       const purchase = findLoadedPurchase(id);
 
       if (Utils.isEmpty(id)) {
-        Components.toast("Purchasing ID is unavailable.", "error");
+        Toast.error("Purchasing ID is unavailable.");
         return;
       }
 
       if (!purchase || !isActiveRow(purchase)) {
-        Components.toast("This Purchasing record is no longer available for deletion.", "error");
+        Toast.error("This Purchasing record is no longer available for deletion.");
         return;
       }
 
@@ -998,7 +992,7 @@
       const id = String(pendingDelete?.id ?? "").trim();
 
       if (!id) {
-        Components.toast("Purchasing ID is unavailable.", "error");
+        Toast.error("Purchasing ID is unavailable.");
         return false;
       }
 
@@ -1008,14 +1002,14 @@
         const response = await Api.Purchasing.remove(id);
 
         if (!response?.success) {
-          Components.toast(readableDeleteError(response?.message), "error");
+          Toast.error(readableDeleteError(response?.message));
           return false;
         }
 
-        Components.toast(response.message || "Purchasing deleted.", "success");
+        Toast.success(response.message || "Purchasing deleted.");
         return true;
       } catch (error) {
-        Components.toast("Purchasing could not be deleted. Please try again.", "error");
+        Toast.error("Purchasing could not be deleted. Please try again.");
         return false;
       } finally {
         deleteSubmitting = false;
@@ -1035,7 +1029,7 @@
     async function openEdit(id) {
       if (editSubmitting || Utils.isEmpty(id)) {
         if (Utils.isEmpty(id)) {
-          Components.toast("Purchasing ID is unavailable.", "error");
+          Toast.error("Purchasing ID is unavailable.");
         }
 
         return;
@@ -1264,18 +1258,18 @@
       try {
         response = await Api.Purchasing.update(editForm.id, validation.payload);
         if (!response?.success) {
-          Components.toast(response?.message || "Purchasing could not be updated.", "error");
+          Toast.error(response?.message || "Purchasing could not be updated.");
           return;
         }
       } catch (error) {
-        Components.toast("Purchasing could not be updated. Please try again.", "error");
+        Toast.error("Purchasing could not be updated. Please try again.");
         return;
       } finally {
         editSubmitting = false;
         setEditLoading(false);
       }
 
-      Components.toast(response.message || "Purchasing updated.", "success");
+      Toast.success(response.message || "Purchasing updated.");
       closeEdit();
       await App.refresh();
     }
@@ -1310,7 +1304,7 @@
 
     function showEditFieldError(field, message) {
       const error = document.querySelector(`[data-purchasing-edit-error="${field}"]`);
-      if (!error) { Components.toast(message, "error"); return; }
+      if (!error) { Toast.error(message); return; }
       DOM.text(error, message);
       error.classList.remove("hidden");
     }
@@ -1348,7 +1342,7 @@
 
     function showEditLoadError(message) {
       const readable = String(safeValue(message));
-      Components.toast(readable, "error");
+      Toast.error(readable);
       editForm = null;
       Modal.body(Components.empty(escape(readable)));
       Modal.footer(renderEditFooter(true));
@@ -1407,7 +1401,7 @@
 
     async function view(id) {
       if (Utils.isEmpty(id)) {
-        Components.toast("Purchasing ID is unavailable.", "error");
+        Toast.error("Purchasing ID is unavailable.");
 
         return;
       }
@@ -1563,7 +1557,7 @@
     function showDetailError(message) {
       const readable = safeValue(message);
 
-      Components.toast(readable, "error");
+      Toast.error(readable);
       Modal.body(Components.empty(escape(readable)));
     }
 

@@ -454,12 +454,58 @@ function runPurchasingControllerTests() {
   ]);
 }
 
+function runPurchasingApiTests() {
+  runTestSuite("Purchasing browser API tests", [
+    testPurchasingApiPublicApi,
+    testPurchasingApiPromiseTransportBoundary,
+  ]);
+}
+
 function runPurchasingAllTests() {
   runPurchasingControllerTests();
+  runPurchasingApiTests();
   runPurchasingValidationTests();
   runPurchasingDeletedListTests();
   runPurchasingWriteTests();
   runPurchasingRestoreTests();
+}
+
+/**
+ * Sprint 4.1.0 aggregate Purchasing module acceptance runner.
+ * Includes the read-only production data audit and controlled write fixtures.
+ */
+function runPurchasingModuleAcceptance() {
+  if (activeTestRegistry) {
+    throw new Error("An aggregate test run is already active.");
+  }
+
+  const audit = runPurchasingDataAudit();
+  if (!audit || audit.success !== true) {
+    const issues = Array.isArray(audit?.blockingIssues)
+      ? audit.blockingIssues.join(" | ")
+      : "Purchasing data audit did not pass.";
+    throw new Error(`Purchasing production data audit failed: ${issues}`);
+  }
+
+  activeTestRegistry = new Set();
+
+  try {
+    Logger.log("PURCHASING ACCEPTANCE: CONTROLLER AND BROWSER API");
+    runPurchasingControllerTests();
+    runPurchasingApiTests();
+
+    Logger.log("PURCHASING ACCEPTANCE: SERVICE AND DATA INTEGRITY");
+    runPurchasingValidationTests();
+    runPurchasingDeletedListTests();
+    runPurchasingWriteTests();
+    runPurchasingRestoreTests();
+
+    Logger.log(
+      `COMPLETE: Purchasing module acceptance (${activeTestRegistry.size} unique tests)`,
+    );
+  } finally {
+    activeTestRegistry = null;
+  }
 }
 
 /**
