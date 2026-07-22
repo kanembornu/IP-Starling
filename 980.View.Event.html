@@ -117,30 +117,6 @@
     );
 
     //===========================================================================
-    // Table Actions
-    //===========================================================================
-
-    function bindTableActions() {
-      document.addEventListener(
-        "click",
-
-        (event) => {
-          const restore = event.target.closest(".btn-restore");
-
-          if (restore) {
-            const id = restore.dataset.id;
-
-            const page = App.currentPage();
-
-            dispatchRestore(page, id);
-
-            return;
-          }
-        },
-      );
-    }
-
-    //===========================================================================
     // CRUD
     //===========================================================================
 
@@ -162,44 +138,6 @@
           }
         },
       );
-    }
-
-    //===========================================================================
-    // Restore Dispatcher
-    //===========================================================================
-
-    function dispatchRestore(page, id) {
-      switch (page) {
-        case "products":
-          App.restoreProduct(id);
-
-          break;
-
-        case "partners":
-          App.restorePartner(id);
-
-          break;
-
-        case "pickups":
-          App.restorePickup(id);
-
-          break;
-
-        case "returns":
-          App.restoreReturn(id);
-
-          break;
-
-        case "purchasing":
-          App.restorePurchasing(id);
-
-          break;
-
-        case "expenses":
-          App.restoreExpense(id);
-
-          break;
-      }
     }
 
     //===========================================================================
@@ -267,8 +205,6 @@
       bindTopbar();
 
       bindGlobal();
-
-      bindTableActions();
 
       bindCrud();
 

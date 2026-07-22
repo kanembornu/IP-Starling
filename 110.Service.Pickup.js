@@ -553,10 +553,7 @@ function PickupService(options) {
       return Response.error("Gagal memperbarui header transaksi.");
     }
 
-    return Response.success({
-      header: Object.assign({}, current.data.header, changes),
-      details: current.data.details,
-    });
+    return transaction.findById(id);
   }
 
   function remove(id) {

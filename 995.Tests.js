@@ -3,13 +3,26 @@
  * runAllSafeTests and must be invoked through their explicit runners.
  */
 
+let activeTestRegistry = null;
+
 function runTestSuite(name, tests) {
   Logger.log(`START: ${name}`);
 
   let currentTest = null;
+  const selectedTests = activeTestRegistry
+    ? tests.filter((test) => {
+        if (activeTestRegistry.has(test.name)) {
+          Logger.log(`SKIP DUPLICATE: ${test.name}`);
+          return false;
+        }
+
+        activeTestRegistry.add(test.name);
+        return true;
+      })
+    : tests;
 
   try {
-    tests.forEach((test) => {
+    selectedTests.forEach((test) => {
       currentTest = test;
       Logger.log(`RUN: ${test.name}`);
       test();
@@ -504,6 +517,53 @@ function runReturnTrashUiAlignmentVerification() {
 
   if (failures.length) {
     throw new Error(`Return Trash UI alignment verification failed: ${failures.join(" | ")}`);
+  }
+}
+
+/**
+ * Sprint 3.12.5 aggregate Pickup-Return module acceptance runner.
+ * Individual test functions shared by overlapping regression suites execute
+ * once only. This suite includes controlled spreadsheet write fixtures.
+ */
+function runPickupReturnModuleAcceptance() {
+  if (activeTestRegistry) {
+    throw new Error("An aggregate test run is already active.");
+  }
+
+  activeTestRegistry = new Set();
+
+  try {
+    Logger.log("PICKUP-RETURN ACCEPTANCE: PICKUP REGRESSIONS");
+    runTransactionReadTests();
+    runPickupCreateValidationTests();
+    runPickupCreateWriteTests();
+    runPickupPresenterDateTests();
+    runPickupUpdateValidationTests();
+    runPickupUpdateWriteTests();
+    runPickupRemoveRestoreTests();
+    runPickupRestoreEligibilityTests();
+    runPickupTrashReadTests();
+    runPickupControllerTests();
+
+    Logger.log("PICKUP-RETURN ACCEPTANCE: RETURN REGRESSIONS");
+    runReturnSchemaTests();
+    runReturnValidationTests();
+    runReturnControllerTests();
+    runReturnDisplayEnrichmentTests();
+    runReturnDeletedListTests();
+    runReturnRestoreValidationTests();
+    runReturnWriteTests();
+    runReturnConcurrencyGuardTests();
+
+    Logger.log("PICKUP-RETURN ACCEPTANCE: CROSS-MODULE INTEGRITY");
+    runPickupReturnIntegrityGuardTests();
+    runPickupReturnIntegrityDiagnosticTests();
+
+    Logger.log(
+      `COMPLETE: Pickup-Return module acceptance (${activeTestRegistry.size} unique tests)`,
+    );
+  } finally {
+    activeTestRegistry = null;
   }
 }
 

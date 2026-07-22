@@ -572,6 +572,9 @@ function testPickupPresenterDateContract() {
   const source = HtmlService.createHtmlOutputFromFile(
     "974.View.Pickups.Presenter",
   ).getContent();
+  const appSource = HtmlService.createHtmlOutputFromFile(
+    "970.View.App",
+  ).getContent();
 
   const required = [
     "function calendarDateValue(value)",
@@ -599,14 +602,165 @@ function testPickupPresenterDateContract() {
     throw new Error("Pickup presenter must not parse YYYY-MM-DD with new Date().");
   }
 
-  const searchSection = source.slice(
-    source.indexOf("function filter(keyword"),
-    source.indexOf("// Table Header"),
-  );
+  function extractNamedFunctionSource(content, functionMarker, label) {
+    const start = content.indexOf(functionMarker);
 
-  if (searchSection.indexOf("FIELD.DATE") !== -1) {
-    throw new Error("Pickup date search must remain disabled.");
+    if (start === -1) {
+      throw new Error(`Pickup ${label} function declaration was not found.`);
+    }
+
+    const openingBrace = content.indexOf("{", start);
+
+    if (openingBrace === -1) {
+      throw new Error(`Pickup ${label} function opening brace was not found.`);
+    }
+
+    let depth = 0;
+    let quote = null;
+    let lineComment = false;
+    let blockComment = false;
+    let escaped = false;
+
+    for (let index = openingBrace; index < content.length; index++) {
+      const character = content[index];
+      const nextCharacter = content[index + 1];
+
+      if (lineComment) {
+        if (character === "\n") lineComment = false;
+        continue;
+      }
+
+      if (blockComment) {
+        if (character === "*" && nextCharacter === "/") {
+          blockComment = false;
+          index += 1;
+        }
+        continue;
+      }
+
+      if (quote) {
+        if (escaped) {
+          escaped = false;
+        } else if (character === "\\") {
+          escaped = true;
+        } else if (character === quote) {
+          quote = null;
+        }
+        continue;
+      }
+
+      if (character === "/" && nextCharacter === "/") {
+        lineComment = true;
+        index += 1;
+        continue;
+      }
+
+      if (character === "/" && nextCharacter === "*") {
+        blockComment = true;
+        index += 1;
+        continue;
+      }
+
+      if (character === '"' || character === "'" || character === "`") {
+        quote = character;
+        continue;
+      }
+
+      if (character === "{") depth += 1;
+
+      if (character === "}") {
+        depth -= 1;
+
+        if (depth === 0) {
+          return content.slice(start, index + 1);
+        }
+      }
+    }
+
+    throw new Error(`Pickup ${label} function braces are unbalanced.`);
   }
+
+  function assertNoSearchSideEffects(section, label) {
+    const prohibited = section.match(
+      /Api\.Pickup|google\.script\.run|renderLoading|(?:state\.)?pickupLoading|App\.refresh|\.(?:create|update|remove|restore)\s*\(/,
+    );
+
+    if (prohibited) {
+      throw new Error(
+        `Pickup ${label} contains prohibited operation: ${prohibited[0]}`,
+      );
+    }
+  }
+
+  const searchSection = extractNamedFunctionSource(
+    source,
+    "function search(keyword",
+    "Presenter search",
+  );
+  const trashFilterSection = extractNamedFunctionSource(
+    source,
+    "function filterTrash(keyword",
+    "Presenter filterTrash",
+  );
+  const normalizeSearchSection = extractNamedFunctionSource(
+    source,
+    "function normalizeSearch(value)",
+    "Presenter normalizeSearch",
+  );
+  const appSearchSection = extractNamedFunctionSource(
+    appSource,
+    "function searchPickups(keyword",
+    "App searchPickups",
+  );
+  const searchContracts = [
+    'activeQuery = String(keyword ?? "").trim();',
+    "renderList(filter(activeQuery));",
+  ];
+  const trashFilterContracts = [
+    "pickup[FIELD.ID]",
+    "pickup[FIELD.PARTNER_ID]",
+    "pickup.partnerName",
+    "pickup[FIELD.DATE]",
+    "formatPickupDate(pickup[FIELD.DATE])",
+    "detail.ProductID",
+    "detail.productName",
+    ".includes(value)",
+  ];
+
+  searchContracts.forEach((contract) => {
+    if (searchSection.indexOf(contract) === -1) {
+      throw new Error(`Pickup local search contract is missing: ${contract}`);
+    }
+  });
+
+  trashFilterContracts.forEach((contract) => {
+    if (trashFilterSection.indexOf(contract) === -1) {
+      throw new Error(`Pickup date search contract is missing: ${contract}`);
+    }
+  });
+
+  if (
+    appSearchSection.indexOf('String(keyword ?? "").trim()') === -1 ||
+    appSearchSection.indexOf("PickupsPresenter.search(value)") === -1
+  ) {
+    throw new Error("Pickup App search orchestration contract is missing.");
+  }
+
+  if (
+    normalizeSearchSection.indexOf(
+      'String(value ?? "").trim().toLowerCase()',
+    ) === -1
+  ) {
+    throw new Error("Pickup search normalization contract is missing.");
+  }
+
+  assertNoSearchSideEffects(searchSection, "Presenter search");
+  assertNoSearchSideEffects(trashFilterSection, "Presenter filterTrash");
+  assertNoSearchSideEffects(
+    normalizeSearchSection,
+    "Presenter normalizeSearch",
+  );
+  assertNoSearchSideEffects(appSearchSection, "App searchPickups");
 }
 
 function testPickupCreateMissingPartnerId() {
