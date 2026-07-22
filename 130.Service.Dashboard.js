@@ -20,22 +20,49 @@
  * =============================================================================
  */
 
-function DashboardService() {
+function DashboardService(dependencies = {}) {
   //===========================================================================
   // Services
   //===========================================================================
 
-  const products = ProductService();
+  const products = dependencies.products || ProductService();
 
-  const partners = PartnerService();
+  const partners = dependencies.partners || PartnerService();
 
-  const pickups = PickupService();
+  const pickups = dependencies.pickups || PickupService();
 
-  const returns = ReturnService();
+  const returns = dependencies.returns || ReturnService();
 
-  const purchases = PurchasingService();
+  const purchases = dependencies.purchases || PurchasingService();
 
-  const expenses = ExpenseService();
+  const expenses = dependencies.expenses || ExpenseService();
+
+  const now = typeof dependencies.now === "function"
+    ? dependencies.now
+    : Utils.now;
+
+  function responseRows(response) {
+    return response && response.success && Array.isArray(response.data)
+      ? response.data
+      : [];
+  }
+
+  function safeCount(value) {
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 0 ? number : 0;
+  }
+
+  function normalizeStatistics(response) {
+    const data = response && response.success && response.data
+      ? response.data
+      : {};
+
+    return {
+      total: safeCount(data.total),
+      active: safeCount(data.active),
+      inactive: safeCount(data.inactive),
+    };
+  }
 
   //===========================================================================
   // Summary
@@ -55,17 +82,17 @@ function DashboardService() {
     const expenseData = expenses.findAll();
 
     return {
-      products: productData.success ? productData.data.length : 0,
+      products: responseRows(productData).length,
 
-      partners: partnerData.success ? partnerData.data.length : 0,
+      partners: responseRows(partnerData).length,
 
-      pickups: pickupData.success ? pickupData.data.length : 0,
+      pickups: responseRows(pickupData).length,
 
-      returns: returnData.success ? returnData.data.length : 0,
+      returns: responseRows(returnData).length,
 
-      purchasings: purchasingData.success ? purchasingData.data.length : 0,
+      purchasings: responseRows(purchasingData).length,
 
-      expenses: expenseData.success ? expenseData.data.length : 0,
+      expenses: responseRows(expenseData).length,
     };
   }
 
@@ -79,9 +106,9 @@ function DashboardService() {
     const expenseStats = expenses.statistics();
 
     return {
-      purchasing: purchasingStats.success ? purchasingStats.data : {},
+      purchasing: normalizeStatistics(purchasingStats),
 
-      expense: expenseStats.success ? expenseStats.data : {},
+      expense: normalizeStatistics(expenseStats),
     };
   }
 
@@ -93,7 +120,7 @@ function DashboardService() {
     const activities = [];
 
     function append(serviceResponse, moduleName) {
-      if (!serviceResponse.success) {
+      if (!serviceResponse || !serviceResponse.success || !Array.isArray(serviceResponse.data)) {
         return;
       }
 
@@ -141,7 +168,7 @@ function DashboardService() {
 
       recentActivities: getRecentActivities(),
 
-      generatedAt: Utils.now(),
+      generatedAt: now(),
     });
   }
 

@@ -20,10 +20,18 @@
 // Dashboard
 //=============================================================================
 
-function getDashboard() {
-  const result = DashboardService().getDashboard();
+function _dashboardControllerResponse(operation) {
+  try {
+    return JSON.parse(JSON.stringify(operation()));
+  } catch (error) {
+    return JSON.parse(
+      JSON.stringify(Response.error("Terjadi kesalahan saat memproses dashboard.")),
+    );
+  }
+}
 
-  return JSON.parse(JSON.stringify(result));
+function getDashboard() {
+  return _dashboardControllerResponse(() => DashboardService().getDashboard());
 }
 
 //=============================================================================

@@ -47,6 +47,23 @@
       renderCharts(data);
     }
 
+    function renderError() {
+      Render.mount(
+        "dashboard-kpi",
+        Components.empty("Dashboard data unavailable. Refresh to retry."),
+      );
+
+      Render.mount(
+        "dashboard-statistics",
+        Components.empty("Statistics unavailable."),
+      );
+
+      Render.mount(
+        "dashboard-activities",
+        Components.empty("Recent activities unavailable."),
+      );
+    }
+
     //===========================================================================
     // KPI
     //===========================================================================
@@ -124,7 +141,7 @@
 
           <strong>
 
-            ${expense.total || 0}
+            ${expense.active || 0}
 
           </strong>
 
@@ -228,6 +245,8 @@
 
     return Object.freeze({
       render,
+
+      renderError,
     });
   })();
 </script>

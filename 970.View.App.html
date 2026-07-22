@@ -72,6 +72,8 @@
 
     let returnTrashRequest = 0;
 
+    let dashboardRequest = 0;
+
     //===========================================================================
     // Initialize
     //===========================================================================
@@ -316,6 +318,8 @@
     //===========================================================================
 
     async function loadDashboard() {
+      const request = ++dashboardRequest;
+
       Render.mount(
         "dashboard-kpi",
 
@@ -324,10 +328,23 @@
         }),
       );
 
-      const res = await Api.Dashboard.get();
+      let res;
+
+      try {
+        res = await Api.Dashboard.get();
+      } catch (error) {
+        if (request !== dashboardRequest || state.page !== "dashboard") return;
+
+        Toast.error(readableLoadError(error, "Dashboard failed."));
+        DashboardPresenter.renderError();
+        return;
+      }
+
+      if (request !== dashboardRequest || state.page !== "dashboard") return;
 
       if (!res || !res.success) {
-        Components.toast(res?.message || "Dashboard failed.");
+        Toast.error(res?.message || "Dashboard failed.");
+        DashboardPresenter.renderError();
 
         return;
       }

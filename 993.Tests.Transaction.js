@@ -6666,6 +6666,181 @@ function testExpenseDashboardCompatibility() {
   }
 }
 
+function dashboardStub(rows, statistics) {
+  return {
+    findAll() {
+      return Response.success(rows || []);
+    },
+    statistics() {
+      return Response.success(statistics || { total: 0, active: 0, inactive: 0 });
+    },
+  };
+}
+
+function dashboardFixture(overrides) {
+  const empty = dashboardStub([], { total: 0, active: 0, inactive: 0 });
+  return DashboardService(Object.assign({
+    products: empty,
+    partners: empty,
+    pickups: empty,
+    returns: empty,
+    purchases: empty,
+    expenses: empty,
+    now() {
+      return "2026-07-22T00:00:00.000Z";
+    },
+  }, overrides || {}));
+}
+
+function auditDashboardLiveData() {
+  const dashboard = DashboardService().getDashboard();
+  const expenses = ExpenseService().findAll();
+  const expenseStatistics = ExpenseService().statistics();
+  const purchases = PurchasingService().findAll();
+  const purchasingStatistics = PurchasingService().statistics();
+  const issues = [];
+
+  if (!dashboard || !dashboard.success || !dashboard.data) {
+    issues.push("DashboardService did not return a successful payload.");
+  }
+
+  const dashboardData = dashboard && dashboard.success && dashboard.data
+    ? dashboard.data
+    : { summary: {}, statistics: { expense: {}, purchasing: {} } };
+
+  if (!expenses.success || !expenseStatistics.success) {
+    issues.push("Expense canonical reads failed.");
+  } else if (
+    dashboardData.summary.expenses !== expenses.data.length ||
+    dashboardData.statistics.expense.active !== expenses.data.length ||
+    dashboardData.statistics.expense.total !== expenseStatistics.data.total
+  ) {
+    issues.push("Dashboard Expense counts do not reconcile with ExpenseService.");
+  }
+
+  if (!purchases.success || !purchasingStatistics.success) {
+    issues.push("Purchasing canonical reads failed.");
+  } else if (
+    dashboardData.summary.purchasings !== purchases.data.length ||
+    dashboardData.statistics.purchasing.active !== purchases.data.length ||
+    dashboardData.statistics.purchasing.total !== purchasingStatistics.data.total
+  ) {
+    issues.push("Dashboard Purchasing counts do not reconcile with PurchasingService.");
+  }
+
+  const report = {
+    assessment: issues.length ? "BLOCKED" : "SAFE_TO_TEST",
+    issues,
+    expenseActiveRows: expenses.success ? expenses.data.length : null,
+    purchasingActiveRows: purchases.success ? purchases.data.length : null,
+    generatedAt: dashboard && dashboard.success ? dashboard.data.generatedAt : null,
+    unsupportedMetrics: [
+      "revenue", "profit", "units", "activeDays", "bestSeller",
+      "topRevenueProduct", "hotColdSplit", "revenueTrend",
+      "expenseBreakdown", "dateRange",
+    ],
+  };
+
+  Logger.log(`DASHBOARD READ-ONLY AUDIT: ${JSON.stringify(report)}`);
+  return report;
+}
+
+function testDashboardEmptyAndNumericSafety() {
+  const invalid = dashboardStub([], {
+    total: NaN,
+    active: "2",
+    inactive: Infinity,
+  });
+  const data = dashboardFixture({ purchases: invalid, expenses: invalid })
+    .getDashboard().data;
+
+  if (
+    data.summary.expenses !== 0 ||
+    data.recentActivities.length !== 0 ||
+    data.statistics.expense.total !== 0 ||
+    data.statistics.expense.active !== 2 ||
+    data.statistics.expense.inactive !== 0
+  ) {
+    throw new Error("Dashboard empty-state or numeric-safety contract failed.");
+  }
+}
+
+function testDashboardRecentActivityStableOrdering() {
+  const products = dashboardStub([
+    { ID: "PR_OLD", CreatedAt: "2026-01-01T00:00:00.000Z" },
+    { ID: "PR_NEW", CreatedAt: "2026-02-01T00:00:00.000Z" },
+  ]);
+  const expenses = dashboardStub([
+    { ID: "EX_MID", CreatedAt: "2026-01-15T00:00:00.000Z" },
+  ]);
+  const activities = dashboardFixture({ products, expenses })
+    .getDashboard().data.recentActivities;
+
+  if (activities.map((item) => item.id).join(",") !== "PR_NEW,EX_MID,PR_OLD") {
+    throw new Error("Dashboard recent activity ordering is unstable.");
+  }
+}
+
+function testDashboardExpenseControlledReconciliation() {
+  expenseWithFixture((row) => {
+    let dashboard = DashboardService().getDashboard().data;
+    let activeRows = ExpenseService().findAll().data;
+    if (
+      !activeRows.some((item) => item.ID === row.ID) ||
+      dashboard.summary.expenses !== activeRows.length ||
+      dashboard.statistics.expense.active !== activeRows.length
+    ) {
+      throw new Error("Active Expense fixture did not reconcile with Dashboard.");
+    }
+
+    RepositoryWriter.update(EXPENSE_SCHEMA, row.ID, { IsActive: false });
+    dashboard = DashboardService().getDashboard().data;
+    activeRows = ExpenseService().findAll().data;
+    if (
+      activeRows.some((item) => item.ID === row.ID) ||
+      dashboard.summary.expenses !== activeRows.length ||
+      dashboard.statistics.expense.active !== activeRows.length
+    ) {
+      throw new Error("Inactive Expense fixture was included by Dashboard.");
+    }
+
+    RepositoryWriter.update(EXPENSE_SCHEMA, row.ID, { IsActive: true });
+    ExpenseService().remove(row.ID);
+    dashboard = DashboardService().getDashboard().data;
+    activeRows = ExpenseService().findAll().data;
+    if (
+      activeRows.some((item) => item.ID === row.ID) ||
+      dashboard.summary.expenses !== activeRows.length ||
+      dashboard.statistics.expense.active !== activeRows.length
+    ) {
+      throw new Error("Deleted Expense fixture was included by Dashboard.");
+    }
+  }, expenseTestDocument({ Tanggal: "2026-07-22", Nominal: 125.5 }));
+}
+
+function testDashboardControllerAndFrontendContracts() {
+  const failed = _dashboardControllerResponse(() => {
+    throw new Error("controlled Dashboard Controller test error");
+  });
+  if (failed.success !== false || failed.message !== "Terjadi kesalahan saat memproses dashboard.") {
+    throw new Error("Dashboard Controller exception boundary is invalid.");
+  }
+
+  const api = expenseFrontendSource("965.View.API");
+  const app = expenseFrontendSource("970.View.App");
+  const presenter = expenseFrontendSource("971.View.Dashboard.Presenter");
+  if (
+    !/return run\("getDashboard"\)/.test(api) ||
+    !/request !== dashboardRequest \|\| state\.page !== "dashboard"/.test(app) ||
+    !/catch \(error\)[\s\S]*DashboardPresenter\.renderError\(\)/.test(app) ||
+    !/function renderError\(\)/.test(presenter) ||
+    !/\$\{expense\.active \|\| 0\}/.test(presenter) ||
+    /Api\.Dashboard/.test(presenter)
+  ) {
+    throw new Error("Dashboard API/App/Presenter production-readiness contract failed.");
+  }
+}
+
 /**
  * Manual, read-only Pickup/Return production integrity diagnostic.
  * This deliberately reads physical rows and never calls a service or writer.

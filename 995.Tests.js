@@ -473,6 +473,55 @@ function runExpenseModuleAcceptance() {
   }
 }
 
+function runDashboardFocusedTests() {
+  runTestSuite("Dashboard focused tests", [
+    testDashboardEmptyAndNumericSafety,
+    testDashboardRecentActivityStableOrdering,
+    testDashboardControllerAndFrontendContracts,
+    testDashboardExpenseControlledReconciliation,
+  ]);
+}
+
+/**
+ * Sprint 6.1.0 aggregate Dashboard module acceptance runner.
+ * This is the only function that must be executed manually for this sprint.
+ * It performs a read-only production audit before its controlled Expense write.
+ */
+function runDashboardModuleAcceptance() {
+  if (activeTestRegistry) {
+    throw new Error("An aggregate test run is already active.");
+  }
+
+  let finalResult = "FAIL";
+  let finalDetail = "";
+
+  try {
+    Logger.log("DASHBOARD ACCEPTANCE: READ-ONLY PRODUCTION AUDIT");
+    const audit = auditDashboardLiveData();
+    if (!audit || audit.assessment !== "SAFE_TO_TEST") {
+      const issues = Array.isArray(audit?.issues)
+        ? audit.issues.join(" | ")
+        : "Dashboard production audit did not pass.";
+      throw new Error(`Dashboard production audit BLOCKED: ${issues}`);
+    }
+
+    activeTestRegistry = new Set();
+    Logger.log("DASHBOARD ACCEPTANCE: FOCUSED AND CONTROLLED FIXTURE TESTS");
+    runDashboardFocusedTests();
+
+    finalResult = "PASS";
+    finalDetail = `${activeTestRegistry.size} unique tests`;
+  } catch (error) {
+    finalDetail = error.message;
+    throw error;
+  } finally {
+    activeTestRegistry = null;
+    Logger.log(
+      `DASHBOARD MODULE ACCEPTANCE SUMMARY: ${finalResult} - ${finalDetail}`,
+    );
+  }
+}
+
 function runPurchasingDeletedListTests() {
   runTestSuite("Purchasing deleted-list tests", [
     testPurchasingFindDeletedEmpty,
