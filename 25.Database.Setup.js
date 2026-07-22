@@ -79,6 +79,10 @@ const DatabaseSetup = (() => {
       throw new Error("Settings headers differ from SETTINGS_SCHEMA; run the read-only Settings audit before migration.");
     }
 
+    if (schema.TABLE === SHEET_NAMES.LOGS && currentHeaders.length > 0) {
+      throw new Error("Logs headers differ from LOG_SCHEMA; run the read-only Logs audit before any migration.");
+    }
+
     /**
      * Reset Header
      */

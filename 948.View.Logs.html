@@ -1,0 +1,25 @@
+<template id="logs-page">
+  <div class="space-y-5">
+    <section class="grid grid-cols-2 gap-3 lg:grid-cols-4" id="logs-summary"></section>
+    <section class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <label class="text-xs text-slate-600">Date range<select id="logs-preset" class="mt-1 w-full rounded-lg border px-3 py-2"><option value="TODAY">Today</option><option value="LAST_7_DAYS">Last 7 Days</option><option value="CURRENT_MONTH" selected>Current Month</option><option value="PREVIOUS_MONTH">Previous Month</option><option value="CURRENT_YEAR">Current Year</option><option value="CUSTOM">Custom</option></select></label>
+        <label class="logs-custom hidden text-xs text-slate-600">From<input id="logs-date-from" type="date" class="mt-1 w-full rounded-lg border px-3 py-2"></label>
+        <label class="logs-custom hidden text-xs text-slate-600">To<input id="logs-date-to" type="date" class="mt-1 w-full rounded-lg border px-3 py-2"></label>
+        <label class="text-xs text-slate-600">Level<select id="logs-level" class="mt-1 w-full rounded-lg border px-3 py-2"><option value="">All</option><option>ERROR</option><option>WARN</option><option>INFO</option><option>DEBUG</option></select></label>
+        <label class="text-xs text-slate-600">Category<select id="logs-category" class="mt-1 w-full rounded-lg border px-3 py-2"><option value="">All</option><option>AUDIT</option><option>APPLICATION</option><option>VALIDATION</option><option>ERROR</option><option>SYSTEM</option></select></label>
+        <label class="text-xs text-slate-600">Module<input id="logs-module" class="mt-1 w-full rounded-lg border px-3 py-2" placeholder="Module"></label>
+        <label class="text-xs text-slate-600">Action<select id="logs-action" class="mt-1 w-full rounded-lg border px-3 py-2"><option value="">All</option><option>CREATE</option><option>UPDATE</option><option>DELETE</option><option>RESTORE</option><option>READ</option><option>SETTINGS_UPDATE</option><option>SETTINGS_RESET</option><option>MIGRATION</option><option>SYSTEM</option></select></label>
+        <label class="text-xs text-slate-600">Status<select id="logs-status" class="mt-1 w-full rounded-lg border px-3 py-2"><option value="">All</option><option>SUCCESS</option><option>FAILURE</option><option>WARNING</option></select></label>
+        <label class="text-xs text-slate-600 xl:col-span-2">Search<input id="logs-search" class="mt-1 w-full rounded-lg border px-3 py-2" placeholder="Message, entity, actor, correlation ID..."></label>
+      </div>
+      <p id="logs-filter-error" class="mt-3 hidden text-sm text-red-600"></p>
+      <div class="mt-4 flex gap-2"><button data-logs-action="apply" class="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white">Apply filters</button><button data-logs-action="clear" class="rounded-lg border px-4 py-2 text-sm">Clear</button></div>
+    </section>
+    <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div class="overflow-x-auto"><table class="min-w-[1150px] w-full text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-500"><tr><th class="p-3">Timestamp</th><th>Level</th><th>Category</th><th>Module</th><th>Action</th><th>Entity</th><th>Actor</th><th>Status</th><th>Message</th><th>Duration</th><th class="p-3">Detail</th></tr></thead><tbody id="logs-body"></tbody></table></div>
+      <div id="logs-state"></div>
+      <div class="flex flex-wrap items-center justify-between gap-3 border-t p-4"><div id="logs-page-label" class="text-sm text-slate-500"></div><div class="flex items-center gap-2"><label class="text-sm">Rows <select id="logs-page-size" class="rounded border px-2 py-1"><option>10</option><option selected>20</option><option>50</option><option>100</option></select></label><button data-logs-action="previous" class="rounded border px-3 py-1">Previous</button><button data-logs-action="next" class="rounded border px-3 py-1">Next</button></div></div>
+    </section>
+  </div>
+</template>

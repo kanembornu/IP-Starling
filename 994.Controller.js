@@ -59,6 +59,27 @@ function resetSettingValue(key) {
 }
 
 //=============================================================================
+// Logs (read-only browser contract)
+//=============================================================================
+
+function _logsControllerResponse(operation) {
+  try { return JSON.parse(JSON.stringify(operation())); }
+  catch (error) { return JSON.parse(JSON.stringify(Response.error("Logs could not be processed."))); }
+}
+
+function listLogs(filters, pagination) {
+  return _logsControllerResponse(() => LogsService.list(filters || {}, pagination || {}));
+}
+
+function getLogById(id) {
+  return _logsControllerResponse(() => LogsService.getById(id));
+}
+
+function getLogsSummary(filters) {
+  return _logsControllerResponse(() => LogsService.summary(filters || {}));
+}
+
+//=============================================================================
 // Products
 //=============================================================================
 

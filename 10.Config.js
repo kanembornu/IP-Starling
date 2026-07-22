@@ -132,6 +132,8 @@ const ID_PREFIX = Object.freeze({
   EXPENSE: "EX",
 
   SETTING: "ST",
+
+  LOG: "LG",
 });
 
 /**
@@ -168,4 +170,6 @@ const ROUTES = Object.freeze({
   EXPENSES: "945.View.Expenses",
 
   SETTINGS: "947.View.Settings",
+
+  LOGS: "948.View.Logs",
 });

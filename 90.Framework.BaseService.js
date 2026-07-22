@@ -147,6 +147,16 @@ const BaseService = (() => {
       );
     }
 
+    function auditMutation(action, id, beforeData, afterData) {
+      if (schema.TABLE === SHEET_NAMES.LOGS) return;
+      AuditLogService.bestEffort({
+        level: "INFO", module: schema.NAME, action, entityType: schema.NAME,
+        entityId: id, status: "SUCCESS", beforeData, afterData,
+        message: `${schema.NAME} ${action.toLowerCase()} succeeded.`,
+        source: "BaseService",
+      });
+    }
+
     //==========================================================================
     // Read
     //==========================================================================
@@ -274,6 +284,8 @@ const BaseService = (() => {
         saved,
       );
 
+      auditMutation("CREATE", object[schema.PRIMARY_KEY], null, saved);
+
       return Response.success(
         saved,
 
@@ -286,6 +298,7 @@ const BaseService = (() => {
     //==========================================================================
 
     function updateItem(id, changes) {
+      const before = reload(id);
       let object = Utils.deepClone(changes);
 
       object = sanitizeUpdate(object);
@@ -334,6 +347,8 @@ const BaseService = (() => {
         updated,
       );
 
+      auditMutation("UPDATE", id, before, updated);
+
       return Response.success(
         updated,
 
@@ -346,6 +361,7 @@ const BaseService = (() => {
     //==========================================================================
 
     function remove(id) {
+      const before = reload(id);
       const hook = runHook(
         "beforeDelete",
 
@@ -372,6 +388,12 @@ const BaseService = (() => {
         id,
       );
 
+      const deleted = RepositoryBase.mapRows(schema, RepositoryBase.rows(schema)).find(
+        (row) => String(row[schema.PRIMARY_KEY]) === String(id),
+      ) || null;
+
+      auditMutation("DELETE", id, before, deleted);
+
       return Response.success(
         null,
 
@@ -384,6 +406,9 @@ const BaseService = (() => {
     //==========================================================================
 
     function restore(id) {
+      const before = RepositoryBase.mapRows(schema, RepositoryBase.rows(schema)).find(
+        (row) => String(row[schema.PRIMARY_KEY]) === String(id),
+      ) || null;
       const hook = runHook(
         "beforeRestore",
 
@@ -411,6 +436,8 @@ const BaseService = (() => {
       );
 
       const restored = reload(id);
+
+      auditMutation("RESTORE", id, before, restored);
 
       return Response.success(
         restored,

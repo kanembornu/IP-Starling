@@ -23,6 +23,12 @@
 
       settingBusyKey: null,
 
+      logsFilters: { preset: "CURRENT_MONTH", dateFrom: "", dateTo: "", level: "", category: "", module: "", action: "", status: "", search: "" },
+
+      logsPage: 1,
+
+      logsPageSize: 20,
+
       products: [],
 
       partners: [],
@@ -82,6 +88,8 @@
 
     let settingsRequest = 0;
 
+    let logsRequest = 0;
+
     //===========================================================================
     // Initialize
     //===========================================================================
@@ -101,6 +109,8 @@
 
       bindSettingsActions();
 
+      bindLogsActions();
+
       await refresh();
     }
 
@@ -116,6 +126,8 @@
       if (state.page === "dashboard") DashboardPresenter.destroyCharts();
 
       if (state.page === "settings") settingsRequest += 1;
+
+      if (state.page === "logs") logsRequest += 1;
 
       state.page = page;
 
@@ -329,7 +341,64 @@
           await loadSettings();
 
           break;
+
+        case "logs":
+          await loadLogs();
+
+          break;
       }
+    }
+
+    //===========================================================================
+    // Logs
+    //===========================================================================
+
+    function logsFilterValues() {
+      const preset = DOM.$("logs-preset")?.value || "CURRENT_MONTH";
+      return { preset, dateFrom: preset === "CUSTOM" ? DOM.$("logs-date-from")?.value || "" : "", dateTo: preset === "CUSTOM" ? DOM.$("logs-date-to")?.value || "" : "", level: DOM.$("logs-level")?.value || "", category: DOM.$("logs-category")?.value || "", module: DOM.$("logs-module")?.value || "", action: DOM.$("logs-action")?.value || "", status: DOM.$("logs-status")?.value || "", search: DOM.$("logs-search")?.value || "" };
+    }
+
+    function applyLogsFilterControls() {
+      const preset = DOM.$("logs-preset"); if (!preset) return;
+      preset.value = state.logsFilters.preset;
+      ["date-from", "date-to", "level", "category", "module", "action", "status", "search"].forEach((suffix) => { const key = suffix.replace(/-([a-z])/g, (_, c) => c.toUpperCase()); const input = DOM.$(`logs-${suffix}`); if (input) input.value = state.logsFilters[key] || ""; });
+      document.querySelectorAll(".logs-custom").forEach((node) => node.classList.toggle("hidden", preset.value !== "CUSTOM"));
+      const size = DOM.$("logs-page-size"); if (size) size.value = String(state.logsPageSize);
+    }
+
+    function resolvedLogsFilters(filters) {
+      const now = new Date(); const pad = (value) => String(value).padStart(2, "0"); const ymd = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+      let from = filters.dateFrom; let to = filters.dateTo; const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      if (filters.preset === "TODAY") from = to = ymd(start);
+      if (filters.preset === "LAST_7_DAYS") { const d = new Date(start); d.setDate(d.getDate() - 6); from = ymd(d); to = ymd(start); }
+      if (filters.preset === "CURRENT_MONTH") { from = ymd(new Date(start.getFullYear(), start.getMonth(), 1)); to = ymd(new Date(start.getFullYear(), start.getMonth() + 1, 0)); }
+      if (filters.preset === "PREVIOUS_MONTH") { from = ymd(new Date(start.getFullYear(), start.getMonth() - 1, 1)); to = ymd(new Date(start.getFullYear(), start.getMonth(), 0)); }
+      if (filters.preset === "CURRENT_YEAR") { from = `${start.getFullYear()}-01-01`; to = `${start.getFullYear()}-12-31`; }
+      return Object.assign({}, filters, { dateFrom: from, dateTo: to });
+    }
+
+    async function loadLogs() {
+      applyLogsFilterControls(); const request = ++logsRequest; LogsPresenter.renderLoading();
+      const filters = resolvedLogsFilters(Utils.deepClone(state.logsFilters));
+      try {
+        const [list, summary] = await Promise.all([Api.Logs.list(filters, { page: state.logsPage, pageSize: state.logsPageSize }), Api.Logs.summary(filters)]);
+        if (request !== logsRequest || state.page !== "logs") return;
+        if (!list?.success || !summary?.success) throw new Error(list?.message || summary?.message || "Logs could not be loaded.");
+        LogsPresenter.render(list.data); LogsPresenter.renderSummary(summary.data); applyLogsFilterControls();
+      } catch (error) { if (request !== logsRequest || state.page !== "logs") return; LogsPresenter.renderError(readableLoadError(error, "Logs could not be loaded.")); }
+    }
+
+    function bindLogsActions() {
+      document.addEventListener("change", (event) => { if (event.target?.id === "logs-preset") document.querySelectorAll(".logs-custom").forEach((node) => node.classList.toggle("hidden", event.target.value !== "CUSTOM")); });
+      document.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-logs-action]"); if (!button || state.page !== "logs") return;
+        const action = button.dataset.logsAction;
+        if (action === "clear") { state.logsFilters = { preset: "CURRENT_MONTH", dateFrom: "", dateTo: "", level: "", category: "", module: "", action: "", status: "", search: "" }; state.logsPage = 1; return loadLogs(); }
+        if (action === "apply") { const next = logsFilterValues(); const error = DOM.$("logs-filter-error"); const message = next.preset === "CUSTOM" && (!next.dateFrom || !next.dateTo || next.dateFrom > next.dateTo) ? "Choose a valid Custom date range." : ""; if (error) { DOM.text(error, message); error.classList.toggle("hidden", !message); } if (message) return; state.logsFilters = next; state.logsPage = 1; return loadLogs(); }
+        if (action === "previous" && state.logsPage > 1) { state.logsPage -= 1; return loadLogs(); }
+        if (action === "next") { state.logsPage += 1; return loadLogs(); }
+      });
+      document.addEventListener("change", (event) => { if (event.target?.id === "logs-page-size" && state.page === "logs") { state.logsPageSize = Number(event.target.value) || 20; state.logsPage = 1; loadLogs(); } });
     }
 
     //===========================================================================

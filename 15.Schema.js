@@ -739,6 +739,23 @@ const SETTINGS_SCHEMA = createSchema({
   },
 });
 
+/** Canonical append-only operational and audit log. */
+const LOG_FIELDS = Object.freeze({
+  ID: "ID", TIMESTAMP: "Timestamp", LEVEL: "Level", CATEGORY: "Category",
+  MODULE: "Module", ACTION: "Action", ENTITY_TYPE: "EntityType",
+  ENTITY_ID: "EntityID", ACTOR: "Actor", STATUS: "Status", MESSAGE: "Message",
+  BEFORE_DATA: "BeforeData", AFTER_DATA: "AfterData", CONTEXT: "Context",
+  DURATION_MS: "DurationMs", CORRELATION_ID: "CorrelationID", SOURCE: "Source",
+  ERROR_NAME: "ErrorName", ERROR_MESSAGE: "ErrorMessage", ERROR_STACK: "ErrorStack",
+  CREATED_AT: "CreatedAt",
+});
+
+const LOG_SCHEMA = Object.freeze({
+  NAME: "Log", TABLE: SHEET_NAMES.LOGS, PRIMARY_KEY: LOG_FIELDS.ID,
+  ID_PREFIX: ID_PREFIX.LOG, FIELDS: LOG_FIELDS,
+  HEADERS: Object.freeze(Object.values(LOG_FIELDS)),
+});
+
 /**
  * =============================================================================
  * SCHEMA REGISTRY
@@ -761,4 +778,6 @@ const SCHEMA = Object.freeze({
   EXPENSE: EXPENSE_SCHEMA,
 
   SETTINGS: SETTINGS_SCHEMA,
+
+  LOGS: LOG_SCHEMA,
 });

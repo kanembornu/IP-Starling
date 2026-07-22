@@ -60,6 +60,10 @@ function resolvePage(e) {
     case "purchases":
 
     case "expenses":
+
+    case "settings":
+
+    case "logs":
       return page;
 
     default:

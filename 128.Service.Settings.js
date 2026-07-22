@@ -9,6 +9,7 @@ function SettingsService(dependencies = {}) {
   const generateId = dependencies.generateId || (() => IDGenerator.generate(schema));
   const now = dependencies.now || Utils.now;
   const currentUser = dependencies.currentUser || Utils.currentUser;
+  const auditLog = dependencies.auditLog || (Object.keys(dependencies).length ? { bestEffort: () => ({ recorded: false, reason: "TEST_DEPENDENCY" }) } : AuditLogService);
   const cachePrefix = "IPS:Settings:resolved:v1";
 
   const canonicalRegistry = [
@@ -182,7 +183,7 @@ function SettingsService(dependencies = {}) {
     };
   }
 
-  function updateValue(key, rawValue) {
+  function updateValue(key, rawValue, auditAction = "SETTINGS_UPDATE") {
     const def = findDefinition(key);
     if (!def) return Response.error("Unknown setting key.");
     if (!def.editable) return Response.error("Setting is not editable.");
@@ -197,14 +198,19 @@ function SettingsService(dependencies = {}) {
       : writer.insert(schema, buildRow(def, value));
     if (!ok) return Response.error("Setting could not be saved.");
     clearCache();
-    return getResolved(def.key);
+    const result = getResolved(def.key);
+    if (result.success && auditAction) {
+      const hidden = LogSanitizer.isSensitiveKey(def.key);
+      auditLog.bestEffort({ level: "INFO", module: "Settings", action: auditAction, entityType: "Setting", entityId: def.key, status: "SUCCESS", beforeData: { key: def.key, value: hidden ? LogSanitizer.REDACTED : row ? row[SETTINGS_FIELDS.VALUE] : def.defaultValue, source: row ? "PERSISTED" : "DEFAULT" }, afterData: { key: def.key, value: hidden ? LogSanitizer.REDACTED : result.data.value, source: result.data.source }, message: `Setting ${def.key} ${auditAction === "SETTINGS_RESET" ? "reset" : "updated"}.`, source: "SettingsService" });
+    }
+    return result;
   }
 
   function resetToDefault(key) {
     const def = findDefinition(key);
     if (!def) return Response.error("Unknown setting key.");
     if (!def.editable) return Response.error("Setting is not editable.");
-    return updateValue(def.key, def.defaultValue);
+    return updateValue(def.key, def.defaultValue, "SETTINGS_RESET");
   }
 
   function seedMissing() {

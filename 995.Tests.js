@@ -820,3 +820,31 @@ function runSettingsSchemaCompatibilityDiagnostic() {
 function runSettingsLegacySchemaMigration() {
   return settingsLegacySchemaMigration();
 }
+
+/** Sprint 7.1.0 production-safe Logs acceptance entry point. */
+function runLogsModuleAcceptance() {
+  let result; let failure = null;
+  try { result = executeLogsModuleAcceptance(); }
+  catch (error) { failure = error; result = { result: "FAIL", error: error.message }; }
+  Logger.log(`LOGS MODULE ACCEPTANCE: ${failure ? `FAIL - ${failure.message}` : "PASS"}`);
+  if (failure) throw failure;
+  return result;
+}
+
+/** Independent read-only physical Logs schema diagnostic. */
+function runLogsSchemaCompatibilityDiagnostic() {
+  try {
+    testLogsSchemaDiagnosticReadOnlySourceContract();
+    return logsSchemaCompatibilityDiagnostic();
+  } catch (error) {
+    const report = { classification: "AMBIGUOUS_DATA", sheetExists: false, physicalRows: 0, headerCompatible: false, safeAutomaticInitialization: false, safeAutomaticMigration: false, manualActionRequired: true, result: "FAIL", error: error.message };
+    Logger.log(`LOGS SCHEMA DIAGNOSTIC SUMMARY: ${JSON.stringify(report)}`);
+    return report;
+  }
+}
+
+/** Guarded one-time initialization of the confirmed empty legacy Logs header. */
+function runLogsEmptyLegacySchemaInitialization() {
+  testLogsEmptyLegacySchemaInitializationSourceContract();
+  return logsEmptyLegacySchemaInitialization();
+}
