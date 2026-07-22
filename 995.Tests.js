@@ -402,6 +402,77 @@ function runExpenseAllTests() {
   runExpenseDeletedListTests();
 }
 
+/**
+ * Read-only physical-row inventory for Expense Nominal cleanup decisions.
+ */
+function runExpenseNominalCleanupDiagnostic() {
+  return diagnoseExpenseNominalCleanup();
+}
+
+/**
+ * One-time, fail-closed cleanup for three explicitly identified test fixtures.
+ */
+function runExpenseControlledFixtureCleanup() {
+  return cleanupExpenseControlledFixtures();
+}
+
+/**
+ * Sprint 5.1.0 aggregate Expense module acceptance runner.
+ * This is the only function that must be executed manually for this sprint.
+ * It includes a read-only production-data audit and controlled write fixtures.
+ */
+function runExpenseModuleAcceptance() {
+  if (activeTestRegistry) {
+    throw new Error("An aggregate test run is already active.");
+  }
+
+  let finalResult = "FAIL";
+  let finalDetail = "";
+
+  try {
+    Logger.log("EXPENSE ACCEPTANCE: PRODUCTION DATA AUDIT");
+    const audit = auditExpenseLiveData();
+
+    if (!audit || audit.assessment !== "SAFE_TO_HARDEN") {
+      const assessment = audit?.assessment || "BLOCKED";
+      const reasons = Array.isArray(audit?.reasons)
+        ? audit.reasons.join(" | ")
+        : "Expense production data audit did not pass.";
+      throw new Error(`Expense production data audit ${assessment}: ${reasons}`);
+    }
+
+    activeTestRegistry = new Set();
+
+    Logger.log("EXPENSE ACCEPTANCE: SERVICE AND DATA INTEGRITY");
+    runExpenseValidationTests();
+    runExpenseWriteTests();
+    runExpenseRestoreTests();
+    runExpenseDeletedListTests();
+
+    Logger.log("EXPENSE ACCEPTANCE: CONTROLLER AND BROWSER API");
+    runExpenseControllerTests();
+    runExpenseApiTests();
+
+    Logger.log("EXPENSE ACCEPTANCE: APP, PRESENTER, VIEW, AND EVENTS");
+    runTestSuite("Expense frontend acceptance tests", [
+      testExpenseFrontendArchitectureAndSearchContract,
+      testExpenseFrontendCrudAndTrashContract,
+      testExpenseFrontendValidationAndDisplayContract,
+    ]);
+
+    finalResult = "PASS";
+    finalDetail = `${activeTestRegistry.size} unique tests`;
+  } catch (error) {
+    finalDetail = error.message;
+    throw error;
+  } finally {
+    activeTestRegistry = null;
+    Logger.log(
+      `EXPENSE MODULE ACCEPTANCE SUMMARY: ${finalResult} - ${finalDetail}`,
+    );
+  }
+}
+
 function runPurchasingDeletedListTests() {
   runTestSuite("Purchasing deleted-list tests", [
     testPurchasingFindDeletedEmpty,

@@ -3802,6 +3802,537 @@ function auditExpenseLiveData() {
   };
 }
 
+function diagnoseExpenseNominalCleanup() {
+  const sheet = Database.spreadsheet().getSheetByName(EXPENSE_SCHEMA.TABLE);
+
+  if (!sheet) {
+    throw new Error(`Configured sheet ${EXPENSE_SCHEMA.TABLE} does not exist.`);
+  }
+
+  const lastRow = sheet.getLastRow();
+  const lastColumn = sheet.getLastColumn();
+  const values = lastRow > 0 && lastColumn > 0
+    ? sheet.getRange(1, 1, lastRow, lastColumn).getValues()
+    : [];
+  const formulas = lastRow > 0 && lastColumn > 0
+    ? sheet.getRange(1, 1, lastRow, lastColumn).getFormulas()
+    : [];
+  const headers = values.length ? values[0].map(String) : [];
+  const rows = values.slice(1);
+  const formulaRows = formulas.slice(1);
+  const index = {};
+
+  headers.forEach((header, column) => {
+    if (index[header] === undefined) index[header] = column;
+  });
+
+  const required = [
+    "ID",
+    "Deleted",
+    "IsActive",
+    "Tanggal",
+    "Kategori",
+    "Keterangan",
+    "Nominal",
+  ];
+  const missing = required.filter((header) => index[header] === undefined);
+
+  if (missing.length) {
+    throw new Error(`Expense diagnostic missing headers: ${missing.join(", ")}`);
+  }
+
+  const summary = {
+    totalPhysicalExpenseRows: rows.length,
+    activeRows: 0,
+    deletedRows: 0,
+    validIntegerNumericRows: 0,
+    zeroValueRows: 0,
+    decimalRows: 0,
+    numericStringRows: 0,
+    formattedStringRows: 0,
+    blankRows: 0,
+    negativeRows: 0,
+    nonnumericRows: 0,
+    nonfiniteRows: 0,
+    formulaCells: 0,
+    rowsRequiringCleanup: 0,
+    activeRowsRequiringCleanup: 0,
+    deletedRowsRequiringCleanup: 0,
+  };
+  const findings = [];
+  const logicalTrue = (value) =>
+    value === true ||
+    value === 1 ||
+    String(value).trim().toUpperCase() === "TRUE";
+  const parseFormatted = (value) => {
+    let text = String(value).trim().replace(/\s+/g, "");
+    text = text.replace(/^(?:Rp|IDR)/i, "");
+
+    if (!/^[+-]?[\d.,]+$/.test(text)) return null;
+
+    const comma = text.lastIndexOf(",");
+    const dot = text.lastIndexOf(".");
+
+    if (comma !== -1 && dot !== -1) {
+      const decimalSeparator = comma > dot ? "," : ".";
+      const groupingSeparator = decimalSeparator === "," ? "." : ",";
+      text = text.split(groupingSeparator).join("");
+      text = text.replace(decimalSeparator, ".");
+    } else if (comma !== -1) {
+      text = /^[-+]?\d{1,3}(?:,\d{3})+$/.test(text)
+        ? text.replace(/,/g, "")
+        : text.replace(",", ".");
+    } else if (dot !== -1 && /^[-+]?\d{1,3}(?:\.\d{3})+$/.test(text)) {
+      text = text.replace(/\./g, "");
+    }
+
+    const parsed = Number(text);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const classify = (raw, formula) => {
+    const blank =
+      raw === null ||
+      raw === undefined ||
+      (typeof raw === "string" && raw.trim() === "");
+
+    if (blank) {
+      return {
+        category: "BLANK",
+        parsed: null,
+        cleanup: true,
+        reason: "Nominal is blank.",
+        action: "MANUALLY_ENTER_A_VALID_NUMBER",
+      };
+    }
+
+    if (typeof raw === "number") {
+      if (!Number.isFinite(raw)) {
+        return {
+          category: "NON_FINITE",
+          parsed: raw,
+          cleanup: true,
+          reason: "Nominal is NaN or Infinity.",
+          action: "MANUALLY_REPLACE_WITH_A_FINITE_NUMBER",
+        };
+      }
+      if (raw < 0) {
+        return {
+          category: "NEGATIVE",
+          parsed: raw,
+          cleanup: true,
+          reason: "Nominal is below zero.",
+          action: "MANUALLY_CORRECT_THE_NEGATIVE_VALUE",
+        };
+      }
+      if (raw === 0) {
+        return {
+          category: "VALID_ZERO",
+          parsed: raw,
+          cleanup: false,
+          reason: "Nominal is the valid numeric value zero.",
+          action: "NO_ACTION",
+        };
+      }
+      if (!Number.isInteger(raw)) {
+        return {
+          category: formula ? "FORMULA_RESULT_DECIMAL" : "DECIMAL_NUMBER",
+          parsed: raw,
+          cleanup: false,
+          reason: formula
+            ? "Nominal is a formula result with a genuine decimal value."
+            : "Nominal is a genuine decimal number.",
+          action: formula
+            ? "REVIEW_FORMULA_AND_BUSINESS_RULE_BEFORE_MANUAL_CHANGE"
+            : "PRESERVE_PENDING_BUSINESS_DECISION_OR_MANUALLY_CORRECT_OR_ROUND",
+        };
+      }
+      return {
+        category: "VALID_INTEGER_NUMBER",
+        parsed: raw,
+        cleanup: false,
+        reason: "Nominal is a valid integer number.",
+        action: "NO_ACTION",
+      };
+    }
+
+    if (typeof raw === "string") {
+      const text = raw.trim();
+      const parsed = Number(text);
+
+      if (/^[+-]?(?:Infinity|NaN)$/i.test(text)) {
+        return {
+          category: "NON_FINITE",
+          parsed,
+          cleanup: true,
+          reason: "Nominal text represents a non-finite numeric value.",
+          action: "MANUALLY_REPLACE_WITH_A_FINITE_NUMBER",
+        };
+      }
+
+      if (Number.isFinite(parsed)) {
+        if (parsed < 0) {
+          return {
+            category: "NEGATIVE",
+            parsed,
+            cleanup: true,
+            reason: "Nominal is a negative numeric string.",
+            action: "MANUALLY_CORRECT_AND_STORE_AS_A_NUMBER",
+          };
+        }
+        return {
+          category: Number.isInteger(parsed)
+            ? "NUMERIC_STRING_INTEGER"
+            : "NUMERIC_STRING_DECIMAL",
+          parsed,
+          cleanup: true,
+          reason: "Nominal is numeric text rather than a JavaScript number.",
+          action: "MANUALLY_CONVERT_TO_A_NUMBER_WITHOUT_CHANGING_VALUE",
+        };
+      }
+
+      const formatted = parseFormatted(text);
+      if (formatted !== null) {
+        if (formatted < 0) {
+          return {
+            category: "NEGATIVE",
+            parsed: formatted,
+            cleanup: true,
+            reason: "Nominal is negative formatted numeric text.",
+            action: "MANUALLY_CORRECT_AND_STORE_AS_A_NUMBER",
+          };
+        }
+        return {
+          category: "FORMATTED_NUMERIC_STRING",
+          parsed: formatted,
+          cleanup: true,
+          reason: "Nominal contains numeric formatting and is stored as text.",
+          action: "MANUALLY_REVIEW_FORMAT_AND_STORE_AS_A_NUMBER",
+        };
+      }
+
+      return {
+        category: "NON_NUMERIC",
+        parsed: null,
+        cleanup: true,
+        reason: "Nominal text cannot be parsed as a number.",
+        action: "MANUALLY_REPLACE_WITH_A_VALID_NUMBER",
+      };
+    }
+
+    return {
+      category: "OTHER_UNSAFE",
+      parsed: null,
+      cleanup: true,
+      reason: `Nominal has unsupported JavaScript type ${typeof raw}.`,
+      action: "MANUALLY_REVIEW_AND_REPLACE_WITH_A_VALID_NUMBER",
+    };
+  };
+
+  rows.forEach((row, offset) => {
+    const get = (field) => row[index[field]];
+    const raw = get("Nominal");
+    const formula = formulaRows[offset]?.[index.Nominal] || "";
+    const result = classify(raw, formula);
+    const deleted = logicalTrue(get("Deleted"));
+    const active = !deleted && logicalTrue(get("IsActive"));
+    const decimal =
+      result.parsed !== null &&
+      Number.isFinite(result.parsed) &&
+      !Number.isInteger(result.parsed);
+
+    if (active) summary.activeRows += 1;
+    if (deleted) summary.deletedRows += 1;
+    if (formula) summary.formulaCells += 1;
+    if (result.category === "VALID_INTEGER_NUMBER")
+      summary.validIntegerNumericRows += 1;
+    if (result.parsed === 0) summary.zeroValueRows += 1;
+    if (decimal) summary.decimalRows += 1;
+    if (
+      result.category === "NUMERIC_STRING_INTEGER" ||
+      result.category === "NUMERIC_STRING_DECIMAL"
+    )
+      summary.numericStringRows += 1;
+    if (result.category === "FORMATTED_NUMERIC_STRING")
+      summary.formattedStringRows += 1;
+    if (result.category === "BLANK") summary.blankRows += 1;
+    if (result.category === "NEGATIVE") summary.negativeRows += 1;
+    if (result.category === "NON_NUMERIC") summary.nonnumericRows += 1;
+    if (result.category === "NON_FINITE") summary.nonfiniteRows += 1;
+
+    if (result.cleanup) {
+      summary.rowsRequiringCleanup += 1;
+      if (active) summary.activeRowsRequiringCleanup += 1;
+      if (deleted) summary.deletedRowsRequiringCleanup += 1;
+    }
+
+    if (result.cleanup || decimal) {
+      findings.push({
+        physicalSheetRowNumber: offset + 2,
+        expenseId: get("ID"),
+        Deleted: get("Deleted"),
+        IsActive: get("IsActive"),
+        Tanggal: get("Tanggal"),
+        Kategori: get("Kategori"),
+        Keterangan: get("Keterangan"),
+        rawNominal: Number.isFinite(raw) ? raw : String(raw),
+        javascriptValueType: typeof raw,
+        parsedNumericValue: result.parsed,
+        finite: result.parsed !== null && Number.isFinite(result.parsed),
+        negative: result.parsed !== null && result.parsed < 0,
+        integer: result.parsed !== null && Number.isInteger(result.parsed),
+        decimalFraction: decimal
+          ? Math.abs(result.parsed - Math.trunc(result.parsed))
+          : null,
+        effectivelyIntegerUnderExistingAuditContract:
+          result.parsed !== null && Number.isInteger(result.parsed),
+        formula: formula || null,
+        classification: result.category,
+        normalizationReason: result.reason,
+        recommendedActionCategory: result.action,
+        requiresCleanupUnderExistingAuditContract: result.cleanup,
+      });
+    }
+  });
+
+  findings.forEach((finding) => {
+    Logger.log(`EXPENSE NOMINAL FINDING: ${JSON.stringify(finding)}`);
+  });
+  Logger.log(`EXPENSE NOMINAL DIAGNOSTIC SUMMARY: ${JSON.stringify(summary)}`);
+  Logger.log(
+    "EXPENSE NOMINAL INTEGER CONTRACT: Number.isInteger() is used; no floating-point tolerance is applied.",
+  );
+
+  return { summary, findings };
+}
+
+function cleanupExpenseControlledFixtures() {
+  const targets = Object.freeze([
+    "EX26071800009",
+    "EX26071800019",
+    "EX26072000009",
+  ]);
+  const summary = {
+    requestedTargets: targets.slice(),
+    verifiedTargets: [],
+    updatedTargets: [],
+    skippedTargets: [],
+    failedTargets: [],
+    rollbackAttempted: false,
+    rollbackSuccessful: false,
+    result: "FAIL",
+  };
+  const lock = LockService.getScriptLock();
+  let locked = false;
+  let verified = [];
+
+  function fail(id, condition) {
+    const detail = `${id}: ${condition}`;
+    summary.failedTargets.push(detail);
+    Logger.log(`EXPENSE FIXTURE CLEANUP PRECONDITION FAILED: ${detail}`);
+    throw new Error(detail);
+  }
+
+  function comparable(value) {
+    if (value instanceof Date) {
+      return `DATE:${value.getTime()}`;
+    }
+    if (typeof value === "number" && !Number.isFinite(value)) {
+      return `NUMBER:${String(value)}`;
+    }
+    return `${typeof value}:${String(value)}`;
+  }
+
+  function protectedRowSnapshot(values, formulas, nominalColumn) {
+    return values.map((value, column) =>
+      column === nominalColumn
+        ? null
+        : `${comparable(value)}|FORMULA:${formulas[column] || ""}`,
+    );
+  }
+
+  function readPhysicalSheet() {
+    const sheet = Database.spreadsheet().getSheetByName(EXPENSE_SCHEMA.TABLE);
+
+    if (!sheet || sheet.getName() !== EXPENSE_SCHEMA.TABLE) {
+      fail("GLOBAL", `configured Expenses sheet ${EXPENSE_SCHEMA.TABLE} was not resolved`);
+    }
+
+    const lastRow = sheet.getLastRow();
+    const lastColumn = sheet.getLastColumn();
+    const range = sheet.getRange(1, 1, lastRow, lastColumn);
+
+    return {
+      sheet,
+      values: range.getValues(),
+      formulas: range.getFormulas(),
+    };
+  }
+
+  try {
+    Logger.log(`EXPENSE FIXTURE CLEANUP PREFLIGHT TARGET COUNT: ${targets.length}`);
+    locked = lock.tryLock(5000);
+    if (!locked) fail("GLOBAL", "could not acquire the cleanup script lock");
+
+    const physical = readPhysicalSheet();
+    const headers = physical.values[0].map(String);
+    const nominalColumns = headers.reduce((columns, header, column) => {
+      if (header === "Nominal") columns.push(column);
+      return columns;
+    }, []);
+    const idColumns = headers.reduce((columns, header, column) => {
+      if (header === "ID") columns.push(column);
+      return columns;
+    }, []);
+
+    if (nominalColumns.length !== 1) {
+      fail("GLOBAL", `Nominal header count is ${nominalColumns.length}, expected exactly 1`);
+    }
+    if (idColumns.length !== 1) {
+      fail("GLOBAL", `ID header count is ${idColumns.length}, expected exactly 1`);
+    }
+
+    const requiredHeaders = ["Deleted", "IsActive", "Keterangan"];
+    requiredHeaders.forEach((header) => {
+      const count = headers.filter((candidate) => candidate === header).length;
+      if (count !== 1) fail("GLOBAL", `${header} header count is ${count}, expected exactly 1`);
+    });
+
+    const nominalColumn = nominalColumns[0];
+    const idColumn = idColumns[0];
+    const deletedColumn = headers.indexOf("Deleted");
+    const activeColumn = headers.indexOf("IsActive");
+    const descriptionColumn = headers.indexOf("Keterangan");
+    const idRows = {};
+
+    physical.values.slice(1).forEach((row, offset) => {
+      const id = String(row[idColumn] ?? "").trim();
+      if (!id) return;
+      if (!idRows[id]) idRows[id] = [];
+      idRows[id].push(offset + 2);
+    });
+
+    Object.keys(idRows).forEach((id) => {
+      if (idRows[id].length !== 1) {
+        fail(id, `duplicate Expense ID exists at physical rows ${idRows[id].join(", ")}`);
+      }
+    });
+
+    verified = targets.map((id) => {
+      const matches = idRows[id] || [];
+      if (matches.length !== 1) {
+        fail(id, `physical row count is ${matches.length}, expected exactly 1`);
+      }
+
+      const physicalRow = matches[0];
+      const row = physical.values[physicalRow - 1];
+      const formulas = physical.formulas[physicalRow - 1];
+
+      if (row[deletedColumn] !== true) fail(id, "Deleted is not strictly true");
+      if (row[activeColumn] !== false) fail(id, "IsActive is not strictly false");
+      if (String(row[descriptionColumn]).trim() !== "Controlled Expense fixture") {
+        fail(id, "Keterangan is not exactly the controlled fixture marker after trimming");
+      }
+      if (row[nominalColumn] !== "invalid") {
+        fail(id, 'raw Nominal is not exactly the string "invalid"');
+      }
+
+      const target = {
+        id,
+        physicalRow,
+        nominalColumn,
+        originalNominal: row[nominalColumn],
+        protectedSnapshot: protectedRowSnapshot(row, formulas, nominalColumn),
+      };
+      summary.verifiedTargets.push(id);
+      Logger.log(`EXPENSE FIXTURE CLEANUP VERIFIED: ${id} at physical row ${physicalRow}`);
+      Logger.log(`EXPENSE FIXTURE CLEANUP PLAN: ${id} Nominal "invalid" -> 0`);
+      return target;
+    });
+
+    verified.forEach((target) => {
+      physical.sheet
+        .getRange(target.physicalRow, target.nominalColumn + 1)
+        .setValue(0);
+      summary.updatedTargets.push(target.id);
+    });
+    Logger.log(`EXPENSE FIXTURE CLEANUP WRITE COUNT: ${summary.updatedTargets.length}`);
+    SpreadsheetApp.flush();
+
+    const after = readPhysicalSheet();
+    verified.forEach((target) => {
+      const row = after.values[target.physicalRow - 1];
+      const formulas = after.formulas[target.physicalRow - 1];
+      if (String(row[idColumn] ?? "").trim() !== target.id) {
+        throw new Error(`${target.id}: physical row identity changed during cleanup`);
+      }
+      if (row[target.nominalColumn] !== 0 || typeof row[target.nominalColumn] !== "number") {
+        throw new Error(`${target.id}: Nominal did not persist as numeric zero`);
+      }
+      const protectedAfter = protectedRowSnapshot(row, formulas, target.nominalColumn);
+      if (JSON.stringify(protectedAfter) !== JSON.stringify(target.protectedSnapshot)) {
+        throw new Error(`${target.id}: a protected field changed during cleanup`);
+      }
+    });
+
+    RepositoryCache.clear(EXPENSE_SCHEMA);
+    Logger.log("EXPENSE FIXTURE CLEANUP POST-WRITE VERIFICATION: PASS");
+    summary.rollbackSuccessful = false;
+    summary.result = "PASS";
+    return summary;
+  } catch (error) {
+    if (verified.length && summary.updatedTargets.length) {
+      summary.rollbackAttempted = true;
+      Logger.log(`EXPENSE FIXTURE CLEANUP ROLLBACK START: ${error.message}`);
+
+      try {
+        const physical = readPhysicalSheet();
+        verified.forEach((target) => {
+          physical.sheet
+            .getRange(target.physicalRow, target.nominalColumn + 1)
+            .setValue(target.originalNominal);
+        });
+        SpreadsheetApp.flush();
+
+        const rolledBack = readPhysicalSheet();
+        summary.rollbackSuccessful = verified.every((target) => {
+          const row = rolledBack.values[target.physicalRow - 1];
+          const formulas = rolledBack.formulas[target.physicalRow - 1];
+          return (
+            row[target.nominalColumn] === target.originalNominal &&
+            JSON.stringify(
+              protectedRowSnapshot(row, formulas, target.nominalColumn),
+            ) === JSON.stringify(target.protectedSnapshot)
+          );
+        });
+        Logger.log(
+          `EXPENSE FIXTURE CLEANUP ROLLBACK RESULT: ${summary.rollbackSuccessful ? "PASS" : "FAIL"}`,
+        );
+      } catch (rollbackError) {
+        summary.rollbackSuccessful = false;
+        Logger.log(`EXPENSE FIXTURE CLEANUP ROLLBACK RESULT: FAIL - ${rollbackError.message}`);
+      }
+    }
+
+    targets.forEach((id) => {
+      if (
+        summary.updatedTargets.indexOf(id) === -1 &&
+        !summary.failedTargets.some((failure) => failure.indexOf(`${id}:`) === 0)
+      ) {
+        summary.skippedTargets.push(id);
+      }
+    });
+    if (!summary.failedTargets.length) {
+      summary.failedTargets.push(error.message);
+    }
+    throw error;
+  } finally {
+    if (locked) lock.releaseLock();
+    Logger.log(
+      `EXPENSE CONTROLLED FIXTURE CLEANUP FINAL SUMMARY: ${JSON.stringify(summary)}`,
+    );
+  }
+}
+
 function expenseTestDocument(changes) {
   return Object.assign(
     {
@@ -3854,8 +4385,12 @@ function expenseWithFixture(test, document) {
   } finally {
     if (row) {
       const stored = expenseRawById(row.ID);
-      if (stored && stored.Deleted !== true) {
+      if (stored) {
         RepositoryWriter.update(EXPENSE_SCHEMA, row.ID, {
+          Tanggal: row.Tanggal,
+          Kategori: row.Kategori,
+          Keterangan: row.Keterangan,
+          Nominal: row.Nominal,
           Deleted: false,
           IsActive: true,
         });
@@ -6025,6 +6560,101 @@ function testExpenseApiPromiseTransportBoundary() {
     !/withFailureHandler\(\(error\) => \{[\s\S]*reject\(error\)/.test(source)
   ) {
     throw new Error("Expense browser API transport boundary is invalid.");
+  }
+}
+
+function expenseFrontendSource(file) {
+  return HtmlService.createHtmlOutputFromFile(file).getContent();
+}
+
+function testExpenseFrontendArchitectureAndSearchContract() {
+  const app = expenseFrontendSource("970.View.App");
+  const presenter = expenseFrontendSource("977.View.Expenses.Presenter");
+  const events = expenseFrontendSource("980.View.Event");
+  const searchBlock = presenter.match(
+    /function search\(keyword = ""\)[\s\S]*?function matchesSearch/,
+  );
+
+  if (
+    !/await Api\.Expense\.listDeleted\(\)/.test(app) ||
+    !/await Api\.Expense\.list\(\)/.test(app) ||
+    !/ExpensesPresenter\.render\(records, mode\)/.test(app)
+  ) {
+    throw new Error("Expense App loading orchestration is invalid.");
+  }
+
+  if (
+    !searchBlock ||
+    !/query = normalize\(keyword\)/.test(searchBlock[0]) ||
+    !/\.includes\(query\)/.test(presenter) ||
+    /Api\.Expense\./.test(searchBlock[0])
+  ) {
+    throw new Error("Expense client-side search contract is invalid.");
+  }
+
+  if (
+    !/input\.dataset\.module \|\| App\.currentPage\(\)/.test(events) ||
+    !/Utils\.debounce/.test(events)
+  ) {
+    throw new Error("Reusable Events search routing is invalid.");
+  }
+}
+
+function testExpenseFrontendCrudAndTrashContract() {
+  const presenter = expenseFrontendSource("977.View.Expenses.Presenter");
+  const calls = {
+    create: (presenter.match(/Api\.Expense\.create\(/g) || []).length,
+    get: (presenter.match(/Api\.Expense\.get\(/g) || []).length,
+    update: (presenter.match(/Api\.Expense\.update\(/g) || []).length,
+    remove: (presenter.match(/Api\.Expense\.remove\(/g) || []).length,
+    restore: (presenter.match(/Api\.Expense\.restore\(/g) || []).length,
+  };
+
+  if (
+    calls.create !== 1 ||
+    calls.get !== 2 ||
+    calls.update !== 1 ||
+    calls.remove !== 1 ||
+    calls.restore !== 1
+  ) {
+    throw new Error(`Expense Presenter API call surface is invalid: ${JSON.stringify(calls)}`);
+  }
+
+  if (
+    !/expenseActionsBound/.test(presenter) ||
+    !/mode !== "trash" \|\| !expense/.test(presenter) ||
+    !/restoreSubmitting/.test(presenter) ||
+    !/deleteSubmitting/.test(presenter) ||
+    /google\.script\.run/.test(presenter)
+  ) {
+    throw new Error("Expense Presenter action or Trash guards are invalid.");
+  }
+}
+
+function testExpenseFrontendValidationAndDisplayContract() {
+  const presenter = expenseFrontendSource("977.View.Expenses.Presenter");
+  const messages = [
+    "Category is required.",
+    "Category cannot exceed 100 characters.",
+    "Description is required.",
+    "Description cannot exceed 255 characters.",
+    "Amount must be a valid number.",
+    "Amount cannot be negative.",
+  ];
+
+  messages.forEach((message) => {
+    if (presenter.split(message).length - 1 < 2) {
+      throw new Error(`Expense Create/Edit validation is missing: ${message}`);
+    }
+  });
+
+  if (
+    !/formatCurrency\(expense\[FIELD\.AMOUNT\]\)/.test(presenter) ||
+    !/formatDate\(expense\[FIELD\.DATE\]\)/.test(presenter) ||
+    !/formatDateTime\(expense\[FIELD\.CREATED_AT\]\)/.test(presenter) ||
+    !/formatDateTime\(expense\[FIELD\.UPDATED_AT\]\)/.test(presenter)
+  ) {
+    throw new Error("Expense display formatting contract is invalid.");
   }
 }
 

@@ -237,12 +237,12 @@
           </div>
           <div>
             <label for="inp-expense-create-category" class="mb-1 block text-sm font-medium text-slate-700">Category</label>
-            <input id="inp-expense-create-category" data-expense-create-field="Kategori" type="text" required class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input id="inp-expense-create-category" data-expense-create-field="Kategori" type="text" maxlength="100" required class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
             ${renderCreateError("Kategori")}
           </div>
           <div>
             <label for="inp-expense-create-description" class="mb-1 block text-sm font-medium text-slate-700">Description</label>
-            <textarea id="inp-expense-create-description" data-expense-create-field="Keterangan" rows="3" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+            <textarea id="inp-expense-create-description" data-expense-create-field="Keterangan" rows="3" maxlength="255" required class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
             ${renderCreateError("Keterangan")}
           </div>
           <div>
@@ -312,8 +312,24 @@
         return invalidCreate("Tanggal", "Date is required.", "inp-expense-create-date");
       }
 
+      if (!dateInputValue(date)) {
+        return invalidCreate("Tanggal", "Date must use YYYY-MM-DD.", "inp-expense-create-date");
+      }
+
       if (!category) {
         return invalidCreate("Kategori", "Category is required.", "inp-expense-create-category");
+      }
+
+      if (category.length > 100) {
+        return invalidCreate("Kategori", "Category cannot exceed 100 characters.", "inp-expense-create-category");
+      }
+
+      if (!description) {
+        return invalidCreate("Keterangan", "Description is required.", "inp-expense-create-description");
+      }
+
+      if (description.length > 255) {
+        return invalidCreate("Keterangan", "Description cannot exceed 255 characters.", "inp-expense-create-description");
       }
 
       if (!amountText) {
@@ -1004,10 +1020,10 @@
         <form id="expense-edit-form" class="space-y-4" novalidate>
           <p class="text-sm text-slate-500">Expense ID <strong class="ml-1 text-slate-800">${SharedPresenter.text(editForm.id)}</strong></p>
           ${renderEditInput("Date", "Tanggal", "date", editForm.Tanggal, "inp-expense-edit-date")}
-          ${renderEditInput("Category", "Kategori", "text", editForm.Kategori, "inp-expense-edit-category")}
+          ${renderEditInput("Category", "Kategori", "text", editForm.Kategori, "inp-expense-edit-category", 'maxlength="100" required')}
           <div>
             <label for="inp-expense-edit-description" class="mb-1 block text-sm font-medium text-slate-700">Description</label>
-            <textarea id="inp-expense-edit-description" data-expense-edit-field="Keterangan" rows="3" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">${SharedPresenter.text(editForm.Keterangan)}</textarea>
+            <textarea id="inp-expense-edit-description" data-expense-edit-field="Keterangan" rows="3" maxlength="255" required class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">${SharedPresenter.text(editForm.Keterangan)}</textarea>
             ${renderEditError("Keterangan")}
           </div>
           ${renderEditInput("Amount", "Nominal", "number", editForm.Nominal, "inp-expense-edit-amount", 'min="0" step="any" inputmode="decimal"')}
@@ -1067,6 +1083,9 @@
       if (!date) return invalidEdit("Tanggal", "Date is required.", "inp-expense-edit-date");
       if (!dateInputValue(date)) return invalidEdit("Tanggal", "Date must use YYYY-MM-DD.", "inp-expense-edit-date");
       if (!category) return invalidEdit("Kategori", "Category is required.", "inp-expense-edit-category");
+      if (category.length > 100) return invalidEdit("Kategori", "Category cannot exceed 100 characters.", "inp-expense-edit-category");
+      if (!description) return invalidEdit("Keterangan", "Description is required.", "inp-expense-edit-description");
+      if (description.length > 255) return invalidEdit("Keterangan", "Description cannot exceed 255 characters.", "inp-expense-edit-description");
       if (!amountText) return invalidEdit("Nominal", "Amount is required.", "inp-expense-edit-amount");
       if (!Number.isFinite(amount)) return invalidEdit("Nominal", "Amount must be a valid number.", "inp-expense-edit-amount");
       if (amount < 0) return invalidEdit("Nominal", "Amount cannot be negative.", "inp-expense-edit-amount");
