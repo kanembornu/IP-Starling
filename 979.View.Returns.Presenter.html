@@ -12,6 +12,10 @@
       ID: "ID",
       PICKUP_ID: "PickupID",
       PICKUP_DETAIL_ID: "PickupDetailID",
+      PRODUCT_ID: "ProductID",
+      PRODUCT_NAME: "ProductName",
+      PARTNER_ID: "PartnerID",
+      PARTNER_NAME: "PartnerName",
       DATE: "Tanggal",
       QTY: "Qty",
       NOTE: "Keterangan",
@@ -46,22 +50,6 @@
     let deleteSubmitting = false;
 
     let deleteRequest = 0;
-
-    let trashRows = [];
-
-    let trashSearch = "";
-
-    let trashLoading = false;
-
-    let trashError = null;
-
-    let trashRequest = 0;
-
-    let pendingRestore = null;
-
-    let restoreSubmitting = false;
-
-    let restoreRequest = 0;
 
     //===========================================================================
     // Public Render
@@ -117,11 +105,16 @@
       return Components.tableRow([
         Components.tableCell(text(ret[FIELD.ID]), "font-medium text-slate-800"),
 
-        Components.tableCell(text(ret[FIELD.PICKUP_ID])),
-
-        Components.tableCell(text(ret[FIELD.PICKUP_DETAIL_ID])),
-
         Components.tableCell(Format.date(ret[FIELD.DATE])),
+
+        Components.tableCell(renderBusinessValue(ret[FIELD.PARTNER_NAME], ret[FIELD.PARTNER_ID], "Mitra ID")),
+
+        Components.tableCell(renderBusinessValue(
+          ret[FIELD.PRODUCT_NAME],
+          ret[FIELD.PRODUCT_ID],
+          "Produk ID",
+          `Pickup: ${ret[FIELD.PICKUP_ID] ?? ""} · Pickup Detail: ${ret[FIELD.PICKUP_DETAIL_ID] ?? ""}`,
+        )),
 
         Components.tableCell(Format.number(ret[FIELD.QTY]), "text-right"),
 
@@ -131,6 +124,14 @@
 
         Components.tableCell(renderActions(ret), "text-center"),
       ]);
+    }
+
+    function renderBusinessValue(name, id, idLabel, secondaryId) {
+      return `
+        <div class="font-medium text-slate-800">${text(name)}</div>
+        <div class="mt-1 text-xs text-slate-500">${escape(idLabel)}: ${text(id)}</div>
+        ${Utils.isEmpty(secondaryId) ? "" : `<div class="text-xs text-slate-400">${text(secondaryId)}</div>`}
+      `;
     }
 
     //===========================================================================
@@ -221,12 +222,12 @@
       const ret = findReturn(id);
 
       if (Utils.isEmpty(id)) {
-        Toast.error("Return ID is unavailable.");
+        App.showReturnError("Return ID is unavailable.");
         return;
       }
 
       if (!ret || isTrue(ret[FIELD.DELETED]) || !isActive(ret[FIELD.IS_ACTIVE])) {
-        Toast.error("This Return is no longer available for deletion.");
+        App.showReturnError("This Return is no longer available for deletion.");
         return;
       }
 
@@ -254,7 +255,7 @@
         if (confirmed) {
           pendingDelete = null;
           modalMode = null;
-          await App.refresh();
+          await App.refreshReturns();
         }
       } finally {
         if (request === deleteRequest) {
@@ -290,7 +291,7 @@
       const id = String(pendingDelete?.id || "").trim();
 
       if (!id) {
-        Toast.error("Return ID is unavailable.");
+        App.showReturnError("Return ID is unavailable.");
         return false;
       }
 
@@ -300,14 +301,14 @@
         const response = await Api.Return.remove(id);
 
         if (!response?.success) {
-          Toast.error(response?.message || "Return could not be deactivated.");
+          App.showReturnError(response?.message || "Return could not be deactivated.");
           return false;
         }
 
-        Toast.success(response.message || "Return deactivated.");
+        App.showReturnSuccess(response.message || "Return deactivated.");
         return true;
       } catch (error) {
-        Toast.error(error?.message || "Return could not be deactivated. Please try again.");
+        App.showReturnError(error?.message || "Return could not be deactivated. Please try again.");
         return false;
       } finally {
         deleteSubmitting = false;
@@ -318,90 +319,26 @@
     // Trash and Restore
     //===========================================================================
 
-    async function openTrash() {
-      if (restoreSubmitting) {
-        return;
-      }
-
-      resetTrashState();
-      await loadTrash();
-    }
-
-    async function loadTrash() {
-      if (trashLoading) {
-        return false;
-      }
-
-      const request = ++trashRequest;
-      trashLoading = true;
-      trashError = null;
-      trashSearch = "";
-      modalMode = "trash";
-      openTrashModal();
-
-      let response;
-
-      try {
-        response = await Api.Return.findDeleted();
-      } catch (error) {
-        if (request === trashRequest) {
-          showTrashError(error?.message || "Deleted Returns could not be loaded.");
-        }
-        return false;
-      }
-
-      if (request !== trashRequest) {
-        return false;
-      }
-
-      if (!isTrashResponse(response)) {
-        showTrashError(response?.message || "Deleted Returns could not be loaded.");
-        return false;
-      }
-
-      trashRows = response.data.slice();
-      trashLoading = false;
-      trashError = null;
-      openTrashModal();
-
-      return true;
-    }
-
-    function isTrashResponse(response) {
-      return Boolean(
-        response?.success &&
-          Array.isArray(response.data) &&
-          response.data.every((ret) => {
-            return (
-              isRecord(ret) &&
-              !Utils.isEmpty(ret[FIELD.ID]) &&
-              isTrue(ret[FIELD.DELETED]) &&
-              !isActive(ret[FIELD.IS_ACTIVE])
-            );
-          }),
-      );
-    }
-
-    function openTrashModal() {
+    function openTrash(state = {}) {
       modalMode = "trash";
 
       Modal.open({
         title: "Deleted Returns",
         width: "xl",
-        body: trashLoading
+        body: state.loading
           ? Components.loading("Loading deleted Returns...")
-          : renderTrashBody(),
+          : renderTrashBody(state),
         footer: renderTrashFooter(),
       });
 
       bindTrashModal();
     }
 
-    function renderTrashBody() {
-      if (trashError) {
+    function renderTrashBody(state = {}) {
+      if (state.error) {
         return `
           <div id="return-trash" class="space-y-4">
-            ${Components.empty(escape(trashError))}
+            ${Components.empty(escape(state.error))}
             <div class="flex justify-center">
               <button type="button" data-return-trash-action="retry" class="rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-100">Retry</button>
             </div>
@@ -415,7 +352,7 @@
             <input
               id="inp-return-trash-search"
               type="search"
-              value="${escape(trashSearch)}"
+              value="${escape(state.search)}"
               placeholder="Search deleted Returns..."
               class="min-w-0 flex-1 rounded-lg border border-slate-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -431,8 +368,13 @@
       `;
     }
 
-    function renderTrashList() {
-      const list = filterTrash(trashSearch);
+    function renderTrash(rows = [], state = {}) {
+      if (state.loading || state.error) {
+        return;
+      }
+
+      const allRows = normalize(rows);
+      const list = filterTrash(allRows, state.search);
       const results = DOM.$("return-trash-results");
       const info = DOM.$("lbl-return-trash-info");
 
@@ -447,7 +389,9 @@
       if (!list.length) {
         Render.mount(
           "return-trash-results",
-          Components.empty(trashRows.length ? "No deleted Returns match your search." : "No deleted Returns available."),
+          Components.empty(allRows.length
+            ? "Tidak ada data Retur Trash yang cocok dengan pencarian."
+            : "Belum ada data Retur di Trash."),
         );
         return;
       }
@@ -459,66 +403,80 @@
             <thead class="sticky top-0 bg-slate-100">
               <tr>
                 <th class="px-3 py-3 text-left">Return ID</th>
-                <th class="px-3 py-3 text-left">Pickup</th>
-                <th class="px-3 py-3 text-left">Pickup Detail</th>
                 <th class="px-3 py-3 text-left">Tanggal</th>
+                <th class="px-3 py-3 text-left">Mitra</th>
+                <th class="px-3 py-3 text-left">Produk</th>
                 <th class="px-3 py-3 text-right">Qty</th>
                 <th class="px-3 py-3 text-left">Keterangan</th>
-                <th class="px-3 py-3 text-center">Status</th>
+                <th class="px-3 py-3 text-left">Pickup</th>
                 <th class="px-3 py-3 text-center">Action</th>
               </tr>
             </thead>
-            <tbody>${list.map(renderTrashRow).join("")}</tbody>
+            <tbody>${list.map((ret) => renderTrashRow(ret, state)).join("")}</tbody>
           </table>
         `,
       );
     }
 
-    function renderTrashRow(ret = {}) {
+    function renderTrashRow(ret = {}, state = {}) {
       return Components.tableRow([
         Components.tableCell(text(ret[FIELD.ID]), "font-medium text-slate-800"),
-        Components.tableCell(text(ret[FIELD.PICKUP_ID])),
-        Components.tableCell(text(ret[FIELD.PICKUP_DETAIL_ID])),
         Components.tableCell(Format.date(ret[FIELD.DATE])),
+        Components.tableCell(renderBusinessValue(ret[FIELD.PARTNER_NAME], ret[FIELD.PARTNER_ID], "Mitra ID")),
+        Components.tableCell(renderBusinessValue(
+          ret[FIELD.PRODUCT_NAME],
+          ret[FIELD.PRODUCT_ID],
+          "Produk ID",
+          `Pickup Detail: ${ret[FIELD.PICKUP_DETAIL_ID] ?? ""}`,
+        )),
         Components.tableCell(Format.number(ret[FIELD.QTY]), "text-right"),
         Components.tableCell(text(ret[FIELD.NOTE])),
-        Components.tableCell(Components.badge("Deleted / Inactive", false), "text-center"),
-        Components.tableCell(renderRestoreAction(ret), "text-center"),
+        Components.tableCell(`<span class="text-xs text-slate-500">Pickup: ${text(ret[FIELD.PICKUP_ID])}</span>`),
+        Components.tableCell(renderRestoreAction(ret, state), "text-center"),
       ]);
     }
 
-    function renderRestoreAction(ret = {}) {
+    function renderRestoreAction(ret = {}, state = {}) {
       const id = ret[FIELD.ID];
 
       if (Utils.isEmpty(id)) {
         return "-";
       }
 
+      const busy = Boolean(state.restoreBusyId);
+      const restoring = String(state.restoreBusyId || "") === String(id);
+
       return `
         <button
           type="button"
           data-return-trash-action="restore"
           data-return-id="${escape(id)}"
-          class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-white hover:bg-emerald-700"
+          ${busy ? "disabled" : ""}
+          aria-disabled="${busy}"
+          class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-white hover:bg-emerald-700 ${busy ? "cursor-not-allowed opacity-50" : ""}"
         >
           ${Components.icon("fa-rotate-left")}
-          <span>Restore</span>
+          <span>${restoring ? "Restoring..." : "Restore"}</span>
         </button>
       `;
     }
 
-    function filterTrash(keyword = "") {
+    function filterTrash(rows, keyword = "") {
       const query = String(keyword).trim().toLowerCase();
 
       if (!query) {
-        return trashRows;
+        return rows;
       }
 
-      return trashRows.filter((ret) => {
+      return rows.filter((ret) => {
         return [
           ret[FIELD.ID],
           ret[FIELD.PICKUP_ID],
           ret[FIELD.PICKUP_DETAIL_ID],
+          ret[FIELD.PARTNER_ID],
+          ret[FIELD.PARTNER_NAME],
+          ret[FIELD.PRODUCT_ID],
+          ret[FIELD.PRODUCT_NAME],
           ret[FIELD.DATE],
           Format.date(ret[FIELD.DATE]),
           ret[FIELD.NOTE],
@@ -553,7 +511,6 @@
         close.addEventListener("click", closeTrash);
       }
 
-      renderTrashList();
     }
 
     function handleTrashInput(event) {
@@ -561,20 +518,19 @@
         return;
       }
 
-      trashSearch = event.target.value;
-      renderTrashList();
+      App.searchReturnTrash(event.target.value);
     }
 
     function handleTrashClick(event) {
       const action = event.target.closest("[data-return-trash-action]")?.dataset.returnTrashAction;
 
       if (action === "retry" || action === "refresh") {
-        loadTrash();
+        App.refreshReturnTrash();
         return;
       }
 
       if (action === "restore") {
-        confirmRestore(event.target.closest("[data-return-id]")?.dataset.returnId);
+        App.restoreReturn(event.target.closest("[data-return-id]")?.dataset.returnId);
       }
     }
 
@@ -590,137 +546,14 @@
       }
     }
 
-    async function confirmRestore(id) {
-      const ret = trashRows.find((item) => String(item?.[FIELD.ID]) === String(id));
-
-      if (Utils.isEmpty(id)) {
-        Toast.error("Return ID is unavailable.");
-        return;
-      }
-
-      if (!ret || !isTrue(ret[FIELD.DELETED]) || isActive(ret[FIELD.IS_ACTIVE])) {
-        Toast.error("This Return is no longer available for restore.");
-        return;
-      }
-
-      if (restoreSubmitting) {
-        return;
-      }
-
-      pendingRestore = {
-        id: String(ret[FIELD.ID]),
-        pickupId: ret[FIELD.PICKUP_ID],
-        pickupDetailId: ret[FIELD.PICKUP_DETAIL_ID],
-        qty: ret[FIELD.QTY],
-      };
-      const request = ++restoreRequest;
-      modalMode = "restore";
-
-      try {
-        const confirmed = await Dialog.confirm({
-          title: "Restore Return",
-          confirmText: "Restore",
-          loadingText: "Restoring...",
-          message: renderRestoreMessage(pendingRestore),
-          onConfirm: submitRestore,
-        });
-
-        if (request !== restoreRequest) {
-          return;
-        }
-
-        pendingRestore = null;
-        restoreSubmitting = false;
-
-        if (confirmed) {
-          await loadTrash();
-          await App.refresh();
-        } else {
-          openTrashModal();
-        }
-      } finally {
-        if (request === restoreRequest) {
-          pendingRestore = null;
-          restoreSubmitting = false;
-          if (modalMode === "restore") {
-            modalMode = null;
-          }
-        }
-      }
-    }
-
-    function renderRestoreMessage(context) {
-      return `
-        <div class="space-y-3">
-          <p>Restore Return <strong>${escape(context.id)}</strong>?</p>
-          <dl class="grid grid-cols-1 gap-2 rounded-lg bg-slate-50 p-3 text-sm">
-            ${detailField("Pickup", context.pickupId)}
-            ${detailField("Pickup Detail", context.pickupDetailId)}
-            ${detailField("Qty", Format.number(context.qty))}
-          </dl>
-          <p class="text-sm text-slate-600">Restore eligibility and available quantity will be validated by the server.</p>
-        </div>
-      `;
-    }
-
-    async function submitRestore() {
-      if (restoreSubmitting) {
-        return false;
-      }
-
-      const id = String(pendingRestore?.id || "").trim();
-
-      if (!id) {
-        Toast.error("Return ID is unavailable.");
-        return false;
-      }
-
-      restoreSubmitting = true;
-
-      try {
-        const response = await Api.Return.restore(id);
-
-        if (!response?.success) {
-          Toast.error(response?.message || "Return could not be restored.");
-          return false;
-        }
-
-        Toast.success(response.message || "Return restored.");
-        return true;
-      } catch (error) {
-        Toast.error(error?.message || "Return could not be restored. Please try again.");
-        return false;
-      } finally {
-        restoreSubmitting = false;
-      }
-    }
-
-    function showTrashError(message) {
-      trashLoading = false;
-      trashError = String(message || "Deleted Returns could not be loaded.");
-      Toast.error(trashError);
-      openTrashModal();
-    }
-
-    function resetTrashState() {
-      trashRequest += 1;
-      restoreRequest += 1;
-      trashRows = [];
-      trashSearch = "";
-      trashLoading = false;
-      trashError = null;
-      pendingRestore = null;
-      restoreSubmitting = false;
-    }
-
     function closeTrash() {
       if (modalMode !== "trash") {
         return;
       }
 
-      resetTrashState();
       modalMode = null;
       Modal.close();
+      App.closeReturnTrash();
     }
 
     //===========================================================================
@@ -807,7 +640,7 @@
 
         refresh.addEventListener("click", () => {
           clearSearch();
-          App.refresh();
+          App.refreshReturns();
         });
       }
 
@@ -824,7 +657,7 @@
       if (trash && !trash.dataset.returnBound) {
         trash.dataset.returnBound = "true";
 
-        trash.addEventListener("click", openTrash);
+        trash.addEventListener("click", App.openReturnTrash);
       }
     }
 
@@ -855,6 +688,10 @@
         ret[FIELD.ID],
         ret[FIELD.PICKUP_ID],
         ret[FIELD.PICKUP_DETAIL_ID],
+        ret[FIELD.PARTNER_ID],
+        ret[FIELD.PARTNER_NAME],
+        ret[FIELD.PRODUCT_ID],
+        ret[FIELD.PRODUCT_NAME],
         ret[FIELD.DATE],
         Format.date(ret[FIELD.DATE]),
         ret[FIELD.NOTE],
@@ -871,7 +708,7 @@
 
     async function view(id) {
       if (Utils.isEmpty(id)) {
-        Toast.error("Return ID is unavailable.");
+        App.showReturnError("Return ID is unavailable.");
 
         return;
       }
@@ -933,7 +770,7 @@
     }
 
     function showDetailError(message) {
-      Toast.error(message);
+      App.showReturnError(message);
 
       Modal.body(Components.empty(message));
     }
@@ -1090,7 +927,7 @@
       }
 
       if (Utils.isEmpty(id)) {
-        Toast.error("Return ID is unavailable.");
+        App.showReturnError("Return ID is unavailable.");
         return;
       }
 
@@ -1274,7 +1111,7 @@
       const validation = validateEdit();
 
       if (!validation.valid) {
-        Toast.warning(validation.message);
+        App.showReturnWarning(validation.message);
         validation.element?.focus();
         return;
       }
@@ -1286,15 +1123,15 @@
         const response = await Api.Return.update(editForm.id, validation.document);
 
         if (!response?.success) {
-          Toast.error(response?.message || "Return could not be updated.");
+          App.showReturnError(response?.message || "Return could not be updated.");
           return;
         }
 
-        Toast.success(response.message || "Return updated.");
+        App.showReturnSuccess(response.message || "Return updated.");
         closeEdit();
-        await App.refresh();
+        await App.refreshReturns();
       } catch (error) {
-        Toast.error(error?.message || "Return could not be updated. Please try again.");
+        App.showReturnError(error?.message || "Return could not be updated. Please try again.");
       } finally {
         editSubmitting = false;
         setEditLoading(false);
@@ -1346,7 +1183,7 @@
     }
 
     function showEditError(message) {
-      Toast.error(message);
+      App.showReturnError(message);
       clearEditForm();
       Modal.body(Components.empty(message));
     }
@@ -1398,19 +1235,19 @@
       try {
         response = await Api.Pickup.findAll();
       } catch (error) {
-        Toast.error("Pickup headers could not be loaded.");
+        App.showReturnError("Pickup headers could not be loaded.");
         return null;
       }
 
       if (!response?.success) {
-        Toast.error(response?.message || "Pickup headers could not be loaded.");
+        App.showReturnError(response?.message || "Pickup headers could not be loaded.");
         return null;
       }
 
       pickupHeaders = selectableRecords(response.data);
 
       if (!pickupHeaders.length) {
-        Toast.warning("No active Pickup headers are available for Return.");
+        App.showReturnWarning("No active Pickup headers are available for Return.");
         return null;
       }
 
@@ -1646,9 +1483,9 @@
       bindReturnForm();
 
       if (!details) {
-        Toast.error("Pickup Details could not be loaded.");
+        App.showReturnError("Pickup Details could not be loaded.");
       } else if (!details.length) {
-        Toast.warning("The selected Pickup has no active Details.");
+        App.showReturnWarning("The selected Pickup has no active Details.");
       }
     }
 
@@ -1704,7 +1541,7 @@
       const validation = validateReturn();
 
       if (!validation.valid) {
-        Toast.warning(validation.message);
+        App.showReturnWarning(validation.message);
         validation.element?.focus();
         return;
       }
@@ -1716,15 +1553,15 @@
         const response = await Api.Return.create(validation.document);
 
         if (!response?.success) {
-          Toast.error(response?.message || "Return could not be created.");
+          App.showReturnError(response?.message || "Return could not be created.");
           return;
         }
 
-        Toast.success(response.message || "Return created.");
+        App.showReturnSuccess(response.message || "Return created.");
         closeCreate();
-        await App.refresh();
+        await App.refreshReturns();
       } catch (error) {
-        Toast.error(error?.message || "Return could not be created. Please try again.");
+        App.showReturnError(error?.message || "Return could not be created. Please try again.");
       } finally {
         returnSubmitting = false;
         setReturnLoading(false);
@@ -1823,11 +1660,7 @@
 
       openTrash,
 
-      loadTrash,
-
-      confirmRestore,
-
-      submitRestore,
+      renderTrash,
     });
   })();
 </script>

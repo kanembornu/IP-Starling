@@ -33,6 +33,20 @@
 
       returns: [],
 
+      deletedReturns: [],
+
+      returnTrashOpen: false,
+
+      returnTrashSearch: "",
+
+      returnTrashLoading: false,
+
+      returnTrashError: null,
+
+      returnRestoreBusyId: null,
+
+      returnRestoreConfirming: false,
+
       purchasing: [],
 
       expenses: [],
@@ -55,6 +69,8 @@
     let expenseRequest = 0;
 
     let pickupRequest = 0;
+
+    let returnTrashRequest = 0;
 
     //===========================================================================
     // Initialize
@@ -484,6 +500,180 @@
       ReturnsPresenter.render(state.returns);
     }
 
+    function refreshReturns() {
+      return loadReturns();
+    }
+
+    function showReturnError(message) {
+      Toast.error(message);
+    }
+
+    function showReturnSuccess(message) {
+      Toast.success(message);
+    }
+
+    function showReturnWarning(message) {
+      Toast.warning(message);
+    }
+
+    function returnTrashViewState() {
+      return {
+        search: state.returnTrashSearch,
+        loading: state.returnTrashLoading,
+        error: state.returnTrashError,
+        restoreBusyId: state.returnRestoreBusyId,
+      };
+    }
+
+    function renderReturnTrash() {
+      if (!state.returnTrashOpen) {
+        return;
+      }
+
+      ReturnsPresenter.openTrash(returnTrashViewState());
+      ReturnsPresenter.renderTrash(state.deletedReturns, returnTrashViewState());
+    }
+
+    async function openReturnTrash() {
+      if (state.returnTrashOpen) {
+        return;
+      }
+
+      state.returnTrashOpen = true;
+      state.returnTrashSearch = "";
+      await loadReturnTrash();
+    }
+
+    function closeReturnTrash() {
+      state.returnTrashOpen = false;
+      state.returnTrashLoading = false;
+      state.returnTrashError = null;
+      returnTrashRequest += 1;
+    }
+
+    function searchReturnTrash(keyword = "") {
+      state.returnTrashSearch = String(keyword ?? "");
+      ReturnsPresenter.renderTrash(state.deletedReturns, returnTrashViewState());
+    }
+
+    function refreshReturnTrash() {
+      return loadReturnTrash();
+    }
+
+    async function loadReturnTrash() {
+      const request = ++returnTrashRequest;
+      state.returnTrashLoading = true;
+      state.returnTrashError = null;
+      renderReturnTrash();
+
+      let response;
+
+      try {
+        response = await Api.Return.findDeleted();
+      } catch (error) {
+        if (request !== returnTrashRequest || !state.returnTrashOpen) return false;
+        state.returnTrashLoading = false;
+        state.returnTrashError = readableLoadError(error, "Deleted Returns could not be loaded.");
+        Toast.error(state.returnTrashError);
+        renderReturnTrash();
+        return false;
+      }
+
+      if (request !== returnTrashRequest || !state.returnTrashOpen) return false;
+
+      if (!response?.success || !Array.isArray(response.data)) {
+        state.returnTrashLoading = false;
+        state.returnTrashError = response?.message || "Deleted Returns could not be loaded.";
+        Toast.error(state.returnTrashError);
+        renderReturnTrash();
+        return false;
+      }
+
+      state.deletedReturns = Utils.deepClone(response.data);
+      state.returnTrashLoading = false;
+      state.returnTrashError = null;
+      renderReturnTrash();
+      return true;
+    }
+
+    async function restoreReturn(id) {
+      const returnId = String(id || "").trim();
+
+      if (!returnId || state.returnRestoreBusyId || state.returnRestoreConfirming) {
+        return false;
+      }
+
+      const ret = state.deletedReturns.find((item) => String(item?.ID) === returnId);
+
+      if (!ret) {
+        Toast.error("This Return is no longer available for restore.");
+        return false;
+      }
+
+      let restoreSucceeded = false;
+      let restoreAttempted = false;
+      let reloadTrash = false;
+
+      state.returnRestoreConfirming = true;
+
+      let confirmed = false;
+
+      try {
+        confirmed = await Dialog.confirm({
+          title: "Restore Return",
+          confirmText: "Restore",
+          loadingText: "Restoring...",
+          message: `Restore Return <strong>${Utils.escapeHTML(returnId)}</strong>?`,
+          onConfirm: async () => {
+            if (state.returnRestoreBusyId || restoreAttempted) {
+              return false;
+            }
+
+            restoreAttempted = true;
+            state.returnRestoreBusyId = returnId;
+
+            try {
+              const response = await Api.Return.restore(returnId);
+
+              if (!response?.success) {
+                reloadTrash = true;
+                Toast.error(response?.message || "Return could not be restored.");
+                return true;
+              }
+
+              restoreSucceeded = true;
+              reloadTrash = true;
+              Toast.success(response.message || "Return restored.");
+              return true;
+            } catch (error) {
+              Toast.error(readableLoadError(error, "Return could not be restored. Please try again."));
+              return true;
+            } finally {
+              state.returnRestoreBusyId = null;
+            }
+          },
+        });
+      } finally {
+        state.returnRestoreConfirming = false;
+      }
+
+      if (!confirmed) {
+        renderReturnTrash();
+        return false;
+      }
+
+      if (reloadTrash) {
+        await loadReturnTrash();
+      }
+
+      if (restoreSucceeded) {
+        await loadReturns();
+      }
+
+      renderReturnTrash();
+      return restoreSucceeded;
+    }
+
     //===========================================================================
     // Purchasing
     //===========================================================================
@@ -684,6 +874,16 @@
       getDeletedExpenses,
       getExpenseMode,
       setExpenseMode,
+
+      refreshReturns,
+      showReturnError,
+      showReturnSuccess,
+      showReturnWarning,
+      openReturnTrash,
+      closeReturnTrash,
+      searchReturnTrash,
+      refreshReturnTrash,
+      restoreReturn,
 
       loadProducts,
       openCreateProduct,

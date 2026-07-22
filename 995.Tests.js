@@ -469,6 +469,44 @@ function runReturnAllTests() {
   Logger.log("COMPLETE: Return all tests");
 }
 
+/**
+ * Aggregate backend regression verification for Sprint 3.12.4.
+ * Frontend source contracts and browser behavior are verified separately.
+ */
+function runReturnTrashUiAlignmentVerification() {
+  const suites = [
+    { name: "runReturnControllerTests", run: runReturnControllerTests },
+    { name: "runReturnDeletedListTests", run: runReturnDeletedListTests },
+    { name: "runReturnRestoreValidationTests", run: runReturnRestoreValidationTests },
+    { name: "runReturnConcurrencyGuardTests", run: runReturnConcurrencyGuardTests },
+    { name: "runReturnDisplayEnrichmentTests", run: runReturnDisplayEnrichmentTests },
+  ];
+  let passed = 0;
+  const failures = [];
+
+  suites.forEach((suite) => {
+    Logger.log(`SUITE: ${suite.name}`);
+
+    try {
+      suite.run();
+      passed += 1;
+      Logger.log(`SUITE PASS: ${suite.name}`);
+    } catch (error) {
+      failures.push(`${suite.name}: ${error.message}`);
+      Logger.log(`SUITE FAIL: ${suite.name} - ${error.message}`);
+    }
+  });
+
+  Logger.log(`TOTAL SUITES: ${suites.length}`);
+  Logger.log(`PASSED SUITES: ${passed}`);
+  Logger.log(`FAILED SUITES: ${failures.length}`);
+  Logger.log(`FINAL RESULT: ${failures.length ? "FAIL" : "PASS"}`);
+
+  if (failures.length) {
+    throw new Error(`Return Trash UI alignment verification failed: ${failures.join(" | ")}`);
+  }
+}
+
 function runAllSafeTests() {
   runCoreRegressionTests();
   runMasterDataRegressionTests();
