@@ -229,7 +229,12 @@ function testReturnControllerGetReturns() {
 }
 
 function testReturnControllerGetDeletedReturns() {
+  const startedAt = Date.now();
+  const aggregateElapsedBeforeMs = typeof activeAggregateStartedAt === "number"
+    ? startedAt - activeAggregateStartedAt
+    : null;
   const response = getDeletedReturns();
+  const durationMs = Date.now() - startedAt;
 
   if (
     !response ||
@@ -251,7 +256,12 @@ function testReturnControllerGetDeletedReturns() {
     );
   }
 
-  Logger.log(response);
+  Logger.log(JSON.stringify({
+    test: "testReturnControllerGetDeletedReturns",
+    durationMs,
+    aggregateElapsedBeforeMs,
+    deletedRowCount: response.data.length,
+  }));
 }
 
 function testReturnControllerGetReturnValidation() {
@@ -1843,6 +1853,20 @@ function pickupTrashRows(response) {
   return response.data;
 }
 
+function canonicalPickupTrashResponse(response) {
+  const transported = JSON.parse(JSON.stringify(response));
+
+  return JSON.stringify({
+    success: transported.success,
+    message: transported.message,
+    data: transported.data,
+    errors: transported.errors,
+    meta: {
+      version: transported.meta && transported.meta.version,
+    },
+  });
+}
+
 function testPickupTrashReadFilteringAndShape() {
   const rows = pickupTrashRows(pickupTrashReadFixture().service.listDeleted());
   if (rows.length !== 3 || rows.some((row) => row.Deleted !== true)) {
@@ -1936,12 +1960,41 @@ function testPickupTrashReadPerformsZeroWrites() {
   const fixture = pickupTrashReadFixture();
   const before = JSON.stringify(fixture.rows);
   const first = fixture.service.listDeleted();
+  const between = JSON.stringify(fixture.rows);
   const second = fixture.service.listDeleted();
-  if (JSON.stringify(fixture.rows) !== before) {
+  const after = JSON.stringify(fixture.rows);
+  const firstRows = pickupTrashRows(first);
+  const secondRows = pickupTrashRows(second);
+
+  if (between !== before || after !== before) {
     throw new Error("Pickup Trash read changed physical fixture data.");
   }
-  if (JSON.stringify(first) !== JSON.stringify(second)) {
+  if (
+    firstRows.length !== secondRows.length ||
+    firstRows.map((row) => row.ID).join("|") !==
+      secondRows.map((row) => row.ID).join("|") ||
+    canonicalPickupTrashResponse(first) !== canonicalPickupTrashResponse(second)
+  ) {
     throw new Error("Repeated Pickup Trash reads are not deterministic.");
+  }
+  const timestampVariant = JSON.parse(JSON.stringify(first));
+  timestampVariant.meta.timestamp = "different-runtime-timestamp";
+  if (canonicalPickupTrashResponse(first) !== canonicalPickupTrashResponse(timestampVariant)) {
+    throw new Error("Runtime response metadata leaked into Pickup Trash semantic comparison.");
+  }
+  const dataVariant = JSON.parse(JSON.stringify(first));
+  dataVariant.data[0].Notes = "different-semantic-value";
+  if (canonicalPickupTrashResponse(first) === canonicalPickupTrashResponse(dataVariant)) {
+    throw new Error("Pickup Trash semantic comparison ignored a row value change.");
+  }
+  if (
+    firstRows.some((row, index) =>
+      typeof row.Tanggal !== typeof secondRows[index].Tanggal ||
+      JSON.stringify(row.restoreEligibility) !==
+        JSON.stringify(secondRows[index].restoreEligibility),
+    )
+  ) {
+    throw new Error("Pickup Trash transport types or restore eligibility changed between reads.");
   }
   if (fixture.readCount() === 0) {
     throw new Error("Pickup Trash test did not exercise physical reads.");
@@ -2832,6 +2885,57 @@ function testReturnDisplayBatchReadsAndDeterminism() {
   if (JSON.stringify(first.data) !== JSON.stringify(second.data)) {
     throw new Error("Return display enrichment is not deterministic.");
   }
+}
+
+function testReturnDeletedBatchEligibilityReads() {
+  const setup = returnDisplayFixtureOptions();
+  setup.fixture.returns[0].Deleted = true;
+  setup.fixture.returns[0].IsActive = false;
+  setup.fixture.returns.push(Object.assign({}, setup.fixture.returns[0], { ID: "RT-DISPLAY-2" }));
+  setup.fixture.pickupDetails[0].Deleted = false;
+  setup.fixture.pickupDetails[0].IsActive = true;
+  setup.fixture.pickupHeaders[0].Deleted = false;
+  setup.fixture.pickupHeaders[0].IsActive = true;
+
+  const before = JSON.stringify(setup.fixture);
+  const response = ReturnService(setup.options).findDeleted();
+
+  if (!response.success || response.data.length !== 2 || response.data.some((row) => row.canRestore !== true)) {
+    throw new Error("Shared safe Pickup dependencies did not produce restorable deleted Returns.");
+  }
+  ["Return", "PickupDetail", "PickupHeader", "Product", "Partner"].forEach((name) => {
+    if (setup.reads[name] !== 1) throw new Error(`${name} must be physically read once per deleted Return request.`);
+  });
+  if (JSON.stringify(setup.fixture) !== before) throw new Error("Deleted Return batch eligibility mutated source rows.");
+  if (response.data.some((row) => !Array.isArray(row.restoreIssues) || row.restoreReason !== "Aman direstore karena seluruh referensi tersedia.")) {
+    throw new Error("Deleted Return eligibility response shape changed.");
+  }
+
+  const missing = returnDisplayFixtureOptions({ pickupHeaders: [] });
+  missing.fixture.returns[0].Deleted = true;
+  missing.fixture.returns[0].IsActive = false;
+  const missingRow = ReturnService(missing.options).findDeleted().data[0];
+  if (missingRow.canRestore !== false || missingRow.restoreIssues[0] !== "Pickup terkait tidak ditemukan.") throw new Error("Missing Pickup must block Return restore deterministically.");
+
+  const deleted = returnDisplayFixtureOptions();
+  deleted.fixture.returns[0].Deleted = true;
+  deleted.fixture.returns[0].IsActive = false;
+  const deletedRow = ReturnService(deleted.options).findDeleted().data[0];
+  if (deletedRow.canRestore !== false || deletedRow.restoreIssues[0] !== "Pickup terkait masih berada di data terhapus.") throw new Error("Deleted Pickup must block Return restore deterministically.");
+}
+
+function testPickupReturnAggregatePhaseRegistration() {
+  const pickup = runPickupModuleAcceptance.toString();
+  const returns = runReturnModuleAcceptance.toString();
+  const expectedPickup = ["runCoreRegressionTests", "runTransactionReadTests", "runPickupCreateValidationTests", "runPickupCreateWriteTests", "runPickupPresenterDateTests", "runPickupUpdateValidationTests", "runPickupUpdateWriteTests", "runPickupRemoveRestoreTests", "runPickupRestoreEligibilityTests", "runPickupTrashReadTests", "runPickupControllerTests"];
+  const expectedReturn = ["runReturnSchemaTests", "runReturnValidationTests", "runReturnControllerTests", "runReturnDisplayEnrichmentTests", "runReturnDeletedListTests", "runReturnRestoreValidationTests", "runReturnWriteTests", "runReturnConcurrencyGuardTests", "runPickupReturnIntegrityGuardTests", "runPickupReturnIntegrityDiagnosticTests"];
+
+  expectedPickup.forEach((name) => {
+    if ((pickup.match(new RegExp(`${name}\\(\\)`, "g")) || []).length !== 1) throw new Error(`${name} must be registered once in Pickup acceptance.`);
+  });
+  expectedReturn.forEach((name) => {
+    if ((returns.match(new RegExp(`${name}\\(\\)`, "g")) || []).length !== 1) throw new Error(`${name} must be registered once in Return acceptance.`);
+  });
 }
 
 function testReturnDisplayEmptyListsAndReadOnlyStructure() {
@@ -6322,6 +6426,67 @@ function testPurchasingRestoreRecalculatesTotal() {
         throw new Error("Restore did not recalculate Total.");
     },
   );
+}
+
+function testReturnUxConsistencySourceContracts() {
+  const view = HtmlService.createHtmlOutputFromFile("935.View.Returns").getContent();
+  const presenter = HtmlService.createHtmlOutputFromFile("979.View.Returns.Presenter").getContent();
+  const app = HtmlService.createHtmlOutputFromFile("970.View.App").getContent();
+  const ui = `${view}\n${presenter}\n${app}`;
+
+  ["btn-return-add", "inp-return-search", "btn-return-refresh", "tbl-returns", "return-pagination"].forEach((id) => {
+    if (view.indexOf(`id="${id}"`) < 0) throw new Error(`Return UX control ${id} is missing.`);
+  });
+  const headerStart = view.indexOf("data-return-page-header");
+  const toolbarStart = view.indexOf("data-return-toolbar");
+  const headerActions = /<div[^>]*data-return-header-actions[^>]*>([\s\S]*?)<\/div>/.exec(view)?.[1] || "";
+  if (headerStart < 0 || toolbarStart <= headerStart || !/id="btn-return-add"/.test(headerActions) || !/bg-blue-600/.test(headerActions) || !/text-white/.test(headerActions)) throw new Error("Create Return is not the primary header action.");
+  if (!/data-return-mode="active"[^>]*>Active</.test(view) || !/data-return-mode="deleted"[^>]*>Deleted</.test(view) || />Aktif<|>Terhapus</.test(view)) throw new Error("Return Active/Deleted mode selector is invalid.");
+  if (/btn-return-trash|return-trash|openReturnTrash|renderReturnTrash|returnTrash/.test(ui)) throw new Error("Obsolete Return Deleted modal path remains.");
+  if (!/overflow-x-auto/.test(view) || !/sm:flex-row/.test(view)) throw new Error("Return active page is not narrow-screen safe.");
+  if (!/min-w-\[20rem\][^"']*whitespace-normal[^"']*break-words/.test(presenter)) throw new Error("Deleted Return reason column is cramped or truncated.");
+  if (!/Status Restore/.test(presenter) || !/Keterangan/.test(presenter) || !/ret\.restoreReason/.test(presenter)) throw new Error("Deleted Return eligibility explanation is not visible.");
+  if (!/blocked = ret\.canRestore !== true/.test(presenter) || !/busy \|\| blocked \? "disabled"/.test(presenter)) throw new Error("Blocked Return Restore is not disabled from server eligibility.");
+  if (!/page\.map\(mode === "deleted" \? renderDeletedRow : renderRow\)/.test(presenter) || !/data-return-action="restore"/.test(presenter)) throw new Error("Return Deleted rows do not render inline.");
+  if (!/resetPagination\("returns", next\)/.test(app) || !/request !== returnRequest[^\n]+mode !== state\.returnMode/.test(app)) throw new Error("Return mode reset or stale-response guard is missing.");
+  if (/<tr[^>]*\bh-\[/.test(presenter) || /restoreReason[^\n]{0,160}\btruncate\b/.test(presenter)) throw new Error("Return inline rows have a height or reason-truncation regression.");
+  if (/data-[^=\s]*(?:purge|hard-delete|permanent-delete)/i.test(ui)) throw new Error("Permanent Return delete UX was introduced.");
+  if (/SpreadsheetApp|RepositoryWriter|AuditLogService|AppLogService/.test(ui)) throw new Error("Return UI accesses spreadsheet or audit writers directly.");
+  if (/Api\.|google\.script\.run/.test(view)) throw new Error("Return View markup introduced orchestration.");
+}
+
+function testPurchasingUxConsistencySourceContracts() {
+  const view = HtmlService.createHtmlOutputFromFile("940.View.Purchasing").getContent();
+  const presenter = HtmlService.createHtmlOutputFromFile("978.View.Purchasing.Presenter").getContent();
+  const app = HtmlService.createHtmlOutputFromFile("970.View.App").getContent();
+  const ui = `${view}\n${presenter}\n${app}`;
+
+  ["btn-purchasing-add", "inp-purchasing-search", "btn-purchasing-refresh", "tbl-purchasing", "purchasing-pagination"].forEach((id) => {
+    if (view.indexOf(`id="${id}"`) < 0) throw new Error(`Purchasing UX control ${id} is missing.`);
+  });
+  const headerStart = view.indexOf("data-purchasing-page-header");
+  const toolbarStart = view.indexOf("data-purchasing-toolbar");
+  const headerActions = /<div[^>]*data-purchasing-header-actions[^>]*>([\s\S]*?)<\/div>/.exec(view)?.[1] || "";
+  if (headerStart < 0 || toolbarStart <= headerStart || !/id="btn-purchasing-add"/.test(headerActions) || !/bg-blue-600/.test(headerActions) || !/text-white/.test(headerActions)) throw new Error("Create Purchasing is not the primary header action.");
+  if (!/data-purchasing-mode="active"[^>]*>Active</.test(view) || !/data-purchasing-mode="deleted"[^>]*>Deleted</.test(view) || />Aktif<|>Terhapus</.test(view)) throw new Error("Purchasing Active/Deleted mode selector is invalid.");
+  if (/btn-purchasing-trash|purchasing-trash|openTrash|renderTrash|trashRows|trashRequest|loadDeleted|pendingRestore/.test(ui)) throw new Error("Obsolete Purchasing Deleted modal path remains.");
+  if (!/overflow-x-auto/.test(view) || !/sm:flex-row/.test(view)) throw new Error("Purchasing active page is not narrow-screen safe.");
+  if (!/min-w-\[22rem\][^"']*whitespace-normal[^"']*break-words/.test(presenter)) throw new Error("Deleted Purchasing reason column is cramped or truncated.");
+  ["Unit Price", "Total", "Status Restore", "Keterangan"].forEach((label) => { if (presenter.indexOf(label) < 0) throw new Error(`Deleted Purchasing column ${label} is missing.`); });
+  if (!/row\?\.canRestore === true && !restoreBusyId/.test(presenter) || !/row\?\.restoreReason/.test(presenter)) throw new Error("Purchasing Restore eligibility is not rendered from the server contract.");
+  if (!/page\.map\(mode === "deleted" \? renderDeletedRow : renderRow\)/.test(presenter) || !/data-purchasing-action="restore"/.test(presenter)) throw new Error("Purchasing Deleted rows do not render inline.");
+  if (!/resetPagination\("purchasing", next\)/.test(app) || !/request !== purchasingRequest[^\n]+mode !== state\.purchasingMode/.test(app)) throw new Error("Purchasing mode reset or stale-response guard is missing.");
+  if (/Api\.Purchasing\.(?:findDeleted|restore)/.test(presenter) || !/Api\.Purchasing\.findDeleted/.test(app) || !/Api\.Purchasing\.restore/.test(app)) throw new Error("Purchasing deleted orchestration is not App-owned.");
+  const publicApi = /return Object\.freeze\(\{([\s\S]*?)\}\);/.exec(presenter)?.[1] || "";
+  if ((presenter.match(/function renderLoading\s*\(/g) || []).length !== 1 || !/\brenderLoading\s*,/.test(publicApi) || !/\brenderError\s*,/.test(publicApi)) throw new Error("Purchasing loading/error renderers are not exposed exactly once.");
+  ["renderLoading", "renderError", "render"].forEach((method) => {
+    if (app.indexOf(`PurchasingPresenter.${method}`) >= 0 && publicApi.indexOf(method) < 0) throw new Error(`App calls undefined PurchasingPresenter.${method}.`);
+  });
+  if (!/id="tbl-purchasing-body"/.test(view) || !/Render\.mount\("tbl-purchasing-body"/.test(presenter)) throw new Error("Purchasing loading state has no shared-table target.");
+  if (/<tr[^>]*\bh-\[/.test(presenter) || /restoreReason[^\n]{0,160}\btruncate\b/.test(presenter)) throw new Error("Purchasing inline rows have a height or reason-truncation regression.");
+  if (/data-[^=\s]*(?:purge|hard-delete|permanent-delete)/i.test(ui)) throw new Error("Permanent Purchasing delete UX was introduced.");
+  if (/SpreadsheetApp|RepositoryWriter|AuditLogService|AppLogService/.test(ui)) throw new Error("Purchasing UI accesses spreadsheet or audit writers directly.");
+  if (/Api\.|google\.script\.run/.test(view)) throw new Error("Purchasing View markup introduced orchestration.");
 }
 
 function expenseControllerAssertResponse(response, expectedSuccess) {

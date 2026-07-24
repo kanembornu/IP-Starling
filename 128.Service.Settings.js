@@ -22,7 +22,8 @@ function SettingsService(dependencies = {}) {
     definition("CACHE_TTL_SECONDS", "INTEGER", "System", "Cache TTL", "Cache lifetime in seconds.", CACHE_CONFIG.EXPIRE_SECONDS, true, { min: 30, max: 3600, required: true }),
     definition("DEBUG_MODE", "BOOLEAN", "System", "Debug mode", "Canonical debug preference for future runtime migration.", false, true, { required: true }),
     definition("LOG_LEVEL", "ENUM", "System", "Log level", "Minimum canonical log level.", "INFO", true, { options: ["ERROR", "WARN", "INFO", "DEBUG"], required: true }),
-    definition("ROWS_PER_PAGE", "INTEGER", "UI", "Rows per page", "Default page size where centralized pagination is used.", PAGINATION_CONFIG.DEFAULT_LIMIT, true, { min: 5, max: PAGINATION_CONFIG.MAX_LIMIT, required: true }),
+    definition("ROWS_PER_PAGE", "INTEGER", "UI", "Legacy rows per page", "Retained only for legacy Settings schema compatibility; current pagination does not consume this value.", PAGINATION_CONFIG.DEFAULT_LIMIT, true, { min: 5, max: PAGINATION_CONFIG.MAX_LIMIT, required: true }),
+    definition("DEFAULT_PAGE_SIZE", "INTEGER", "UI", "Default Baris per Halaman", "Jumlah awal baris yang ditampilkan pada tabel data dan Logs.", PAGINATION_CONFIG.DEFAULT_LIMIT, true, { options: PAGINATION_CONFIG.ALLOWED_LIMITS, required: true }),
     definition("DATE_FORMAT", "ENUM", "UI", "Date format", "Preferred display date format.", "DD/MM/YYYY", true, { options: ["DD/MM/YYYY", "YYYY-MM-DD"], required: true }),
     definition("NUMBER_FORMAT", "ENUM", "UI", "Number format", "Preferred number format.", "ID_ID", true, { options: ["ID_ID"], required: true }),
   ];
@@ -105,6 +106,7 @@ function SettingsService(dependencies = {}) {
     if (def.rules.required && (value === "" || value === null || typeof value === "undefined")) throw new Error("Value is required.");
     if (typeof def.rules.min === "number" && value < def.rules.min) throw new Error(`Value must be at least ${def.rules.min}.`);
     if (typeof def.rules.max === "number" && value > def.rules.max) throw new Error(`Value must be at most ${def.rules.max}.`);
+    if (def.rules.options && def.rules.options.indexOf(value) < 0) throw new Error("Value is not an allowed option.");
     return value;
   }
 

@@ -10,8 +10,10 @@
  * =============================================================================
  */
 
-function ProductService() {
-  return EntityService.create(
+function ProductService(dependencies = {}) {
+  const repositoryBase = dependencies.repositoryBase || RepositoryBase;
+  const entityFactory = dependencies.entityFactory || EntityService.create;
+  const service = entityFactory(
     PRODUCT_SCHEMA,
 
     {
@@ -86,4 +88,36 @@ function ProductService() {
       },
     },
   );
+
+  function physicalRows() {
+    return repositoryBase.mapRows(PRODUCT_SCHEMA, repositoryBase.rows(PRODUCT_SCHEMA));
+  }
+
+  function listDeleted() {
+    try {
+      const rows = physicalRows()
+        .filter((row) => row[PRODUCT_SCHEMA.SYSTEM.IS_DELETED] === true)
+        .filter((row) => String(row[PRODUCT_FIELDS.ID] || "").trim() !== "")
+        .sort((left, right) => String(left[PRODUCT_FIELDS.ID]).localeCompare(String(right[PRODUCT_FIELDS.ID])));
+      return Response.success(rows);
+    } catch (error) {
+      return Response.error(error.message);
+    }
+  }
+
+  function restore(id) {
+    const productId = String(id || "").trim();
+    if (!productId) return Response.error("Product ID wajib diisi.");
+    let product;
+    try {
+      product = physicalRows().find((row) => String(row[PRODUCT_FIELDS.ID]) === productId) || null;
+    } catch (error) {
+      return Response.error(error.message);
+    }
+    if (!product) return Response.error("Product tidak ditemukan.");
+    if (product[PRODUCT_SCHEMA.SYSTEM.IS_DELETED] !== true) return Response.error("Product masih aktif dan tidak dapat dipulihkan.");
+    return service.restore(productId);
+  }
+
+  return Object.freeze({ ...service, listDeleted, restore });
 }

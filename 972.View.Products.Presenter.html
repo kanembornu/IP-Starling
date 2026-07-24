@@ -24,21 +24,22 @@
       PRICE: "Harga",
 
       IS_ACTIVE: "IsActive",
+
+      IS_DELETED: "Deleted",
     });
 
     //===========================================================================
     // Public Render
     //===========================================================================
 
-    function render(products = []) {
-      const list = Array.isArray(products) ? products : [];
+    function render(products = [], mode = "active", restoreBusyId = null) {
+      const source = Array.isArray(products) ? products : [];
+      const list = App.paginateRows("products", mode, source, "product-pagination", "lbl-product-info", mode === "deleted" ? "produk terhapus" : "produk", () => render(source, mode, restoreBusyId));
 
-      bindToolbar();
-
-      renderInfo(list.length);
+      renderMode(mode);
 
       if (!list.length) {
-        renderEmpty();
+        renderEmpty(mode);
 
         return;
       }
@@ -46,27 +47,31 @@
       Render.mount(
         "tbl-products-body",
 
-        list.map(renderRow).join(""),
+        list.map((product) => renderRow(product, mode, restoreBusyId)).join(""),
       );
+    }
+
+    function renderLoading(mode = "active") {
+      renderMode(mode);
+      Render.mount("tbl-products-body", `<tr><td colspan="7">${Components.loading({ message: mode === "deleted" ? "Loading deleted products..." : "Loading products..." })}</td></tr>`);
+    }
+
+    function renderError(mode = "active") {
+      renderMode(mode);
+      Render.mount("tbl-products-body", `<tr><td colspan="7">${Components.empty(mode === "deleted" ? "Deleted products could not be loaded." : "Products could not be loaded.")}</td></tr>`);
+    }
+
+    function renderMode(mode) {
+      document.querySelectorAll("[data-product-mode]").forEach((button) => {
+        const active = button.dataset.productMode === mode;
+        button.classList.toggle("bg-blue-600", active); button.classList.toggle("text-white", active);
+      });
+      const add = DOM.$("btn-product-add"); if (add) add.classList.toggle("hidden", mode === "deleted");
     }
 
     //===========================================================================
     // Toolbar
     //===========================================================================
-
-    function bindToolbar() {
-      const refresh = DOM.$("btn-product-refresh");
-
-      if (!refresh || refresh.dataset.productRefreshBound) {
-        return;
-      }
-
-      refresh.dataset.productRefreshBound = "true";
-      refresh.addEventListener("click", () => {
-        clearSearch();
-        App.refresh();
-      });
-    }
 
     function clearSearch() {
       const input = DOM.$("inp-product-search");
@@ -80,7 +85,7 @@
     // Row
     //===========================================================================
 
-    function renderRow(product = {}) {
+    function renderRow(product = {}, mode = "active", restoreBusyId = null) {
       const id = product[FIELD.ID];
 
       return Components.tableRow([
@@ -104,7 +109,7 @@
           "text-center",
         ),
 
-        Components.tableCell(renderActions(id), "text-center"),
+        Components.tableCell(renderActions(id, mode, restoreBusyId), "text-center"),
       ]);
     }
 
@@ -112,14 +117,14 @@
     // Empty
     //===========================================================================
 
-    function renderEmpty() {
+    function renderEmpty(mode = "active") {
       Render.mount(
         "tbl-products-body",
 
         `
         <tr>
           <td colspan="7">
-            ${Components.empty("No products available.")}
+            ${Components.empty(mode === "deleted" ? "No deleted products." : "No products available.")}
           </td>
         </tr>
       `,
@@ -164,7 +169,11 @@
     // Actions
     //===========================================================================
 
-    function renderActions(id) {
+    function renderActions(id, mode, restoreBusyId) {
+      if (mode === "deleted") {
+        const pending = String(restoreBusyId || "") === String(id);
+        return `<div class="flex items-center justify-center">${actionButton(pending ? "Restoring..." : "Restore", "fa-rotate-left", "green", id, "restore", pending)}</div>`;
+      }
       return `
         <div class="flex items-center justify-center gap-2">
           ${actionButton("Edit", "fa-pen", "blue", id)}
@@ -182,22 +191,30 @@
       color,
 
       id,
+
+      action = label.toLowerCase(),
+
+      disabled = false,
     ) {
       const palette = {
         blue: "bg-blue-100 hover:bg-blue-200 text-blue-600",
 
         red: "bg-red-100 hover:bg-red-200 text-red-600",
+
+        green: "bg-green-100 hover:bg-green-200 text-green-700",
       };
 
       return `
     <button
       type="button"
 
-      data-action="${label.toLowerCase()}"
+      data-action="${action}"
 
       data-id="${text(id)}"
 
       title="${label}"
+
+      ${disabled ? "disabled aria-busy=\"true\"" : ""}
 
       class="
         inline-flex
@@ -235,6 +252,9 @@
 
     return Object.freeze({
       render,
+      renderLoading,
+      renderError,
+      clearSearch,
     });
   })();
 </script>

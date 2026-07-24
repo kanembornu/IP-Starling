@@ -10,8 +10,11 @@
  * =============================================================================
  */
 
-function PartnerService() {
-  return EntityService.create(
+function PartnerService(dependencies = {}) {
+  const repositoryBase = dependencies.repositoryBase || RepositoryBase;
+  const repositoryReader = dependencies.repositoryReader || RepositoryReader;
+  const entityFactory = dependencies.entityFactory || EntityService.create;
+  const service = entityFactory(
     PARTNER_SCHEMA,
 
     {
@@ -87,4 +90,27 @@ function PartnerService() {
       },
     },
   );
+
+  function physicalRows() {
+    return repositoryBase.mapRows(PARTNER_SCHEMA, repositoryReader.raw(PARTNER_SCHEMA));
+  }
+
+  function listDeleted() {
+    const rows = physicalRows()
+      .filter((row) => row[PARTNER_SCHEMA.SYSTEM.IS_DELETED] === true)
+      .filter((row) => String(row[PARTNER_FIELDS.ID] || "").trim() !== "")
+      .sort((left, right) => String(left[PARTNER_FIELDS.ID]).localeCompare(String(right[PARTNER_FIELDS.ID])));
+    return Response.success(rows);
+  }
+
+  function restore(id) {
+    const cleanId = String(id || "").trim();
+    if (!cleanId) return Response.error("ID Partner wajib diisi.");
+    const row = physicalRows().find((item) => String(item[PARTNER_FIELDS.ID]) === cleanId);
+    if (!row) return Response.error("Partner tidak ditemukan.");
+    if (row[PARTNER_SCHEMA.SYSTEM.IS_DELETED] !== true) return Response.error("Partner masih aktif dan tidak dapat dipulihkan.");
+    return service.restore(cleanId);
+  }
+
+  return Object.freeze({ ...service, listDeleted, restore });
 }

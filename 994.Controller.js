@@ -87,6 +87,10 @@ function getProducts() {
   return JSON.parse(JSON.stringify(ProductService().findAll()));
 }
 
+function getDeletedProducts() {
+  return JSON.parse(JSON.stringify(ProductService().listDeleted()));
+}
+
 function getProduct(id) {
   return JSON.parse(JSON.stringify(ProductService().findById(id)));
 }
@@ -104,7 +108,7 @@ function deleteProduct(id) {
 }
 
 function restoreProduct(id) {
-  return ProductService().restore(id);
+  return JSON.parse(JSON.stringify(ProductService().restore(id)));
 }
 
 //=============================================================================
@@ -113,6 +117,10 @@ function restoreProduct(id) {
 
 function getPartners() {
   return JSON.parse(JSON.stringify(PartnerService().findAll()));
+}
+
+function getDeletedPartners() {
+  return JSON.parse(JSON.stringify(PartnerService().listDeleted()));
 }
 
 function getPartner(id) {

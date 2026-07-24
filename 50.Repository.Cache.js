@@ -7,7 +7,34 @@
  */
 
 const RepositoryCache = (() => {
-  const cache = CacheService.getScriptCache();
+  // CacheService documents a 100 KB per-key limit. Keep headroom for service
+  // accounting differences and bypass caching before approaching that limit.
+  const MAX_CACHE_VALUE_BYTES = 90 * 1024;
+
+  function utf8ByteLength(value) {
+    let bytes = 0;
+
+    for (let i = 0; i < value.length; i++) {
+      const code = value.charCodeAt(i);
+
+      if (code < 0x80) bytes += 1;
+      else if (code < 0x800) bytes += 2;
+      else if (code >= 0xd800 && code <= 0xdbff && i + 1 < value.length && value.charCodeAt(i + 1) >= 0xdc00 && value.charCodeAt(i + 1) <= 0xdfff) {
+        bytes += 4;
+        i += 1;
+      } else bytes += 3;
+    }
+
+    return bytes;
+  }
+
+  function isBypassablePutError(error) {
+    const message = String(error?.message || error || "");
+
+    return /argument too large:\s*value|value[^\n]*too large|cache[^\n]*(?:quota|limit)|(?:quota|limit)[^\n]*cache|service invoked too many times[^\n]*cache/i.test(message);
+  }
+
+  function create(cache) {
 
   function key(schema) {
     return `IPS:${schema.TABLE}:v1`;
@@ -38,7 +65,19 @@ const RepositoryCache = (() => {
       return value;
     }
 
-    cache.put(key(schema), JSON.stringify(value), CACHE_CONFIG.EXPIRE_SECONDS);
+    const serialized = JSON.stringify(value);
+
+    if (utf8ByteLength(serialized) > MAX_CACHE_VALUE_BYTES) {
+      return value;
+    }
+
+    try {
+      cache.put(key(schema), serialized, CACHE_CONFIG.EXPIRE_SECONDS);
+    } catch (error) {
+      if (!isBypassablePutError(error)) {
+        throw error;
+      }
+    }
 
     return value;
   }
@@ -90,5 +129,13 @@ const RepositoryCache = (() => {
     clear,
 
     remember,
+  });
+  }
+
+  const repositoryCache = create(CacheService.getScriptCache());
+
+  return Object.freeze({
+    ...repositoryCache,
+    createForTesting: create,
   });
 })();

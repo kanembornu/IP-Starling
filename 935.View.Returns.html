@@ -4,28 +4,18 @@
     <!-- Page Header -->
     <!-- =============================================================== -->
 
-    <div class="flex items-center justify-between">
+    <div data-return-page-header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h2 class="text-2xl font-bold text-slate-800">Returns</h2>
 
         <p class="text-sm text-slate-500">Manage returned products.</p>
       </div>
 
-      <div class="flex items-center gap-3">
-        <button
-          id="btn-return-trash"
-          type="button"
-          class="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 transition"
-        >
-          <i class="fa-solid fa-trash-can mr-2"></i>
-
-          Trash
-        </button>
-
+      <div data-return-header-actions class="flex items-center gap-3">
         <button
           id="btn-return-add"
           type="button"
-          class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition"
+          class="self-start px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition sm:self-auto"
         >
           <i class="fa-solid fa-plus mr-2"></i>
 
@@ -38,8 +28,12 @@
     <!-- Toolbar -->
     <!-- =============================================================== -->
 
-    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+    <div data-return-toolbar class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
       <div class="flex flex-wrap gap-3 items-center">
+        <div class="inline-flex rounded-lg border border-slate-300 p-1" role="group" aria-label="Return list mode">
+          <button type="button" data-return-mode="active" class="return-mode rounded-md px-4 py-2 text-sm font-medium transition">Active</button>
+          <button type="button" data-return-mode="deleted" class="return-mode rounded-md px-4 py-2 text-sm font-medium transition">Deleted</button>
+        </div>
         <div class="flex-1">
           <input
             id="inp-return-search"
@@ -51,10 +45,14 @@
 
         <button
           id="btn-return-refresh"
+          type="button"
+          title="Refresh Returns"
+          aria-label="Refresh Returns"
           class="px-4 py-2 rounded-lg border border-slate-300 hover:bg-slate-100"
         >
           <i class="fa-solid fa-rotate-right"></i>
         </button>
+
       </div>
     </div>
 
@@ -63,10 +61,10 @@
     <!-- =============================================================== -->
 
     <div
-      class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
+      class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto"
     >
       <table id="tbl-returns" class="min-w-full text-sm">
-        <thead class="bg-slate-100">
+        <thead id="tbl-returns-head" class="bg-slate-100">
           <tr>
             <th class="px-4 py-3 text-left">ID</th>
 
@@ -94,7 +92,7 @@
     <!-- Pagination -->
     <!-- =============================================================== -->
 
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div id="lbl-return-info" class="text-sm text-slate-500">0 Return</div>
 
       <div id="return-pagination" class="flex gap-2"></div>

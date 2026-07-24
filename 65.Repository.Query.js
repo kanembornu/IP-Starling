@@ -105,11 +105,19 @@ const RepositoryQuery = (() => {
    */
   function paginate(data, page = 1, perPage = null) {
     if (perPage === null || typeof perPage === "undefined" || perPage === "") {
-      const configured = SettingsService().getResolved("ROWS_PER_PAGE");
+      const configured = SettingsService().getResolved("DEFAULT_PAGE_SIZE");
       perPage = configured && configured.success && configured.data && configured.data.valid !== false
         ? configured.data.value
         : PAGINATION_CONFIG.DEFAULT_LIMIT;
     }
+    const requestedSize = Number(perPage);
+    perPage = Number.isInteger(requestedSize)
+      && requestedSize <= PAGINATION_CONFIG.MAX_LIMIT
+      && PAGINATION_CONFIG.ALLOWED_LIMITS.indexOf(requestedSize) >= 0
+      ? requestedSize
+      : PAGINATION_CONFIG.DEFAULT_LIMIT;
+    const requestedPage = Math.floor(Number(page));
+    page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : PAGINATION_CONFIG.DEFAULT_PAGE;
     if (!Array.isArray(data)) {
       return {
         data: [],
@@ -120,13 +128,15 @@ const RepositoryQuery = (() => {
 
         total: 0,
 
-        totalPages: 0,
+        totalPages: 1,
       };
     }
 
     const total = data.length;
 
-    const totalPages = Math.ceil(total / perPage);
+    const totalPages = Math.max(1, Math.ceil(total / perPage));
+
+    page = Math.min(page, totalPages);
 
     const start = (page - 1) * perPage;
 

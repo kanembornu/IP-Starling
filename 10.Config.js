@@ -53,7 +53,9 @@ const CACHE_CONFIG = Object.freeze({
 const PAGINATION_CONFIG = Object.freeze({
   DEFAULT_PAGE: 1,
 
-  DEFAULT_LIMIT: 20,
+  DEFAULT_LIMIT: 15,
+
+  ALLOWED_LIMITS: Object.freeze([10, 15, 25, 50, 100]),
 
   MAX_LIMIT: 500,
 });

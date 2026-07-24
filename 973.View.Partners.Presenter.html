@@ -30,15 +30,14 @@
     // Public Render
     //===========================================================================
 
-    function render(partners = []) {
-      const list = Array.isArray(partners) ? partners : [];
+    function render(partners = [], mode = "active", restoreBusyId = null) {
+      const source = Array.isArray(partners) ? partners : [];
+      const list = App.paginateRows("partners", mode, source, "partner-pagination", "lbl-partner-info", mode === "deleted" ? "mitra terhapus" : "mitra", () => render(source, mode, restoreBusyId));
 
-      bindToolbar();
-
-      renderInfo(list.length);
+      renderMode(mode);
 
       if (!list.length) {
-        renderEmpty();
+        renderEmpty(mode);
 
         return;
       }
@@ -46,27 +45,20 @@
       Render.mount(
         "tbl-partners-body",
 
-        list.map(renderRow).join(""),
+        list.map((partner) => renderRow(partner, mode, restoreBusyId)).join(""),
       );
+    }
+
+    function renderLoading(mode = "active") { renderMode(mode); Render.mount("tbl-partners-body", `<tr><td colspan="7">${Components.loading({ message: mode === "deleted" ? "Loading deleted partners..." : "Loading partners..." })}</td></tr>`); }
+    function renderError(mode = "active", message = "") { renderMode(mode); Render.mount("tbl-partners-body", `<tr><td colspan="7">${Components.empty(message || (mode === "deleted" ? "Deleted partners could not be loaded." : "Partners could not be loaded."))}</td></tr>`); }
+    function renderMode(mode) {
+      document.querySelectorAll("[data-partner-mode]").forEach((button) => { const selected = button.dataset.partnerMode === mode; button.classList.toggle("bg-blue-600", selected); button.classList.toggle("text-white", selected); });
+      DOM.$("btn-partner-add")?.classList.toggle("hidden", mode === "deleted");
     }
 
     //===========================================================================
     // Toolbar
     //===========================================================================
-
-    function bindToolbar() {
-      const refresh = DOM.$("btn-partner-refresh");
-
-      if (!refresh || refresh.dataset.partnerRefreshBound) {
-        return;
-      }
-
-      refresh.dataset.partnerRefreshBound = "true";
-      refresh.addEventListener("click", () => {
-        clearSearch();
-        App.refresh();
-      });
-    }
 
     function clearSearch() {
       const input = DOM.$("inp-partner-search");
@@ -80,7 +72,7 @@
     // Row
     //===========================================================================
 
-    function renderRow(partner = {}) {
+    function renderRow(partner = {}, mode = "active", restoreBusyId = null) {
       const id = partner[FIELD.ID];
 
       return Components.tableRow([
@@ -100,7 +92,7 @@
           "text-center",
         ),
 
-        Components.tableCell(renderActions(id), "text-center"),
+        Components.tableCell(renderActions(id, mode, restoreBusyId), "text-center"),
       ]);
     }
 
@@ -108,14 +100,14 @@
     // Empty
     //===========================================================================
 
-    function renderEmpty() {
+    function renderEmpty(mode = "active") {
       Render.mount(
         "tbl-partners-body",
 
         `
         <tr>
           <td colspan="7">
-            ${Components.empty("No partners available.")}
+            ${Components.empty(mode === "deleted" ? "No deleted partners." : "No partners available.")}
           </td>
         </tr>
       `,
@@ -160,7 +152,11 @@
     // Actions
     //===========================================================================
 
-    function renderActions(id) {
+    function renderActions(id, mode, restoreBusyId) {
+      if (mode === "deleted") {
+        const busy = String(restoreBusyId || "") === String(id);
+        return `<div class="flex items-center justify-center">${actionButton(busy ? "Restoring..." : "Restore", "fa-rotate-left", "green", "restore", id, busy)}</div>`;
+      }
       return `
     <div class="flex items-center justify-center gap-2">
 
@@ -182,11 +178,15 @@
       action,
 
       id,
+
+      disabled = false,
     ) {
       const palette = {
         blue: "bg-blue-100 hover:bg-blue-200 text-blue-600",
 
         red: "bg-red-100 hover:bg-red-200 text-red-600",
+
+        green: "bg-green-100 hover:bg-green-200 text-green-700",
       };
 
       return `
@@ -195,6 +195,7 @@
       data-action="${action}"
       data-id="${text(id)}"
       title="${label}"
+      ${disabled ? "disabled aria-busy=\"true\"" : ""}
       class="
         inline-flex
         items-center
@@ -231,6 +232,9 @@
 
     return Object.freeze({
       render,
+      renderLoading,
+      renderError,
+      clearSearch,
     });
   })();
 </script>

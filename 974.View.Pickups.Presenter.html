@@ -78,6 +78,7 @@
     }
 
     function search(keyword = "") {
+      App.resetPagination("pickups", mode);
       if (mode === "trash") {
         pickups = App.getDeletedPickups();
         renderList(filterTrash(keyword));
@@ -110,9 +111,9 @@
     //===========================================================================
 
     function renderList(list = []) {
-      renderInfo(list.length);
+      const page = App.paginateRows("pickups", mode, list, "pickup-pagination", "lbl-pickup-info", mode === "trash" ? "Pickup terhapus" : "Pickup", () => renderList(list));
 
-      if (!list.length) {
+      if (!page.length) {
         renderEmpty(
           mode === "trash" && pickups.length && normalizeSearch(App.getPickupSearch())
             ? "search"
@@ -125,7 +126,7 @@
       Render.mount(
         "tbl-pickups-body",
 
-        list.map(mode === "trash" ? renderTrashRow : renderRow).join(""),
+        page.map(mode === "trash" ? renderTrashRow : renderRow).join(""),
       );
     }
 
@@ -140,7 +141,7 @@
         Components.tableCell(formatQty(pickup[FIELD.TOTAL_QTY]), "text-right"),
         Components.tableCell(renderEligibilityStatus(eligibility), "text-center"),
         Components.tableCell(renderEligibilityReason(eligibility)),
-        Components.tableCell(renderRestorePreview(), "text-center"),
+        Components.tableCell(renderRestoreAction(pickup, eligibility), "text-center"),
       ]);
     }
 
@@ -177,17 +178,21 @@
       return `<div class="text-sm text-slate-600">${text(eligibility.message)}${code}</div>`;
     }
 
-    function renderRestorePreview() {
+    function renderRestoreAction(pickup, eligibility) {
+      const id = pickup?.[FIELD.ID];
+      const busy = String(App.getPickupRestoreBusyId?.() || "") === String(id || "");
+      const disabled = eligibility.allowed !== true || Boolean(App.getPickupRestoreBusyId?.());
       return `
         <button
           type="button"
-          disabled
-          aria-disabled="true"
-          title="Aksi pemulihan akan tersedia pada sprint berikutnya."
-          class="inline-flex cursor-not-allowed items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-slate-400 opacity-70"
+          data-pickup-action="restore"
+          data-pickup-id="${text(id)}"
+          ${disabled ? "disabled aria-disabled=\"true\"" : ""}
+          title="${text(eligibility.message || "Restore Pickup")}"
+          class="inline-flex items-center gap-2 rounded-lg px-3 py-2 ${disabled ? "cursor-not-allowed bg-slate-100 text-slate-400 opacity-70" : "bg-green-100 text-green-700 hover:bg-green-200"}"
         >
           ${Components.icon("fa-rotate-left")}
-          <span>Restore</span>
+          <span>${busy ? "Restoring..." : "Restore"}</span>
         </button>
       `;
     }
@@ -415,6 +420,10 @@
 
         if (button.dataset.pickupAction === "delete") {
           confirmDelete(button.dataset.pickupId);
+        }
+
+        if (button.dataset.pickupAction === "restore") {
+          App.restorePickup(button.dataset.pickupId);
         }
       });
     }

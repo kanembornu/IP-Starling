@@ -566,18 +566,25 @@ function PickupService(options) {
   }
 
   function restore(id) {
+    const cleanId = String(id || "").trim();
+    if (!cleanId) return Response.error("ID Pickup wajib diisi.");
     const header = physicalRows(PICKUP_HEADER_SCHEMA).find((row) => {
-      return row[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] === id;
+      return String(row[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]) === cleanId;
     });
-    if (!header || header[PICKUP_HEADER_SCHEMA.SYSTEM.IS_DELETED] !== true) {
-      return transaction.restore(id);
-    }
+    if (!header) return Response.error("Pickup tidak ditemukan.");
+    if (header[PICKUP_HEADER_SCHEMA.SYSTEM.IS_DELETED] !== true) return Response.error("Pickup masih aktif dan tidak dapat dipulihkan.");
 
-    const details = pickupPhysicalDetails(id);
+    const partnerId = header[PICKUP_HEADER_FIELDS.PARTNER_ID];
+    const partner = physicalRows(PARTNER_SCHEMA).find((row) => String(row[PARTNER_SCHEMA.PRIMARY_KEY]) === String(partnerId));
+    if (!partner || partner[PARTNER_SCHEMA.SYSTEM.IS_DELETED] === true || partner[PARTNER_SCHEMA.SYSTEM.IS_ACTIVE] !== true) return Response.error(`Partner ${partnerId} harus aktif sebelum Pickup dapat dipulihkan.`);
+
+    const details = pickupPhysicalDetails(cleanId);
     const productIds = Object.create(null);
 
     for (let index = 0; index < details.length; index++) {
       const productId = details[index][PICKUP_DETAIL_FIELDS.PRODUCT_ID];
+      const product = physicalRows(PRODUCT_SCHEMA).find((row) => String(row[PRODUCT_SCHEMA.PRIMARY_KEY]) === String(productId));
+      if (!product || product[PRODUCT_SCHEMA.SYSTEM.IS_DELETED] === true || product[PRODUCT_SCHEMA.SYSTEM.IS_ACTIVE] !== true) return Response.error(`Product ${productId} harus aktif sebelum Pickup dapat dipulihkan.`);
       if (productIds[productId]) return Response.error(RESTORE_BLOCKED);
       productIds[productId] = true;
     }
@@ -598,7 +605,7 @@ function PickupService(options) {
       referencedProducts[productId] = true;
     }
 
-    return transaction.restore(id);
+    return transaction.restore(cleanId);
   }
 
   return Object.freeze({

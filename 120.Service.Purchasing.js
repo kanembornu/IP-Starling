@@ -135,14 +135,31 @@ function PurchasingService() {
   }
 
   function findDeleted() {
-    return Response.success(
-      allRows(PURCHASING_SCHEMA).filter((row) => {
+    const rows = allRows(PURCHASING_SCHEMA).filter((row) => {
         return (
           isTrue(row[PURCHASING_SCHEMA.SYSTEM.IS_DELETED]) &&
           isFalse(row[PURCHASING_SCHEMA.SYSTEM.IS_ACTIVE])
         );
-      }),
-    );
+      }).filter((row) => requireId(row[PURCHASING_SCHEMA.PRIMARY_KEY]))
+        .sort((left, right) => String(left[PURCHASING_SCHEMA.PRIMARY_KEY]).localeCompare(String(right[PURCHASING_SCHEMA.PRIMARY_KEY])));
+    return Response.success(rows.map((row) => Object.assign({}, row, evaluateRestoreEligibility(row))));
+  }
+
+  function evaluateRestoreEligibility(row) {
+    const issues = [];
+    const productId = row && row[PURCHASING_FIELDS.PRODUCT_ID]; const supplierId = row && row[PURCHASING_FIELDS.SUPPLIER_ID];
+    if (!productId || !supplierId) issues.push("Data referensi Purchasing tidak lengkap.");
+    const product = productId ? rawById(PRODUCT_SCHEMA, productId) : null;
+    const supplier = supplierId ? rawById(PARTNER_SCHEMA, supplierId) : null;
+    if (productId && !product) issues.push("Produk terkait tidak ditemukan.");
+    else if (product && isTrue(product[PRODUCT_SCHEMA.SYSTEM.IS_DELETED])) issues.push("Produk terkait masih berada di data terhapus.");
+    else if (product && !isTrue(product[PRODUCT_SCHEMA.SYSTEM.IS_ACTIVE])) issues.push("Produk terkait tidak aktif.");
+    if (supplierId && !supplier) issues.push("Supplier/Mitra terkait tidak ditemukan.");
+    else if (supplier && isTrue(supplier[PARTNER_SCHEMA.SYSTEM.IS_DELETED])) issues.push("Supplier/Mitra terkait masih berada di data terhapus.");
+    else if (supplier && !isTrue(supplier[PARTNER_SCHEMA.SYSTEM.IS_ACTIVE])) issues.push("Supplier/Mitra terkait tidak aktif.");
+    else if (supplier && String(supplier[PARTNER_FIELDS.TYPE] || "").trim().toLowerCase() !== "supplier") issues.push("Partner terkait bukan Supplier.");
+    const canRestore = issues.length === 0;
+    return { canRestore, restoreReason: canRestore ? "Aman direstore karena seluruh referensi tersedia." : issues.join(" "), restoreIssues: issues };
   }
 
   function findById(id) {

@@ -30,6 +30,7 @@ const TransactionService = (() => {
 
       hooks = {},
     } = config;
+    const auditMutation = config.auditMutation || (writer === RepositoryWriter ? BaseService.auditMutation : () => {});
 
     if (!headerSchema) {
       throw new Error("TransactionService requires headerSchema.");
@@ -672,13 +673,17 @@ const TransactionService = (() => {
         );
       }
 
-      return Response.success({
+      const restored = {
         header: reader.findById(headerSchema, id),
 
         details: reader.find(detailSchema, {
           [detailForeignKey]: id,
         }),
-      });
+      };
+
+      auditMutation(headerSchema, "RESTORE", id, header, restored.header);
+
+      return Response.success(restored);
     }
 
     return Object.freeze({

@@ -14,14 +14,15 @@
  */
 
 const RepositoryReader = (() => {
+  function create(cacheRepository, baseRepository) {
   /**
    * --------------------------------------------------------------------------
    * Raw Rows
    * --------------------------------------------------------------------------
    */
   function raw(schema) {
-    return RepositoryCache.remember(schema, () => {
-      return RepositoryBase.rows(schema);
+    return cacheRepository.remember(schema, () => {
+      return baseRepository.rows(schema);
     });
   }
 
@@ -33,7 +34,7 @@ const RepositoryReader = (() => {
   function findAll(schema) {
     const rows = raw(schema);
 
-    const data = RepositoryBase.mapRows(schema, rows);
+    const data = baseRepository.mapRows(schema, rows);
 
     const deletedColumn = schema.SYSTEM.IS_DELETED;
 
@@ -112,5 +113,13 @@ const RepositoryReader = (() => {
     exists,
 
     count,
+  });
+  }
+
+  const repositoryReader = create(RepositoryCache, RepositoryBase);
+
+  return Object.freeze({
+    ...repositoryReader,
+    createForTesting: create,
   });
 })();

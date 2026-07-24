@@ -29,3 +29,59 @@ function testCoreResponse() {
   }
 }
 
+function testRepositoryCacheOversizedValueBypass() {
+  const schema = { TABLE: "CacheTest", PRIMARY_KEY: "ID", SYSTEM: { IS_DELETED: "Deleted" } };
+
+  function cacheDouble(options = {}) {
+    const values = {};
+    const calls = { get: 0, put: 0, remove: 0 };
+    return {
+      calls,
+      values,
+      get(key) { calls.get += 1; return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : null; },
+      put(key, value) { calls.put += 1; if (options.putError) throw options.putError; values[key] = value; },
+      remove(key) { calls.remove += 1; delete values[key]; },
+    };
+  }
+
+  const smallAdapter = cacheDouble();
+  const smallCache = RepositoryCache.createForTesting(smallAdapter);
+  let smallComputes = 0;
+  const smallValue = smallCache.remember(schema, () => { smallComputes += 1; return [["small"]]; });
+  const smallHit = smallCache.remember(schema, () => { smallComputes += 1; return [["wrong"]]; });
+  if (smallValue[0][0] !== "small" || smallHit[0][0] !== "small" || smallComputes !== 1 || smallAdapter.calls.put !== 1) throw new Error("Small cache values or cache hits are invalid.");
+
+  smallCache.clear(schema);
+  if (smallAdapter.calls.remove !== 1 || smallAdapter.get(smallCache.key(schema)) !== null) throw new Error("Cache clear behavior changed.");
+
+  const oversizedAdapter = cacheDouble();
+  const oversizedCache = RepositoryCache.createForTesting(oversizedAdapter);
+  const largeText = "x".repeat(96 * 1024);
+  const largeRows = [["LARGE", largeText, false]];
+  let largeComputes = 0;
+  const returned = oversizedCache.remember(schema, () => { largeComputes += 1; return largeRows; });
+  if (returned !== largeRows || returned[0][1].length !== largeText.length || largeComputes !== 1 || oversizedAdapter.calls.put !== 0) throw new Error("Oversized cache bypass truncated, recomputed, or attempted a cache write.");
+
+  const sizeErrorAdapter = cacheDouble({ putError: new Error("Argument too large: value") });
+  const sizeErrorCache = RepositoryCache.createForTesting(sizeErrorAdapter);
+  const fallback = { complete: true };
+  let sizeErrorComputes = 0;
+  if (sizeErrorCache.remember(schema, () => { sizeErrorComputes += 1; return fallback; }) !== fallback || sizeErrorComputes !== 1 || sizeErrorAdapter.calls.put !== 1) throw new Error("Cache size exceptions must return the complete value after one computation.");
+
+  const programmingErrorCache = RepositoryCache.createForTesting(cacheDouble({ putError: new Error("Unexpected cache adapter defect") }));
+  let programmingErrorPropagated = false;
+  try { programmingErrorCache.remember(schema, () => ({ ok: true })); } catch (error) { programmingErrorPropagated = /Unexpected cache adapter defect/.test(error.message); }
+  if (!programmingErrorPropagated) throw new Error("Unrelated cache programming errors must propagate.");
+
+  let computeErrorPropagated = false;
+  let computeErrorCalls = 0;
+  try { oversizedCache.remember({ ...schema, TABLE: "ComputeError" }, () => { computeErrorCalls += 1; throw new Error("Repository read failed"); }); } catch (error) { computeErrorPropagated = /Repository read failed/.test(error.message); }
+  if (!computeErrorPropagated || computeErrorCalls !== 1) throw new Error("Compute errors must propagate after exactly one execution.");
+
+  const readerBase = {
+    rows() { return largeRows; },
+    mapRows(_schema, rows) { return rows.map((row) => ({ ID: row[0], Payload: row[1], Deleted: row[2] })); },
+  };
+  const reader = RepositoryReader.createForTesting(oversizedCache, readerBase);
+  if (reader.raw(schema)[0][1].length !== largeText.length || reader.count(schema) !== 1) throw new Error("RepositoryReader raw/count failed for an oversized fixture.");
+}

@@ -7,6 +7,15 @@
  */
 
 const BaseService = (() => {
+  function recordMutationAudit(schema, action, id, beforeData, afterData) {
+    if (schema.TABLE === SHEET_NAMES.LOGS) return;
+    AuditLogService.bestEffort({
+      level: "INFO", module: schema.NAME, action, entityType: schema.NAME,
+      entityId: id, status: "SUCCESS", beforeData, afterData,
+      message: `${schema.NAME} ${action.toLowerCase()} succeeded.`, source: "BaseService",
+    });
+  }
+
   function create(schema, customHooks = {}) {
     //==========================================================================
     // Hooks
@@ -148,13 +157,7 @@ const BaseService = (() => {
     }
 
     function auditMutation(action, id, beforeData, afterData) {
-      if (schema.TABLE === SHEET_NAMES.LOGS) return;
-      AuditLogService.bestEffort({
-        level: "INFO", module: schema.NAME, action, entityType: schema.NAME,
-        entityId: id, status: "SUCCESS", beforeData, afterData,
-        message: `${schema.NAME} ${action.toLowerCase()} succeeded.`,
-        source: "BaseService",
-      });
+      recordMutationAudit(schema, action, id, beforeData, afterData);
     }
 
     //==========================================================================
@@ -479,5 +482,6 @@ const BaseService = (() => {
 
   return Object.freeze({
     create,
+    auditMutation: recordMutationAudit,
   });
 })();

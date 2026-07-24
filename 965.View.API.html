@@ -77,6 +77,10 @@
         return run("getProducts");
       },
 
+      listDeleted() {
+        return run("getDeletedProducts");
+      },
+
       get(id) {
         return run("getProduct", id);
       },
@@ -105,6 +109,10 @@
     const Partner = Object.freeze({
       list() {
         return run("getPartners");
+      },
+
+      listDeleted() {
+        return run("getDeletedPartners");
       },
 
       get(id) {

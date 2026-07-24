@@ -5,6 +5,8 @@
 
 let activeTestRegistry = null;
 
+let activeAggregateStartedAt = null;
+
 function runTestSuite(name, tests) {
   Logger.log(`START: ${name}`);
 
@@ -39,7 +41,11 @@ function runTestSuite(name, tests) {
 }
 
 function runCoreRegressionTests() {
-  runTestSuite("Core regression tests", [testCoreValidator, testCoreResponse]);
+  runTestSuite("Core regression tests", [
+    testCoreValidator,
+    testCoreResponse,
+    testRepositoryCacheOversizedValueBypass,
+  ]);
 }
 
 function runPurchasingDataAudit() {
@@ -49,7 +55,12 @@ function runPurchasingDataAudit() {
 function runMasterDataRegressionTests() {
   runTestSuite("Master-data regression tests", [
     testProductService,
+    testProductDeletedListAndRestoreGuards,
+    testProductRestoreSourceContracts,
+    testPartnerDeletedListAndRestoreGuards,
     testPartnerService,
+    testCanonicalPaginationSourceContracts,
+    testCanonicalPaginationCalculations,
   ]);
 }
 
@@ -202,6 +213,7 @@ function runReturnControllerTests() {
     testReturnControllerRestoreValidation,
     testReturnControllerSerialization,
     testReturnControllerDeletedSerialization,
+    testReturnUxConsistencySourceContracts,
   ]);
 }
 
@@ -218,6 +230,8 @@ function runReturnDisplayEnrichmentTests() {
   runTestSuite("Return display enrichment tests", [
     testReturnDisplayActiveAndHistoricalResolution,
     testReturnDisplayMissingRelationshipFallbacks,
+    testReturnDeletedBatchEligibilityReads,
+    testPickupReturnAggregatePhaseRegistration,
     testReturnDisplayMismatchPreservesStoredRelationship,
     testReturnDisplayBatchReadsAndDeterminism,
     testReturnDisplayEmptyListsAndReadOnlyStructure,
@@ -605,6 +619,7 @@ function runPurchasingApiTests() {
   runTestSuite("Purchasing browser API tests", [
     testPurchasingApiPublicApi,
     testPurchasingApiPromiseTransportBoundary,
+    testPurchasingUxConsistencySourceContracts,
   ]);
 }
 
@@ -718,15 +733,19 @@ function runReturnTrashUiAlignmentVerification() {
  * Individual test functions shared by overlapping regression suites execute
  * once only. This suite includes controlled spreadsheet write fixtures.
  */
-function runPickupReturnModuleAcceptance() {
+function runPickupModuleAcceptance() {
   if (activeTestRegistry) {
     throw new Error("An aggregate test run is already active.");
   }
 
   activeTestRegistry = new Set();
+  activeAggregateStartedAt = Date.now();
 
   try {
-    Logger.log("PICKUP-RETURN ACCEPTANCE: PICKUP REGRESSIONS");
+    Logger.log("PICKUP ACCEPTANCE: CORE REGRESSIONS");
+    runCoreRegressionTests();
+
+    Logger.log("PICKUP ACCEPTANCE: PICKUP REGRESSIONS");
     runTransactionReadTests();
     runPickupCreateValidationTests();
     runPickupCreateWriteTests();
@@ -738,7 +757,23 @@ function runPickupReturnModuleAcceptance() {
     runPickupTrashReadTests();
     runPickupControllerTests();
 
-    Logger.log("PICKUP-RETURN ACCEPTANCE: RETURN REGRESSIONS");
+    Logger.log(`COMPLETE: Pickup module acceptance (${activeTestRegistry.size} unique tests)`);
+  } finally {
+    activeTestRegistry = null;
+    activeAggregateStartedAt = null;
+  }
+}
+
+function runReturnModuleAcceptance() {
+  if (activeTestRegistry) {
+    throw new Error("An aggregate test run is already active.");
+  }
+
+  activeTestRegistry = new Set();
+  activeAggregateStartedAt = Date.now();
+
+  try {
+    Logger.log("RETURN ACCEPTANCE: RETURN REGRESSIONS");
     runReturnSchemaTests();
     runReturnValidationTests();
     runReturnControllerTests();
@@ -748,16 +783,23 @@ function runPickupReturnModuleAcceptance() {
     runReturnWriteTests();
     runReturnConcurrencyGuardTests();
 
-    Logger.log("PICKUP-RETURN ACCEPTANCE: CROSS-MODULE INTEGRITY");
+    Logger.log("RETURN ACCEPTANCE: CROSS-MODULE INTEGRITY");
     runPickupReturnIntegrityGuardTests();
     runPickupReturnIntegrityDiagnosticTests();
 
     Logger.log(
-      `COMPLETE: Pickup-Return module acceptance (${activeTestRegistry.size} unique tests)`,
+      `COMPLETE: Return module acceptance (${activeTestRegistry.size} unique tests)`,
     );
   } finally {
     activeTestRegistry = null;
+    activeAggregateStartedAt = null;
   }
+}
+
+function runPickupReturnModuleAcceptance() {
+  throw new Error(
+    "Pickup-Return acceptance is split to stay within Apps Script execution time. Run runPickupModuleAcceptance() first, then runReturnModuleAcceptance().",
+  );
 }
 
 function runAllSafeTests() {

@@ -87,10 +87,9 @@
 
     function renderVisibleRows() {
       const list = query ? rows.filter(matchesSearch) : rows;
+      const page = App.paginateRows("expenses", mode, list, "expense-pagination", "lbl-expense-info", mode === "trash" ? "Expense terhapus" : "Expense", renderVisibleRows);
 
-      renderInfo(list.length);
-
-      if (!list.length) {
+      if (!page.length) {
         renderEmpty(query ? "search" : "database");
 
         return;
@@ -99,11 +98,12 @@
       Render.mount(
         "tbl-expenses-body",
 
-        list.map(renderRow).join(""),
+        page.map(renderRow).join(""),
       );
     }
 
     function search(keyword = "") {
+      App.resetPagination("expenses", mode);
       query = normalize(keyword);
       modeQueries[mode] = query;
       rows = mode === "trash" ? App.getDeletedExpenses() : App.getExpenses();

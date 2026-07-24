@@ -40,13 +40,16 @@ function _settingsRow(key, value, type, overrides = {}) {
 function testSettingsRegistryAndParsing() {
   const service = _settingsTestHarness().service;
   const definitions = service.definitions();
-  const required = ["BUSINESS_NAME", "BUSINESS_TIMEZONE", "BUSINESS_LOCALE", "BUSINESS_CURRENCY", "DASHBOARD_DEFAULT_RANGE", "CACHE_ENABLED", "CACHE_TTL_SECONDS", "DEBUG_MODE", "LOG_LEVEL", "ROWS_PER_PAGE", "DATE_FORMAT", "NUMBER_FORMAT"];
+  const required = ["BUSINESS_NAME", "BUSINESS_TIMEZONE", "BUSINESS_LOCALE", "BUSINESS_CURRENCY", "DASHBOARD_DEFAULT_RANGE", "CACHE_ENABLED", "CACHE_TTL_SECONDS", "DEBUG_MODE", "LOG_LEVEL", "ROWS_PER_PAGE", "DEFAULT_PAGE_SIZE", "DATE_FORMAT", "NUMBER_FORMAT"];
   _settingsAssert(definitions.length === required.length, "Registry contains an unexpected number of definitions.");
   _settingsAssert(new Set(definitions.map((item) => item.key)).size === definitions.length, "Registry keys must be unique.");
   required.forEach((key) => _settingsAssert(definitions.some((item) => item.key === key), `Missing registry key ${key}.`));
   definitions.forEach((item) => service.parseValue(item.key, item.defaultValue));
   _settingsAssert(service.parseValue("CACHE_ENABLED", "TRUE") === true, "TRUE must parse as boolean true.");
   _settingsAssert(service.parseValue("ROWS_PER_PAGE", "20") === 20, "Integer parsing failed.");
+  _settingsAssert(service.parseValue("DEFAULT_PAGE_SIZE", "15") === 15, "Default page-size parsing failed.");
+  [10, 15, 25, 50, 100].forEach((value) => _settingsAssert(service.parseValue("DEFAULT_PAGE_SIZE", String(value)) === value, `Page size ${value} was rejected.`));
+  [0, 20, 500].forEach((value) => { let failed = false; try { service.parseValue("DEFAULT_PAGE_SIZE", String(value)); } catch (error) { failed = true; } _settingsAssert(failed, `Invalid page size ${value} was accepted.`); });
   _settingsAssert(service.parseTypedValue("NUMBER", "2.5", {}) === 2.5, "Number parsing failed.");
   _settingsAssert(service.parseTypedValue("DATE", "2026-07-22", {}) === "2026-07-22", "Date parsing failed.");
   _settingsAssert(Array.isArray(service.parseTypedValue("JSON", "[1,2]", {})), "JSON array parsing failed.");

@@ -107,6 +107,64 @@ function ReturnService(options = {}) {
     return rows.map((row) => enrichReturnRow(row, context));
   }
 
+  function evaluateRestoreEligibility(row) {
+    const issues = [];
+    if (!row || !isPresent(row[RETURN_FIELDS.PICKUP_ID]) || !isPresent(row[RETURN_FIELDS.PICKUP_DETAIL_ID])) issues.push("Data referensi Return tidak lengkap.");
+    const pickup = row && physicalRows(PICKUP_HEADER_SCHEMA).find((item) => String(item[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]) === String(row[RETURN_FIELDS.PICKUP_ID]));
+    if (row && isPresent(row[RETURN_FIELDS.PICKUP_ID]) && !pickup) issues.push("Pickup terkait tidak ditemukan.");
+    else if (pickup && isTrueEquivalent(pickup[PICKUP_HEADER_SCHEMA.SYSTEM.IS_DELETED])) issues.push("Pickup terkait masih berada di data terhapus.");
+    else if (pickup && !isTrueEquivalent(pickup[PICKUP_HEADER_SCHEMA.SYSTEM.IS_ACTIVE])) issues.push("Pickup terkait tidak aktif.");
+    if (issues.length === 0) {
+      const resolved = resolvePickup(row[RETURN_FIELDS.PICKUP_DETAIL_ID], row[RETURN_FIELDS.PICKUP_ID]);
+      if (resolved && resolved.success === false) issues.push(resolved.message || "Data referensi Return tidak lengkap.");
+      else {
+        const qty = validateAvailableQty(resolved.pickupDetail, row[RETURN_FIELDS.QTY]);
+        if (qty && qty.success === false) issues.push("Restore retur melebihi quantity yang tersedia.");
+      }
+    }
+    const canRestore = issues.length === 0;
+    return { canRestore, restoreReason: canRestore ? "Aman direstore karena seluruh referensi tersedia." : issues.join(" "), restoreIssues: issues };
+  }
+
+  function activeReturnedQtyByDetail(rows) {
+    return rows.reduce((totals, row) => {
+      if (!isActive(row, RETURN_SCHEMA)) return totals;
+      const detailId = row[RETURN_FIELDS.PICKUP_DETAIL_ID];
+      totals[detailId] = (totals[detailId] || 0) + Number(row[RETURN_FIELDS.QTY] || 0);
+      return totals;
+    }, Object.create(null));
+  }
+
+  function evaluateRestoreEligibilityFromContext(row, context, returnedQtyByDetail) {
+    const issues = [];
+    const pickupId = row && row[RETURN_FIELDS.PICKUP_ID];
+    const detailId = row && row[RETURN_FIELDS.PICKUP_DETAIL_ID];
+
+    if (!row || !isPresent(pickupId) || !isPresent(detailId)) issues.push("Data referensi Return tidak lengkap.");
+    const pickup = isPresent(pickupId) ? context.pickupHeaders[pickupId] : null;
+    if (isPresent(pickupId) && !pickup) issues.push("Pickup terkait tidak ditemukan.");
+    else if (pickup && isTrueEquivalent(pickup[PICKUP_HEADER_SCHEMA.SYSTEM.IS_DELETED])) issues.push("Pickup terkait masih berada di data terhapus.");
+    else if (pickup && !isTrueEquivalent(pickup[PICKUP_HEADER_SCHEMA.SYSTEM.IS_ACTIVE])) issues.push("Pickup terkait tidak aktif.");
+
+    if (issues.length === 0) {
+      const detail = context.pickupDetails[detailId];
+      if (!isActive(detail, PICKUP_DETAIL_SCHEMA)) issues.push("Pickup Detail tidak ditemukan atau tidak aktif.");
+      else if (detail[PICKUP_DETAIL_FIELDS.PICKUP_ID] !== pickupId) issues.push("Pickup Detail tidak sesuai dengan Pickup Header Return.");
+      else {
+        const resolvedHeader = context.pickupHeaders[detail[PICKUP_DETAIL_FIELDS.PICKUP_ID]];
+        if (!isActive(resolvedHeader, PICKUP_HEADER_SCHEMA)) issues.push("Pickup Header tidak ditemukan atau tidak aktif.");
+        else {
+          const requestedQty = Number(row[RETURN_FIELDS.QTY]);
+          const usedQty = Number(returnedQtyByDetail[detailId] || 0);
+          if (!Number.isFinite(requestedQty) || requestedQty <= 0 || usedQty + requestedQty > Number(detail[PICKUP_DETAIL_FIELDS.QTY])) issues.push("Restore retur melebihi quantity yang tersedia.");
+        }
+      }
+    }
+
+    const canRestore = issues.length === 0;
+    return { canRestore, restoreReason: canRestore ? "Aman direstore karena seluruh referensi tersedia." : issues.join(" "), restoreIssues: issues };
+  }
+
   function isPresent(id) {
     return typeof id === "string" ? id.trim() !== "" : !!id;
   }
@@ -444,14 +502,24 @@ function ReturnService(options = {}) {
   }
 
   function findDeleted() {
-    const rows = physicalRows(RETURN_SCHEMA).filter((row) => {
+    const sourceRows = physicalRows(RETURN_SCHEMA);
+    const rows = sourceRows.filter((row) => {
       return (
         isTrueEquivalent(row[RETURN_SCHEMA.SYSTEM.IS_DELETED]) &&
         isFalseEquivalent(row[RETURN_SCHEMA.SYSTEM.IS_ACTIVE])
       );
-    });
+    }).filter((row) => isPresent(row[RETURN_SCHEMA.PRIMARY_KEY]))
+      .sort((left, right) => String(left[RETURN_SCHEMA.PRIMARY_KEY]).localeCompare(String(right[RETURN_SCHEMA.PRIMARY_KEY])));
 
-    return Response.success(enrichReturnRows(rows));
+    if (!rows.length) return Response.success([]);
+
+    const context = buildReturnDisplayContext();
+    const returnedQtyByDetail = activeReturnedQtyByDetail(sourceRows);
+    return Response.success(rows.map((row) => Object.assign(
+      {},
+      enrichReturnRow(row, context),
+      evaluateRestoreEligibilityFromContext(row, context, returnedQtyByDetail),
+    )));
   }
 
   function findById(id) {

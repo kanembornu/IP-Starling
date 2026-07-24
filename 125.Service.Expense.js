@@ -225,7 +225,9 @@ function ExpenseService() {
   }
 
   function findDeleted() {
-    return Response.success(allRows().filter(isDeleted));
+    return Response.success(allRows().filter(isDeleted)
+      .filter((row) => validId(row[EXPENSE_SCHEMA.PRIMARY_KEY]))
+      .sort((left, right) => String(left[EXPENSE_SCHEMA.PRIMARY_KEY]).localeCompare(String(right[EXPENSE_SCHEMA.PRIMARY_KEY]))));
   }
 
   function create(document) {

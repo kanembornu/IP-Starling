@@ -1,10 +1,10 @@
 <script>
   const LogsPresenter = (() => {
     const escape = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-    function renderLoading() { Render.mount("logs-body", ""); Render.mount("logs-state", '<div class="p-10 text-center text-slate-500">Loading logs...</div>'); }
+    function renderLoading() { Render.mount("logs-state", '<div class="p-3 text-center text-sm text-slate-500">Loading logs...</div>'); }
     function renderError(message) { Render.mount("logs-body", ""); Render.mount("logs-state", `<div class="p-10 text-center text-red-600">${escape(message || "Logs could not be loaded.")}</div>`); }
     function renderSummary(summary = {}) {
-      const cards = [["Total", summary.total || 0], ["Errors", summary.errors || 0], ["Warnings", summary.warnings || 0], ["Audit", summary.audit || 0]];
+      const cards = [["Total Log", summary.total || 0], ["Audit", summary.audit || 0], ["Peringatan", summary.warnings || 0], ["Error", summary.errors || 0]];
       Render.mount("logs-summary", cards.map(([label, value]) => `<div class="rounded-xl border bg-white p-4 shadow-sm"><div class="text-xs uppercase text-slate-500">${escape(label)}</div><div class="mt-1 text-2xl font-bold text-slate-800">${escape(value)}</div></div>`).join(""));
     }
     function detail(row) {
@@ -14,7 +14,7 @@
     function render(payload = {}) {
       const rows = Array.isArray(payload.data) ? payload.data : [];
       Render.mount("logs-state", rows.length ? "" : '<div class="p-10 text-center text-slate-500">No logs match the active filters.</div>');
-      Render.mount("logs-body", rows.map((row) => `<tr class="border-t align-top"><td class="p-3 whitespace-nowrap">${escape(row.Timestamp)}</td><td>${escape(row.Level)}</td><td>${escape(row.Category)}</td><td>${escape(row.Module)}</td><td>${escape(row.Action)}</td><td>${escape([row.EntityType, row.EntityID].filter(Boolean).join(" · "))}</td><td>${escape(row.Actor)}</td><td>${escape(row.Status)}</td><td class="max-w-xs break-words">${escape(row.Message)}</td><td>${escape(row.DurationMs === "" ? "" : `${row.DurationMs} ms`)}</td><td class="p-3">${detail(row)}</td></tr>`).join(""));
+      Render.mount("logs-body", rows.map((row) => `<tr class="border-t"><td class="p-3 align-middle whitespace-nowrap">${escape(row.Timestamp)}</td><td class="align-middle">${escape(row.Level)}</td><td class="align-middle">${escape(row.Category)}</td><td class="align-middle">${escape(row.Module)}</td><td class="align-middle">${escape(row.Action)}</td><td class="align-middle">${escape([row.EntityType, row.EntityID].filter(Boolean).join(" · "))}</td><td class="align-middle">${escape(row.Actor)}</td><td class="align-middle">${escape(row.Status)}</td><td class="max-w-xs align-middle break-words">${escape(row.Message)}</td><td class="align-middle">${escape(row.DurationMs === "" ? "" : `${row.DurationMs} ms`)}</td><td class="p-3 align-top">${detail(row)}</td></tr>`).join(""));
       const label = DOM.$("logs-page-label"); if (label) DOM.text(label, `${payload.total || 0} entries · page ${payload.page || 1} of ${payload.totalPages || 0}`);
       document.querySelector('[data-logs-action="previous"]')?.toggleAttribute("disabled", (payload.page || 1) <= 1);
       document.querySelector('[data-logs-action="next"]')?.toggleAttribute("disabled", (payload.page || 1) >= (payload.totalPages || 0));

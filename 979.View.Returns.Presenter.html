@@ -25,6 +25,10 @@
 
     let returns = [];
 
+    let mode = "active";
+
+    let restoreBusyId = null;
+
     let detailRequest = 0;
 
     let pickupHeaders = null;
@@ -55,9 +59,13 @@
     // Public Render
     //===========================================================================
 
-    function render(data) {
+    function render(data, selectedMode = "active", busyId = null) {
+      mode = selectedMode === "deleted" ? "deleted" : "active";
+      restoreBusyId = busyId;
       returns = normalize(data);
 
+      renderHeader();
+      syncModeUi();
       bindToolbar();
 
       bindActions();
@@ -86,9 +94,9 @@
     //===========================================================================
 
     function renderList(list = []) {
-      renderInfo(list.length);
+      const page = App.paginateRows("returns", mode, list, "return-pagination", "lbl-return-info", mode === "deleted" ? "Return terhapus" : "Return", () => renderList(list));
 
-      if (!list.length) {
+      if (!page.length) {
         renderEmpty();
 
         return;
@@ -97,8 +105,36 @@
       Render.mount(
         "tbl-returns-body",
 
-        list.map(renderRow).join(""),
+        page.map(mode === "deleted" ? renderDeletedRow : renderRow).join(""),
       );
+    }
+
+    function renderHeader() {
+      Render.mount("tbl-returns-head", mode === "deleted" ? `<tr><th class="whitespace-nowrap px-4 py-3 text-left">Return ID</th><th class="whitespace-nowrap px-4 py-3 text-left">Tanggal</th><th class="min-w-[9rem] px-4 py-3 text-left">Mitra</th><th class="min-w-[10rem] px-4 py-3 text-left">Produk</th><th class="whitespace-nowrap px-4 py-3 text-right">Qty</th><th class="min-w-[10rem] px-4 py-3 text-left">Catatan</th><th class="min-w-[8rem] px-4 py-3 text-left">Pickup</th><th class="min-w-[10rem] whitespace-nowrap px-4 py-3 text-center">Status Restore</th><th class="min-w-[20rem] px-4 py-3 text-left">Keterangan</th><th class="whitespace-nowrap px-4 py-3 text-center">Action</th></tr>` : `<tr><th class="px-4 py-3 text-left">ID</th><th class="px-4 py-3 text-left">Tanggal Return</th><th class="px-4 py-3 text-left">Mitra</th><th class="px-4 py-3 text-left">Produk</th><th class="px-4 py-3 text-right">Qty</th><th class="px-4 py-3 text-left">Note</th><th class="px-4 py-3 text-center">Status</th><th class="px-4 py-3 text-center">Action</th></tr>`);
+    }
+
+    function syncModeUi() {
+      document.querySelectorAll("[data-return-mode]").forEach((button) => {
+        const selected = button.dataset.returnMode === mode;
+        button.classList.toggle("bg-blue-600", selected);
+        button.classList.toggle("text-white", selected);
+        button.classList.toggle("text-slate-600", !selected);
+      });
+      DOM.$("btn-return-add")?.classList.toggle("hidden", mode === "deleted");
+    }
+
+    function renderLoading(selectedMode = "active") {
+      mode = selectedMode === "deleted" ? "deleted" : "active";
+      renderHeader(); syncModeUi(); bindToolbar(); bindActions();
+      Render.mount("tbl-returns-body", `<tr><td colspan="${mode === "deleted" ? 10 : 8}">${Components.loading(mode === "deleted" ? "Loading deleted Returns..." : "Loading Returns...")}</td></tr>`);
+      Render.mount("lbl-return-info", "Loading..."); Render.mount("return-pagination", "");
+    }
+
+    function renderError(selectedMode = "active") {
+      mode = selectedMode === "deleted" ? "deleted" : "active";
+      renderHeader(); syncModeUi();
+      Render.mount("tbl-returns-body", `<tr><td colspan="${mode === "deleted" ? 10 : 8}">${Components.empty("Returns could not be loaded.")}</td></tr>`);
+      Render.mount("lbl-return-info", "Return count unavailable"); Render.mount("return-pagination", "");
     }
 
     function renderRow(ret = {}) {
@@ -211,6 +247,10 @@
         if (button.dataset.returnAction === "delete") {
           confirmDelete(button.dataset.returnId);
         }
+
+        if (button.dataset.returnAction === "restore" && mode === "deleted") {
+          App.restoreReturn(button.dataset.returnId);
+        }
       });
     }
 
@@ -316,109 +356,10 @@
     }
 
     //===========================================================================
-    // Trash and Restore
+    // Deleted inline rows
     //===========================================================================
 
-    function openTrash(state = {}) {
-      modalMode = "trash";
-
-      Modal.open({
-        title: "Deleted Returns",
-        width: "xl",
-        body: state.loading
-          ? Components.loading("Loading deleted Returns...")
-          : renderTrashBody(state),
-        footer: renderTrashFooter(),
-      });
-
-      bindTrashModal();
-    }
-
-    function renderTrashBody(state = {}) {
-      if (state.error) {
-        return `
-          <div id="return-trash" class="space-y-4">
-            ${Components.empty(escape(state.error))}
-            <div class="flex justify-center">
-              <button type="button" data-return-trash-action="retry" class="rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-100">Retry</button>
-            </div>
-          </div>
-        `;
-      }
-
-      return `
-        <div id="return-trash" class="space-y-4">
-          <div class="flex flex-wrap items-center gap-3">
-            <input
-              id="inp-return-trash-search"
-              type="search"
-              value="${escape(state.search)}"
-              placeholder="Search deleted Returns..."
-              class="min-w-0 flex-1 rounded-lg border border-slate-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <button type="button" data-return-trash-action="refresh" title="Refresh Trash" class="rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-100">
-              ${Components.icon("fa-rotate-right")}
-            </button>
-          </div>
-
-          <div id="lbl-return-trash-info" class="text-sm text-slate-500"></div>
-
-          <div id="return-trash-results" class="max-h-[55vh] overflow-auto"></div>
-        </div>
-      `;
-    }
-
-    function renderTrash(rows = [], state = {}) {
-      if (state.loading || state.error) {
-        return;
-      }
-
-      const allRows = normalize(rows);
-      const list = filterTrash(allRows, state.search);
-      const results = DOM.$("return-trash-results");
-      const info = DOM.$("lbl-return-trash-info");
-
-      if (info) {
-        DOM.text(info, `${Format.number(list.length)} Deleted Returns`);
-      }
-
-      if (!results) {
-        return;
-      }
-
-      if (!list.length) {
-        Render.mount(
-          "return-trash-results",
-          Components.empty(allRows.length
-            ? "Tidak ada data Retur Trash yang cocok dengan pencarian."
-            : "Belum ada data Retur di Trash."),
-        );
-        return;
-      }
-
-      Render.mount(
-        "return-trash-results",
-        `
-          <table class="min-w-full text-sm">
-            <thead class="sticky top-0 bg-slate-100">
-              <tr>
-                <th class="px-3 py-3 text-left">Return ID</th>
-                <th class="px-3 py-3 text-left">Tanggal</th>
-                <th class="px-3 py-3 text-left">Mitra</th>
-                <th class="px-3 py-3 text-left">Produk</th>
-                <th class="px-3 py-3 text-right">Qty</th>
-                <th class="px-3 py-3 text-left">Keterangan</th>
-                <th class="px-3 py-3 text-left">Pickup</th>
-                <th class="px-3 py-3 text-center">Action</th>
-              </tr>
-            </thead>
-            <tbody>${list.map((ret) => renderTrashRow(ret, state)).join("")}</tbody>
-          </table>
-        `,
-      );
-    }
-
-    function renderTrashRow(ret = {}, state = {}) {
+    function renderDeletedRow(ret = {}) {
       return Components.tableRow([
         Components.tableCell(text(ret[FIELD.ID]), "font-medium text-slate-800"),
         Components.tableCell(Format.date(ret[FIELD.DATE])),
@@ -430,130 +371,39 @@
           `Pickup Detail: ${ret[FIELD.PICKUP_DETAIL_ID] ?? ""}`,
         )),
         Components.tableCell(Format.number(ret[FIELD.QTY]), "text-right"),
-        Components.tableCell(text(ret[FIELD.NOTE])),
-        Components.tableCell(`<span class="text-xs text-slate-500">Pickup: ${text(ret[FIELD.PICKUP_ID])}</span>`),
-        Components.tableCell(renderRestoreAction(ret, state), "text-center"),
+        Components.tableCell(text(ret[FIELD.NOTE]), "whitespace-normal align-top"),
+        Components.tableCell(`<span class="text-xs text-slate-500">Pickup: ${text(ret[FIELD.PICKUP_ID])}</span>`, "align-top"),
+        Components.tableCell(Components.badge(ret.canRestore === true ? "Aman direstore" : "Tidak dapat direstore", ret.canRestore === true), "whitespace-nowrap text-center align-top"),
+        Components.tableCell(text(ret.restoreReason), "min-w-[20rem] whitespace-normal break-words align-top leading-relaxed"),
+        Components.tableCell(renderRestoreAction(ret), "whitespace-nowrap text-center align-top"),
       ]);
     }
 
-    function renderRestoreAction(ret = {}, state = {}) {
+    function renderRestoreAction(ret = {}) {
       const id = ret[FIELD.ID];
 
       if (Utils.isEmpty(id)) {
         return "-";
       }
 
-      const busy = Boolean(state.restoreBusyId);
-      const restoring = String(state.restoreBusyId || "") === String(id);
+      const busyId = restoreBusyId;
+      const busy = Boolean(busyId);
+      const restoring = String(busyId || "") === String(id);
+      const blocked = ret.canRestore !== true;
 
       return `
         <button
           type="button"
-          data-return-trash-action="restore"
+          data-return-action="restore"
           data-return-id="${escape(id)}"
-          ${busy ? "disabled" : ""}
-          aria-disabled="${busy}"
-          class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-white hover:bg-emerald-700 ${busy ? "cursor-not-allowed opacity-50" : ""}"
+          ${busy || blocked ? "disabled" : ""}
+          aria-disabled="${busy || blocked}"
+          class="inline-flex items-center gap-2 rounded-lg px-3 py-2 ${blocked ? "cursor-not-allowed bg-slate-100 text-slate-400" : "bg-emerald-600 text-white hover:bg-emerald-700"} ${busy ? "cursor-not-allowed opacity-50" : ""}"
         >
           ${Components.icon("fa-rotate-left")}
           <span>${restoring ? "Restoring..." : "Restore"}</span>
         </button>
       `;
-    }
-
-    function filterTrash(rows, keyword = "") {
-      const query = String(keyword).trim().toLowerCase();
-
-      if (!query) {
-        return rows;
-      }
-
-      return rows.filter((ret) => {
-        return [
-          ret[FIELD.ID],
-          ret[FIELD.PICKUP_ID],
-          ret[FIELD.PICKUP_DETAIL_ID],
-          ret[FIELD.PARTNER_ID],
-          ret[FIELD.PARTNER_NAME],
-          ret[FIELD.PRODUCT_ID],
-          ret[FIELD.PRODUCT_NAME],
-          ret[FIELD.DATE],
-          Format.date(ret[FIELD.DATE]),
-          ret[FIELD.NOTE],
-        ]
-          .filter((value) => value !== undefined && value !== null)
-          .join(" ")
-          .toLowerCase()
-          .includes(query);
-      });
-    }
-
-    function bindTrashModal() {
-      const trash = DOM.$("return-trash");
-
-      if (trash && !trash.dataset.returnTrashBound) {
-        trash.dataset.returnTrashBound = "true";
-        trash.addEventListener("input", handleTrashInput);
-        trash.addEventListener("click", handleTrashClick);
-      }
-
-      const footer = DOM.$("modal-footer");
-
-      if (footer && !footer.dataset.returnTrashBound) {
-        footer.dataset.returnTrashBound = "true";
-        footer.addEventListener("click", handleTrashFooterClick);
-      }
-
-      const close = DOM.$("btn-modal-close");
-
-      if (close && !close.dataset.returnTrashBound) {
-        close.dataset.returnTrashBound = "true";
-        close.addEventListener("click", closeTrash);
-      }
-
-    }
-
-    function handleTrashInput(event) {
-      if (event.target.id !== "inp-return-trash-search") {
-        return;
-      }
-
-      App.searchReturnTrash(event.target.value);
-    }
-
-    function handleTrashClick(event) {
-      const action = event.target.closest("[data-return-trash-action]")?.dataset.returnTrashAction;
-
-      if (action === "retry" || action === "refresh") {
-        App.refreshReturnTrash();
-        return;
-      }
-
-      if (action === "restore") {
-        App.restoreReturn(event.target.closest("[data-return-id]")?.dataset.returnId);
-      }
-    }
-
-    function renderTrashFooter() {
-      return `
-        <button type="button" data-return-trash-action="close" class="rounded-lg border border-slate-300 px-5 py-2 hover:bg-slate-100">Close</button>
-      `;
-    }
-
-    function handleTrashFooterClick(event) {
-      if (event.target.closest("[data-return-trash-action]")?.dataset.returnTrashAction === "close") {
-        closeTrash();
-      }
-    }
-
-    function closeTrash() {
-      if (modalMode !== "trash") {
-        return;
-      }
-
-      modalMode = null;
-      Modal.close();
-      App.closeReturnTrash();
     }
 
     //===========================================================================
@@ -566,8 +416,8 @@
 
         `
         <tr>
-          <td colspan="8">
-            ${Components.empty("No returns available.")}
+          <td colspan="${mode === "deleted" ? 10 : 8}">
+            ${Components.empty(mode === "deleted" ? "Belum ada Return terhapus." : "No returns available.")}
           </td>
         </tr>
       `,
@@ -629,6 +479,7 @@
         search.dataset.returnBound = "true";
 
         search.addEventListener("input", () => {
+          App.resetPagination("returns", mode);
           renderList(filter(search.value));
         });
       }
@@ -652,13 +503,11 @@
         add.addEventListener("click", openCreate);
       }
 
-      const trash = DOM.$("btn-return-trash");
-
-      if (trash && !trash.dataset.returnBound) {
-        trash.dataset.returnBound = "true";
-
-        trash.addEventListener("click", App.openReturnTrash);
-      }
+      document.querySelectorAll("[data-return-mode]").forEach((button) => {
+        if (button.dataset.returnModeBound) return;
+        button.dataset.returnModeBound = "true";
+        button.addEventListener("click", () => App.setReturnMode(button.dataset.returnMode));
+      });
     }
 
     //===========================================================================
@@ -1658,9 +1507,9 @@
 
       submitDelete,
 
-      openTrash,
+      renderLoading,
 
-      renderTrash,
+      renderError,
     });
   })();
 </script>

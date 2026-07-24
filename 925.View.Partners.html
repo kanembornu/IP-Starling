@@ -27,6 +27,10 @@
 
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
       <div class="flex flex-wrap gap-3 items-center">
+        <div class="inline-flex rounded-lg border border-slate-300 p-1" role="group" aria-label="Partner view mode">
+          <button type="button" data-partner-mode="active" class="partner-mode rounded-md px-3 py-2 text-sm">Active</button>
+          <button type="button" data-partner-mode="deleted" class="partner-mode rounded-md px-3 py-2 text-sm">Deleted</button>
+        </div>
         <div class="flex-1">
           <input
             id="inp-partner-search"

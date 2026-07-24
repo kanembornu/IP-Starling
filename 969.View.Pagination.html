@@ -1,0 +1,20 @@
+<script>
+  const Pagination = (() => {
+    const OPTIONS = Object.freeze([10, 15, 25, 50, 100]);
+    function pageSize(value, fallback = 15) {
+      const normalizedFallback = OPTIONS.includes(Number(fallback)) ? Number(fallback) : 15;
+      return OPTIONS.includes(Number(value)) ? Number(value) : normalizedFallback;
+    }
+    function calculate(rows, requestedPage = 1, requestedSize = 15) {
+      const source = Array.isArray(rows) ? rows : [];
+      const size = pageSize(requestedSize);
+      const totalRows = source.length;
+      const totalPages = Math.max(1, Math.ceil(totalRows / size));
+      const page = Math.min(Math.max(1, Math.floor(Number(requestedPage)) || 1), totalPages);
+      const startIndex = (page - 1) * size;
+      const endIndex = Math.min(startIndex + size, totalRows);
+      return Object.freeze({ data: source.slice(startIndex, endIndex), page, pageSize: size, totalRows, totalPages, startIndex, endIndex, rangeStart: totalRows ? startIndex + 1 : 0, rangeEnd: totalRows ? endIndex : 0, hasPrevious: page > 1, hasNext: page < totalPages });
+    }
+    return Object.freeze({ OPTIONS, pageSize, calculate });
+  })();
+</script>

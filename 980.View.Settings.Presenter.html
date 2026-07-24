@@ -17,7 +17,7 @@
       if (setting.type === "BOOLEAN") {
         return `<label class="mt-3 flex items-center gap-3 text-sm"><input type="checkbox" data-setting-input="${key}" ${setting.value === true ? "checked" : ""} ${disabled} class="h-5 w-5 rounded border-slate-300"><span>${setting.value === true ? "Enabled" : "Disabled"}</span></label>`;
       }
-      if (setting.type === "ENUM") {
+      if (setting.type === "ENUM" || setting.options?.length) {
         const options = (setting.options || []).map((value) => `<option value="${escape(value)}" ${value === setting.value ? "selected" : ""}>${escape(value)}</option>`).join("");
         return `<select ${common}>${options}</select>`;
       }
@@ -47,7 +47,7 @@
     function render(settings, busyKey = null) {
       const groups = ["Business", "Dashboard", "System", "UI"];
       const html = groups.map((group) => {
-        const items = settings.filter((setting) => setting.group === group);
+        const items = settings.filter((setting) => setting.group === group && setting.key !== "ROWS_PER_PAGE");
         return `<section><h2 class="mb-3 text-lg font-bold text-slate-800">${escape(group)}</h2><div class="grid grid-cols-1 gap-4 xl:grid-cols-2">${items.map((setting) => card(setting, busyKey)).join("")}</div></section>`;
       }).join("");
       Render.mount("settings-content", html || Components.empty("No settings available."));
