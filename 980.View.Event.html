@@ -212,11 +212,64 @@
 
       bindWindow();
 
+      bindPurchasing();
+
       document.addEventListener(
         "click",
 
         handleActionClick,
       );
+    }
+
+    //===========================================================================
+    // Purchasing intent delegation
+    //===========================================================================
+
+    function bindPurchasing() {
+      document.addEventListener("click", handlePurchasingClick);
+      document.addEventListener("input", handlePurchasingInput);
+      document.addEventListener("change", handlePurchasingInput);
+      document.addEventListener("submit", handlePurchasingSubmit);
+    }
+
+    function handlePurchasingClick(event) {
+      const page = event.target.closest("[data-pagination-action][data-pagination-module='purchasing']");
+      if (page) { if (!page.disabled) App.changePurchasingPage(page.dataset.paginationAction); return; }
+      const mode = event.target.closest("[data-purchasing-mode]");
+      if (mode) return App.setPurchasingMode(mode.dataset.purchasingMode);
+      if (event.target.closest("#btn-purchasing-add")) return App.openCreatePurchasing();
+      if (event.target.closest("#btn-purchasing-refresh")) return App.refreshPurchasing();
+      const actionButton = event.target.closest("[data-purchasing-action]");
+      if (actionButton) {
+        if (actionButton.disabled || actionButton.getAttribute("aria-disabled") === "true") return;
+        const id = actionButton.dataset.purchasingId;
+        if (actionButton.dataset.purchasingAction === "view") return App.viewPurchasing(id);
+        if (actionButton.dataset.purchasingAction === "edit") return App.openEditPurchasing(id);
+        if (actionButton.dataset.purchasingAction === "delete") return App.deletePurchasing(id);
+        if (actionButton.dataset.purchasingAction === "restore") return App.restorePurchasing(id);
+      }
+      const create = event.target.closest("[data-purchasing-create-action]");
+      if (create?.dataset.purchasingCreateAction === "cancel") return App.closePurchasingModal();
+      if (create?.dataset.purchasingCreateAction === "save") return App.submitPurchasingForm("create");
+      const edit = event.target.closest("[data-purchasing-edit-action]");
+      if (edit?.dataset.purchasingEditAction === "cancel") return App.closePurchasingModal();
+      if (edit?.dataset.purchasingEditAction === "save") return App.submitPurchasingForm("edit");
+      if (event.target.closest("[data-purchasing-detail-action='close']")) return App.closePurchasingModal();
+      if (event.target.closest("#btn-modal-close") && document.querySelector("[data-purchasing-create-field], [data-purchasing-edit-field], [data-purchasing-detail-action]")) App.closePurchasingModal();
+    }
+
+    function handlePurchasingInput(event) {
+      if (event.type === "change" && event.target?.dataset?.paginationSize === "purchasing") return App.changePurchasingPageSize(event.target.value);
+      if (event.target?.id === "inp-purchasing-search") return App.searchPurchasing(event.target.value);
+      const createField = event.target?.dataset?.purchasingCreateField;
+      if (createField) return App.updatePurchasingForm("create", createField, event.target.value);
+      const editField = event.target?.dataset?.purchasingEditField;
+      if (editField) return App.updatePurchasingForm("edit", editField, event.target.value);
+    }
+
+    function handlePurchasingSubmit(event) {
+      if (event.target?.id === "purchasing-create-form") { event.preventDefault(); App.submitPurchasingForm("create"); }
+      if (event.target?.id === "purchasing-edit-form") { event.preventDefault(); App.submitPurchasingForm("edit"); }
     }
 
     //===========================================================================

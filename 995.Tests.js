@@ -8,6 +8,7 @@ let activeTestRegistry = null;
 let activeAggregateStartedAt = null;
 
 function runTestSuite(name, tests) {
+  const suiteStartedAt = Date.now();
   Logger.log(`START: ${name}`);
 
   let currentTest = null;
@@ -31,13 +32,17 @@ function runTestSuite(name, tests) {
       Logger.log(`PASS: ${test.name}`);
     });
   } catch (error) {
+    const suiteElapsed = Date.now() - suiteStartedAt;
+    const aggregateElapsed = activeAggregateStartedAt ? Date.now() - activeAggregateStartedAt : suiteElapsed;
     Logger.log(
-      `FAIL: ${currentTest ? currentTest.name : name} - ${error.message}`,
+      `FAIL: ${currentTest ? currentTest.name : name} - ${error.message} (suite ${suiteElapsed} ms; aggregate ${aggregateElapsed} ms)`,
     );
     throw error;
   }
 
-  Logger.log(`COMPLETE: ${name}`);
+  const suiteElapsed = Date.now() - suiteStartedAt;
+  const aggregateElapsed = activeAggregateStartedAt ? Date.now() - activeAggregateStartedAt : suiteElapsed;
+  Logger.log(`COMPLETE: ${name} (${selectedTests.length} tests; suite ${suiteElapsed} ms; aggregate ${aggregateElapsed} ms)`);
 }
 
 function runCoreRegressionTests() {
@@ -330,14 +335,16 @@ function runPickupReturnIntegrityDiagnosticTests() {
   ]);
 }
 
-function runPurchasingValidationTests() {
-  runTestSuite("Purchasing validation tests", [
+const PURCHASING_READ_SERVICE_TESTS = [
     testPurchasingServicePublicApi,
     testPurchasingStatisticsEmpty,
     testPurchasingStatisticsResponseShape,
     testDashboardPurchasingStatisticsCompatibility,
     testPurchasingFindAllActiveOnly,
     testPurchasingFindByIdValidation,
+];
+
+const PURCHASING_MUTATION_VALIDATION_TESTS = [
     testPurchasingCreateRequiresTanggal,
     testPurchasingCreateRequiresSupplier,
     testPurchasingCreateRequiresProduct,
@@ -349,7 +356,10 @@ function runPurchasingValidationTests() {
     testPurchasingCreateRejectsNonSupplierPartner,
     testPurchasingCreateRejectsInactiveSupplier,
     testPurchasingCreateRejectsInactiveProduct,
-  ]);
+];
+
+function runPurchasingValidationTests() {
+  runTestSuite("Purchasing validation tests", PURCHASING_READ_SERVICE_TESTS.concat(PURCHASING_MUTATION_VALIDATION_TESTS));
 }
 
 function runExpenseValidationTests() {
@@ -563,16 +573,17 @@ function runDashboardModuleAcceptance() {
   }
 }
 
-function runPurchasingDeletedListTests() {
-  runTestSuite("Purchasing deleted-list tests", [
+const PURCHASING_DELETED_LIST_TESTS = [
     testPurchasingFindDeletedEmpty,
     testPurchasingFindDeletedFiltering,
     testPurchasingFindDeletedResponseShape,
-  ]);
+];
+
+function runPurchasingDeletedListTests() {
+  runTestSuite("Purchasing deleted-list tests", PURCHASING_DELETED_LIST_TESTS);
 }
 
-function runPurchasingWriteTests() {
-  runTestSuite("Purchasing write tests", [
+const PURCHASING_WRITE_TESTS = [
     testPurchasingStatisticsActiveOnly,
     testPurchasingCreateValid,
     testPurchasingCreateDerivesTotal,
@@ -585,11 +596,13 @@ function runPurchasingWriteTests() {
     testPurchasingUpdateRevalidatesProduct,
     testPurchasingUpdateRejectsInfinity,
     testPurchasingRemoveSoftDeleteState,
-  ]);
+];
+
+function runPurchasingWriteTests() {
+  runTestSuite("Purchasing write tests", PURCHASING_WRITE_TESTS);
 }
 
-function runPurchasingRestoreTests() {
-  runTestSuite("Purchasing restore tests", [
+const PURCHASING_RESTORE_TESTS = [
     testPurchasingRestoreValid,
     testPurchasingRestoreAlreadyActive,
     testPurchasingRestoreRejectsInactiveNonDeleted,
@@ -597,11 +610,13 @@ function runPurchasingRestoreTests() {
     testPurchasingRestoreRejectsNonSupplierPartner,
     testPurchasingRestoreRejectsInactiveProduct,
     testPurchasingRestoreRecalculatesTotal,
-  ]);
+];
+
+function runPurchasingRestoreTests() {
+  runTestSuite("Purchasing restore tests", PURCHASING_RESTORE_TESTS);
 }
 
-function runPurchasingControllerTests() {
-  runTestSuite("Purchasing controller tests", [
+const PURCHASING_CONTROLLER_TESTS = [
     testPurchasingControllerPublicApi,
     testPurchasingDeletedControllerPublicApi,
     testPurchasingControllerGetAll,
@@ -612,16 +627,66 @@ function runPurchasingControllerTests() {
     testPurchasingControllerRestoreValidation,
     testPurchasingControllerSerialization,
     testPurchasingDeletedControllerSerialization,
-  ]);
+];
+
+function runPurchasingControllerTests() {
+  runTestSuite("Purchasing controller tests", PURCHASING_CONTROLLER_TESTS);
 }
 
-function runPurchasingApiTests() {
-  runTestSuite("Purchasing browser API tests", [
+const PURCHASING_API_TESTS = [
     testPurchasingApiPublicApi,
     testPurchasingApiPromiseTransportBoundary,
     testPurchasingUxConsistencySourceContracts,
-  ]);
+    testPurchasingFrontendArchitectureSourceContracts,
+];
+
+const PURCHASING_META_TESTS = [
+    testPurchasingAggregatePhaseRegistrationContracts,
+];
+
+function runPurchasingApiTests() {
+  runTestSuite("Purchasing browser API tests", PURCHASING_API_TESTS);
 }
+
+const PURCHASING_ACCEPTANCE_PHASES = Object.freeze([
+  Object.freeze({
+    key: "read",
+    name: "READ",
+    runner: "runPurchasingReadAcceptance",
+    expectedCount: 23,
+    audit: true,
+    metaTests: PURCHASING_META_TESTS,
+    suites: Object.freeze([
+      Object.freeze({ name: "Purchasing controller tests", tests: PURCHASING_CONTROLLER_TESTS }),
+      Object.freeze({ name: "Purchasing browser API tests", tests: PURCHASING_API_TESTS }),
+      Object.freeze({ name: "Purchasing read service tests", tests: PURCHASING_READ_SERVICE_TESTS }),
+      Object.freeze({ name: "Purchasing deleted-list tests", tests: PURCHASING_DELETED_LIST_TESTS }),
+    ]),
+  }),
+  Object.freeze({
+    key: "mutation",
+    name: "MUTATION",
+    runner: "runPurchasingMutationAcceptance",
+    expectedCount: 23,
+    audit: false,
+    metaTests: Object.freeze([]),
+    suites: Object.freeze([
+      Object.freeze({ name: "Purchasing mutation validation tests", tests: PURCHASING_MUTATION_VALIDATION_TESTS }),
+      Object.freeze({ name: "Purchasing write tests", tests: PURCHASING_WRITE_TESTS }),
+    ]),
+  }),
+  Object.freeze({
+    key: "restore",
+    name: "RESTORE",
+    runner: "runPurchasingRestoreAcceptance",
+    expectedCount: 7,
+    audit: false,
+    metaTests: Object.freeze([]),
+    suites: Object.freeze([
+      Object.freeze({ name: "Purchasing restore tests", tests: PURCHASING_RESTORE_TESTS }),
+    ]),
+  }),
+]);
 
 function runPurchasingAllTests() {
   runPurchasingControllerTests();
@@ -632,42 +697,58 @@ function runPurchasingAllTests() {
   runPurchasingRestoreTests();
 }
 
-/**
- * Sprint 4.1.0 aggregate Purchasing module acceptance runner.
- * Includes the read-only production data audit and controlled write fixtures.
- */
-function runPurchasingModuleAcceptance() {
+function beginPurchasingAcceptancePhase(name) {
   if (activeTestRegistry) {
     throw new Error("An aggregate test run is already active.");
   }
-
-  const audit = runPurchasingDataAudit();
-  if (!audit || audit.success !== true) {
-    const issues = Array.isArray(audit?.blockingIssues)
-      ? audit.blockingIssues.join(" | ")
-      : "Purchasing data audit did not pass.";
-    throw new Error(`Purchasing production data audit failed: ${issues}`);
-  }
-
   activeTestRegistry = new Set();
+  activeAggregateStartedAt = Date.now();
+  Logger.log(`PURCHASING ACCEPTANCE PHASE START: ${name}`);
+}
 
+function completePurchasingAcceptancePhase(name) {
+  const elapsed = activeAggregateStartedAt ? Date.now() - activeAggregateStartedAt : 0;
+  const count = activeTestRegistry ? activeTestRegistry.size : 0;
+  Logger.log(`PURCHASING ACCEPTANCE PHASE COMPLETE: ${name} (${count} unique tests; aggregate ${elapsed} ms)`);
+  activeTestRegistry = null;
+  activeAggregateStartedAt = null;
+}
+
+/** Canonical order: READ, then MUTATION, then RESTORE in separate executions. */
+function runPurchasingAcceptancePhase(key) {
+  const phase = PURCHASING_ACCEPTANCE_PHASES.find((entry) => entry.key === key);
+  if (!phase) throw new Error(`Unknown Purchasing acceptance phase: ${key}`);
+  beginPurchasingAcceptancePhase(phase.name);
   try {
-    Logger.log("PURCHASING ACCEPTANCE: CONTROLLER AND BROWSER API");
-    runPurchasingControllerTests();
-    runPurchasingApiTests();
-
-    Logger.log("PURCHASING ACCEPTANCE: SERVICE AND DATA INTEGRITY");
-    runPurchasingValidationTests();
-    runPurchasingDeletedListTests();
-    runPurchasingWriteTests();
-    runPurchasingRestoreTests();
-
-    Logger.log(
-      `COMPLETE: Purchasing module acceptance (${activeTestRegistry.size} unique tests)`,
-    );
+    if (phase.audit) {
+      Logger.log(`PURCHASING ${phase.name} ACCEPTANCE: LIVE-DATA AUDIT`);
+      const audit = runPurchasingDataAudit();
+      if (!audit || audit.success !== true) {
+        const issues = Array.isArray(audit?.blockingIssues) ? audit.blockingIssues.join(" | ") : "Purchasing data audit did not pass.";
+        throw new Error(`Purchasing production data audit failed: ${issues}`);
+      }
+    }
+    phase.suites.forEach((suite) => runTestSuite(suite.name, suite.tests));
+    if (phase.metaTests.length) runTestSuite(`Purchasing ${phase.name.toLowerCase()} meta tests`, phase.metaTests);
   } finally {
-    activeTestRegistry = null;
+    completePurchasingAcceptancePhase(phase.name);
   }
+}
+
+function runPurchasingReadAcceptance() {
+  runPurchasingAcceptancePhase("read");
+}
+
+function runPurchasingMutationAcceptance() {
+  runPurchasingAcceptancePhase("mutation");
+}
+
+function runPurchasingRestoreAcceptance() {
+  runPurchasingAcceptancePhase("restore");
+}
+
+function runPurchasingModuleAcceptance() {
+  throw new Error("Purchasing acceptance exceeds one Apps Script execution. Run in order: runPurchasingReadAcceptance(), runPurchasingMutationAcceptance(), runPurchasingRestoreAcceptance().");
 }
 
 /**

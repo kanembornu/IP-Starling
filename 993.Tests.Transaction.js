@@ -6459,7 +6459,8 @@ function testPurchasingUxConsistencySourceContracts() {
   const view = HtmlService.createHtmlOutputFromFile("940.View.Purchasing").getContent();
   const presenter = HtmlService.createHtmlOutputFromFile("978.View.Purchasing.Presenter").getContent();
   const app = HtmlService.createHtmlOutputFromFile("970.View.App").getContent();
-  const ui = `${view}\n${presenter}\n${app}`;
+  const events = HtmlService.createHtmlOutputFromFile("980.View.Event").getContent();
+  const ui = `${view}\n${presenter}\n${app}\n${events}`;
 
   ["btn-purchasing-add", "inp-purchasing-search", "btn-purchasing-refresh", "tbl-purchasing", "purchasing-pagination"].forEach((id) => {
     if (view.indexOf(`id="${id}"`) < 0) throw new Error(`Purchasing UX control ${id} is missing.`);
@@ -6473,10 +6474,10 @@ function testPurchasingUxConsistencySourceContracts() {
   if (!/overflow-x-auto/.test(view) || !/sm:flex-row/.test(view)) throw new Error("Purchasing active page is not narrow-screen safe.");
   if (!/min-w-\[22rem\][^"']*whitespace-normal[^"']*break-words/.test(presenter)) throw new Error("Deleted Purchasing reason column is cramped or truncated.");
   ["Unit Price", "Total", "Status Restore", "Keterangan"].forEach((label) => { if (presenter.indexOf(label) < 0) throw new Error(`Deleted Purchasing column ${label} is missing.`); });
-  if (!/row\?\.canRestore === true && !restoreBusyId/.test(presenter) || !/row\?\.restoreReason/.test(presenter)) throw new Error("Purchasing Restore eligibility is not rendered from the server contract.");
-  if (!/page\.map\(mode === "deleted" \? renderDeletedRow : renderRow\)/.test(presenter) || !/data-purchasing-action="restore"/.test(presenter)) throw new Error("Purchasing Deleted rows do not render inline.");
+  if (!/row\?\.canRestore === true && !busy/.test(presenter) || !/row\?\.restoreReason/.test(presenter)) throw new Error("Purchasing Restore eligibility is not rendered from the server contract.");
+  if (!/rows\.map\(\(row\) => mode === "deleted" \? renderDeletedRow/.test(presenter) || !/data-purchasing-action="restore"/.test(presenter)) throw new Error("Purchasing Deleted rows do not render inline.");
   if (!/resetPagination\("purchasing", next\)/.test(app) || !/request !== purchasingRequest[^\n]+mode !== state\.purchasingMode/.test(app)) throw new Error("Purchasing mode reset or stale-response guard is missing.");
-  if (/Api\.Purchasing\.(?:findDeleted|restore)/.test(presenter) || !/Api\.Purchasing\.findDeleted/.test(app) || !/Api\.Purchasing\.restore/.test(app)) throw new Error("Purchasing deleted orchestration is not App-owned.");
+  if (/Api\.Purchasing/.test(presenter) || !/Api\.Purchasing\.findDeleted/.test(app) || !/Api\.Purchasing\.restore/.test(app)) throw new Error("Purchasing orchestration is not App-owned.");
   const publicApi = /return Object\.freeze\(\{([\s\S]*?)\}\);/.exec(presenter)?.[1] || "";
   if ((presenter.match(/function renderLoading\s*\(/g) || []).length !== 1 || !/\brenderLoading\s*,/.test(publicApi) || !/\brenderError\s*,/.test(publicApi)) throw new Error("Purchasing loading/error renderers are not exposed exactly once.");
   ["renderLoading", "renderError", "render"].forEach((method) => {
@@ -6487,6 +6488,63 @@ function testPurchasingUxConsistencySourceContracts() {
   if (/data-[^=\s]*(?:purge|hard-delete|permanent-delete)/i.test(ui)) throw new Error("Permanent Purchasing delete UX was introduced.");
   if (/SpreadsheetApp|RepositoryWriter|AuditLogService|AppLogService/.test(ui)) throw new Error("Purchasing UI accesses spreadsheet or audit writers directly.");
   if (/Api\.|google\.script\.run/.test(view)) throw new Error("Purchasing View markup introduced orchestration.");
+}
+
+function testPurchasingFrontendArchitectureSourceContracts() {
+  const presenter = HtmlService.createHtmlOutputFromFile("978.View.Purchasing.Presenter").getContent();
+  const app = HtmlService.createHtmlOutputFromFile("970.View.App").getContent();
+  const api = HtmlService.createHtmlOutputFromFile("965.View.API").getContent();
+  const events = HtmlService.createHtmlOutputFromFile("980.View.Event").getContent();
+  const view = HtmlService.createHtmlOutputFromFile("940.View.Purchasing").getContent();
+
+  ["render", "renderLoading", "renderError", "renderCreateForm", "renderEditForm", "renderDetail"].forEach((method) => {
+    if (!new RegExp(`\\b${method}\\s*,?`).test(presenter)) throw new Error(`PurchasingPresenter.${method} is not exported.`);
+  });
+  if (/Api\.|google\.script\.run|\basync\b|\bawait\b|\bPromise\b|addEventListener|\bToast\.|\bDialog\.|\bModal\.|\bApp\.|\b(?:Service|Controller|Repository|SpreadsheetApp)\b/.test(presenter)) throw new Error("PurchasingPresenter contains orchestration, state ownership, or forbidden access.");
+  if (/\blet\s+(?:mode|loadedRows|.*Request|.*Submitting|.*Form)\b/.test(presenter)) throw new Error("PurchasingPresenter contains module application state.");
+  ["purchasingMode", "purchasingSearch", "purchasingLoading", "purchasingRequest", "loadPurchasing", "renderPurchasing", "openCreatePurchasing", "openEditPurchasing", "deletePurchasing", "restorePurchasing"].forEach((contract) => { if (app.indexOf(contract) < 0) throw new Error(`App Purchasing contract ${contract} is missing.`); });
+  if (!/request !== purchasingRequest[^\n]+state\.page !== "purchasing"[^\n]+mode !== state\.purchasingMode/.test(app)) throw new Error("Canonical Purchasing stale-response rejection is missing.");
+  ["findAll", "findDeleted", "findById", "create", "update", "remove", "restore"].forEach((method) => { if (!new RegExp(`\\b${method}\\([^)]*\\)\\s*\\{[\\s\\S]{0,100}return run\\(`).test(api)) throw new Error(`Api.Purchasing.${method} transport is missing.`); });
+  if (!/function bindPurchasing\(\)/.test(events) || (events.match(/bindPurchasing\(\);/g) || []).length !== 1) throw new Error("Purchasing listeners are not bound exactly once.");
+  if (/Api\.Purchasing|PurchasingPresenter\./.test(events)) throw new Error("Purchasing Events bypass App ownership.");
+  if (!/actionButton\.disabled \|\| actionButton\.getAttribute\("aria-disabled"\) === "true"/.test(events)) throw new Error("Disabled Purchasing Restore can dispatch.");
+  if (/Api\.|google\.script\.run|SpreadsheetApp|Repository/.test(view)) throw new Error("Purchasing View contains orchestration or data access.");
+}
+
+function testPurchasingAggregatePhaseRegistrationContracts() {
+  const phases = PURCHASING_ACCEPTANCE_PHASES;
+  if (!Array.isArray(phases) || phases.length !== 3) throw new Error("Purchasing canonical phase registry is unavailable.");
+  const expectedOrder = ["read", "mutation", "restore"];
+  if (!expectedOrder.every((key, index) => phases[index]?.key === key)) throw new Error("Purchasing canonical phase order must be Read, Mutation, Restore.");
+
+  const assigned = phases.reduce((tests, phase) => {
+    if (!Array.isArray(phase.suites) || !phase.suites.length) throw new Error(`Purchasing ${phase.key} phase has no suites.`);
+    const phaseTests = phase.suites.reduce((suiteTests, suite) => suiteTests.concat(suite.tests || []), []);
+    if (phaseTests.length !== phase.expectedCount) throw new Error(`Unexpected Purchasing ${phase.key} count: ${phaseTests.length}; expected ${phase.expectedCount}.`);
+    return tests.concat(phaseTests);
+  }, []);
+  const assignedNames = assigned.map((test) => test.name);
+  if (assigned.some((test) => typeof test !== "function" || !test.name)) throw new Error("A registered Purchasing test is not a callable named function.");
+  const uniqueNames = new Set(assignedNames);
+  if (uniqueNames.size !== assignedNames.length) throw new Error("A Purchasing test is registered in more than one canonical phase.");
+  if (assigned.length !== 53 || uniqueNames.size !== 53) throw new Error(`Purchasing phase registry must contain exactly 53 known tests; found ${uniqueNames.size}.`);
+  const metaTests = phases.reduce((tests, phase) => tests.concat(phase.metaTests || []), []);
+  const metaNames = metaTests.map((test) => test.name);
+  if (metaTests.some((test) => typeof test !== "function" || !test.name)) throw new Error("A registered Purchasing meta-test is not a callable named function.");
+  if (metaNames.length !== 1 || metaNames[0] !== "testPurchasingAggregatePhaseRegistrationContracts") throw new Error("Purchasing aggregate registration contract must be the sole Read meta-test.");
+  if (phases[0].metaTests !== PURCHASING_META_TESTS || phases.slice(1).some((phase) => phase.metaTests.length)) throw new Error("Purchasing meta-test ownership must belong only to the Read phase.");
+  if (assignedNames.some((name) => metaNames.indexOf(name) >= 0)) throw new Error("Purchasing meta-tests must not distort production phase membership.");
+  const allRegisteredNames = assignedNames.concat(metaNames);
+  if (new Set(allRegisteredNames).size !== 54) throw new Error(`Purchasing production and meta registries must contain 54 unique tests; found ${new Set(allRegisteredNames).size}.`);
+  if ((assignedNames.filter((name) => name === "testPurchasingFrontendArchitectureSourceContracts")).length !== 1 || (assignedNames.filter((name) => name === "testPurchasingUxConsistencySourceContracts")).length !== 1) throw new Error("Purchasing frontend architecture contracts must be registered exactly once.");
+  if (phases.filter((phase) => phase.audit === true).length !== 1 || phases[0].audit !== true) throw new Error("Purchasing live-data audit must belong only to the read phase.");
+  const phaseRunnerNames = new Set(phases.map((phase) => phase.runner));
+  if (assigned.some((test) => phaseRunnerNames.has(test.name) || test.name === "runPurchasingAcceptancePhase")) throw new Error("A Purchasing phase recursively registers an aggregate runner.");
+
+  let failFastMessage = "";
+  try { runPurchasingModuleAcceptance(); } catch (error) { failFastMessage = error.message; }
+  const requiredRunners = ["runPurchasingReadAcceptance()", "runPurchasingMutationAcceptance()", "runPurchasingRestoreAcceptance()"];
+  if (!requiredRunners.every((name) => failFastMessage.indexOf(name) >= 0)) throw new Error("Deprecated Purchasing combined runner does not fail fast with all canonical phase names.");
 }
 
 function expenseControllerAssertResponse(response, expectedSuccess) {

@@ -85,6 +85,24 @@
 
       purchasingMode: "active",
 
+      purchasingSearch: "",
+
+      purchasingLoading: false,
+
+      purchasingError: "",
+
+      purchasingBusyId: null,
+
+      purchasingForm: null,
+
+      purchasingFormKind: null,
+
+      purchasingSuppliers: [],
+
+      purchasingProducts: [],
+
+      purchasingSubmitting: false,
+
       purchasingRestoreBusyId: null,
 
       purchasingRestoreConfirming: false,
@@ -174,6 +192,8 @@
       if (state.page === "products") productRequest += 1;
 
       if (state.page === "partners") partnerRequest += 1;
+
+      if (state.page === "purchasing") purchasingRequest += 1;
 
       state.page = page;
 
@@ -425,8 +445,8 @@
     }
     function resetPagination(module, mode) { paginationState(module, mode).modeState.page = 1; }
     function bindPaginationActions() {
-      document.addEventListener("click", (event) => { const button = event.target.closest("[data-pagination-action]"); if (!button || button.disabled) return; const module = button.dataset.paginationModule; const mode = button.dataset.paginationMode || "active"; const current = paginationState(module, mode); current.modeState.page += button.dataset.paginationAction === "previous" ? -1 : 1; paginationRenderers[`${module}:${mode}`]?.(); });
-      document.addEventListener("change", (event) => { const select = event.target.closest("[data-pagination-size]"); if (!select) return; const module = select.dataset.paginationSize; const mode = select.dataset.paginationMode || "active"; const current = paginationState(module, mode); current.moduleState.pageSize = validPageSize(select.value); current.moduleState.explicit = true; current.modeState.page = 1; paginationRenderers[`${module}:${mode}`]?.(); });
+      document.addEventListener("click", (event) => { const button = event.target.closest("[data-pagination-action]"); if (!button || button.disabled) return; const module = button.dataset.paginationModule; if (module === "purchasing") return; const mode = button.dataset.paginationMode || "active"; const current = paginationState(module, mode); current.modeState.page += button.dataset.paginationAction === "previous" ? -1 : 1; paginationRenderers[`${module}:${mode}`]?.(); });
+      document.addEventListener("change", (event) => { const select = event.target.closest("[data-pagination-size]"); if (!select) return; const module = select.dataset.paginationSize; if (module === "purchasing") return; const mode = select.dataset.paginationMode || "active"; const current = paginationState(module, mode); current.moduleState.pageSize = validPageSize(select.value); current.moduleState.explicit = true; current.modeState.page = 1; paginationRenderers[`${module}:${mode}`]?.(); });
     }
 
     function applyDefaultPageSize(value, rerenderCurrent = false) {
@@ -1051,7 +1071,9 @@
     async function loadPurchasing() {
       const mode = state.purchasingMode;
       const request = ++purchasingRequest;
-      PurchasingPresenter.renderLoading(mode);
+      state.purchasingLoading = true;
+      state.purchasingError = "";
+      PurchasingPresenter.renderLoading({ mode });
 
       let res;
 
@@ -1066,22 +1088,56 @@
         if (!error?.appNotified) {
           Toast.error(readableLoadError(error, mode === "deleted" ? "Deleted Purchasing could not be loaded." : "Load purchasing failed."));
         }
-        PurchasingPresenter.renderError(mode);
+        state.purchasingLoading = false;
+        state.purchasingError = readableLoadError(error, "Purchasing could not be loaded.");
+        PurchasingPresenter.renderError({ mode, message: state.purchasingError });
         return false;
       }
 
       if (request !== purchasingRequest || state.page !== "purchasing" || mode !== state.purchasingMode) return false;
       if (!res || !res.success) {
         Toast.error(res?.message || (mode === "deleted" ? "Deleted Purchasing could not be loaded." : "Load purchasing failed."));
-        PurchasingPresenter.renderError(mode);
+        state.purchasingLoading = false;
+        state.purchasingError = res?.message || "Purchasing could not be loaded.";
+        PurchasingPresenter.renderError({ mode, message: state.purchasingError });
         return false;
       }
 
       if (mode === "deleted") state.deletedPurchasing = Utils.deepClone(res.data);
       else state.purchasing = Utils.deepClone(res.data);
-
-      PurchasingPresenter.render(res.data, mode, state.purchasingRestoreBusyId);
+      state.purchasingLoading = false;
+      renderPurchasing();
       return true;
+    }
+
+    function purchasingNames(records) {
+      return (Array.isArray(records) ? records : []).reduce((names, record) => {
+        names[String(record?.ID ?? "")] = record?.Nama;
+        return names;
+      }, {});
+    }
+
+    function purchasingSource() {
+      return state.purchasingMode === "deleted" ? state.deletedPurchasing : state.purchasing;
+    }
+
+    function purchasingMatches(row, query, supplierNames, productNames) {
+      if (!query) return true;
+      const supplierId = row?.SupplierID; const productId = row?.ProductID;
+      return [row?.ID, row?.Tanggal, Format.date(row?.Tanggal), supplierId, supplierNames[String(supplierId)] || supplierId, productId, productNames[String(productId)] || productId, row?.Qty, Format.number(row?.Qty), row?.Harga, Format.currency(row?.Harga), row?.Total, Format.currency(row?.Total), row?.restoreReason, state.purchasingMode === "deleted" ? "Deleted" : "Active"]
+        .some((value) => String(value ?? "").toLowerCase().includes(query));
+    }
+
+    function renderPurchasing() {
+      if (state.page !== "purchasing" || state.purchasingLoading) return;
+      const mode = state.purchasingMode;
+      const supplierNames = purchasingNames(state.partners);
+      const productNames = purchasingNames(state.products);
+      const query = state.purchasingSearch.trim().toLowerCase();
+      const source = purchasingSource();
+      const filtered = source.filter((row) => purchasingMatches(row, query, supplierNames, productNames));
+      const rows = paginateRows("purchasing", mode, filtered, "purchasing-pagination", "lbl-purchasing-info", mode === "deleted" ? "Purchasing terhapus" : "Purchasing", renderPurchasing);
+      PurchasingPresenter.render({ mode, rows, supplierNames, productNames, busyId: state.purchasingRestoreBusyId || state.purchasingBusyId, emptyMessage: source.length && query ? "No purchasing matches your search." : mode === "deleted" ? "Belum ada Purchasing terhapus." : "No purchasing available." });
     }
 
     function getPurchasingMode() { return state.purchasingMode; }
@@ -1094,6 +1150,106 @@
       return loadPurchasing();
     }
 
+    function searchPurchasing(value) {
+      state.purchasingSearch = String(value ?? "");
+      resetPagination("purchasing", state.purchasingMode);
+      renderPurchasing();
+    }
+
+    function refreshPurchasing() {
+      state.purchasingSearch = "";
+      const input = DOM.$("inp-purchasing-search"); if (input) input.value = "";
+      return loadPurchasing();
+    }
+
+    function changePurchasingPage(direction) {
+      const current = paginationState("purchasing", state.purchasingMode);
+      current.modeState.page += direction === "previous" ? -1 : 1;
+      renderPurchasing();
+    }
+
+    function changePurchasingPageSize(value) {
+      const current = paginationState("purchasing", state.purchasingMode);
+      current.moduleState.pageSize = validPageSize(value); current.moduleState.explicit = true; current.modeState.page = 1;
+      renderPurchasing();
+    }
+
+    function selectablePurchasingSuppliers() { return state.partners.filter((row) => !truthy(row?.Deleted, false) && truthy(row?.IsActive, false) && String(row?.Jenis ?? "").trim().toLowerCase() === "supplier"); }
+    function selectablePurchasingProducts() { return state.products.filter((row) => !truthy(row?.Deleted, false) && truthy(row?.IsActive, false)); }
+    function truthy(value, fallback) { if (value === true || value === 1 || String(value).toLowerCase() === "true") return true; if (value === false || value === 0 || String(value).toLowerCase() === "false") return false; return fallback; }
+    function purchasingToday() { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`; }
+
+    function openCreatePurchasing() {
+      if (state.purchasingSubmitting || state.purchasingMode !== "active") return;
+      state.purchasingFormKind = "create"; state.purchasingSuppliers = selectablePurchasingSuppliers(); state.purchasingProducts = selectablePurchasingProducts();
+      state.purchasingForm = { Tanggal: purchasingToday(), SupplierID: "", ProductID: "", Qty: "", Harga: "" };
+      Modal.open({ title: "Create Purchasing", width: "md", body: PurchasingPresenter.renderCreateForm(purchasingFormView()), footer: PurchasingPresenter.renderFormFooter("create", { unavailable: !state.purchasingSuppliers.length || !state.purchasingProducts.length }) });
+      DOM.$("inp-purchasing-create-date")?.focus();
+    }
+
+    async function openEditPurchasing(id) {
+      const normalizedId = String(id || "").trim(); if (!normalizedId || state.purchasingSubmitting || state.purchasingBusyId) return purchasingError("Purchasing ID is unavailable.");
+      const request = ++purchasingRequest; state.purchasingBusyId = normalizedId; PurchasingPresenter.setRowBusy(normalizedId, true);
+      Modal.open({ title: "Edit Purchasing", width: "md", body: Components.loading("Loading purchasing for editing..."), footer: PurchasingPresenter.renderFormFooter("edit", { loading: true }) });
+      try {
+        const response = await Api.Purchasing.findById(normalizedId);
+        if (request !== purchasingRequest || state.page !== "purchasing") return;
+        if (!response?.success || !response.data || String(response.data.ID || "") !== normalizedId) throw new Error(response?.message || "Purchasing could not be loaded for editing.");
+        const row = response.data; state.purchasingFormKind = "edit"; state.purchasingSuppliers = selectablePurchasingSuppliers(); state.purchasingProducts = selectablePurchasingProducts();
+        state.purchasingForm = { id: normalizedId, Tanggal: dateInput(row.Tanggal), SupplierID: String(row.SupplierID || ""), ProductID: String(row.ProductID || ""), Qty: String(row.Qty ?? ""), Harga: String(row.Harga ?? "") };
+        Modal.body(PurchasingPresenter.renderEditForm(purchasingFormView())); Modal.footer(PurchasingPresenter.renderFormFooter("edit")); PurchasingPresenter.updateTotal("edit", purchasingTotal()); DOM.$("inp-purchasing-edit-date")?.focus();
+      } catch (error) { if (request === purchasingRequest) { const message = readableLoadError(error, "Purchasing could not be loaded for editing. Please try again."); Toast.error(message); Modal.body(Components.empty(Utils.escapeHTML(message))); } }
+      finally { if (request === purchasingRequest) { state.purchasingBusyId = null; PurchasingPresenter.setRowBusy(normalizedId, false); } }
+    }
+
+    async function viewPurchasing(id) {
+      const normalizedId = String(id || "").trim(); if (!normalizedId || state.purchasingBusyId) return purchasingError("Purchasing ID is unavailable.");
+      const request = ++purchasingRequest; state.purchasingBusyId = normalizedId; PurchasingPresenter.setRowBusy(normalizedId, true);
+      Modal.open({ title: "Purchasing Detail", width: "lg", body: Components.loading("Loading purchasing detail..."), footer: PurchasingPresenter.renderDetailFooter() });
+      try { const response = await Api.Purchasing.findById(normalizedId); if (request !== purchasingRequest || state.page !== "purchasing") return; if (!response?.success || !response.data) throw new Error(response?.message || "Purchasing detail is unavailable."); Modal.body(PurchasingPresenter.renderDetail(response.data, { supplierNames: purchasingNames(state.partners), productNames: purchasingNames(state.products) })); }
+      catch (error) { if (request === purchasingRequest) { const message = readableLoadError(error, "Purchasing detail could not be loaded."); Toast.error(message); Modal.body(Components.empty(Utils.escapeHTML(message))); } }
+      finally { if (request === purchasingRequest) { state.purchasingBusyId = null; PurchasingPresenter.setRowBusy(normalizedId, false); } }
+    }
+
+    function updatePurchasingForm(kind, field, value) {
+      if (kind !== state.purchasingFormKind || !state.purchasingForm || !["Tanggal", "SupplierID", "ProductID", "Qty", "Harga"].includes(field)) return;
+      state.purchasingForm[field] = value; PurchasingPresenter.clearFieldError(kind, field); if (field === "Qty" || field === "Harga") PurchasingPresenter.updateTotal(kind, purchasingTotal());
+    }
+    function purchasingTotal() { const qty = Number(state.purchasingForm?.Qty); const price = Number(state.purchasingForm?.Harga); return String(state.purchasingForm?.Qty ?? "") && String(state.purchasingForm?.Harga ?? "") && Number.isFinite(qty) && qty > 0 && Number.isFinite(price) && price >= 0 ? qty * price : 0; }
+    function purchasingFormView() { return { form: state.purchasingForm, suppliers: state.purchasingSuppliers, products: state.purchasingProducts, total: purchasingTotal() }; }
+    function dateInput(value) { const text = String(value ?? "").trim(); return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : ""; }
+    function validDateInput(value) { const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value); if (!match) return false; const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])); return date.getFullYear() === Number(match[1]) && date.getMonth() === Number(match[2]) - 1 && date.getDate() === Number(match[3]); }
+    function validatePurchasingForm(kind) {
+      const form = state.purchasingForm || {}; const date = String(form.Tanggal || "").trim(); const supplier = String(form.SupplierID || "").trim(); const product = String(form.ProductID || "").trim(); const qtyText = String(form.Qty ?? "").trim(); const priceText = String(form.Harga ?? "").trim(); const qty = Number(qtyText); const price = Number(priceText);
+      const has = (rows, id) => rows.some((row) => String(row?.ID || "") === id);
+      if (!validDateInput(date)) return { field: "Tanggal", message: "Date is required." };
+      if (!supplier || !has(state.purchasingSuppliers, supplier)) return { field: "SupplierID", message: kind === "create" && !state.purchasingSuppliers.length ? "No active Supplier is available for Purchasing." : "Select an active Supplier." };
+      if (!product || !has(state.purchasingProducts, product)) return { field: "ProductID", message: kind === "create" && !state.purchasingProducts.length ? "No active Product is available for Purchasing." : "Select an active Product." };
+      if (!qtyText || !Number.isFinite(qty) || qty <= 0) return { field: "Qty", message: "Qty must be a number greater than zero." };
+      if (!priceText || !Number.isFinite(price) || price < 0) return { field: "Harga", message: "Unit Price must be a number greater than or equal to zero." };
+      return { payload: { Tanggal: date, SupplierID: supplier, ProductID: product, Qty: qty, Harga: price } };
+    }
+
+    async function submitPurchasingForm(kind) {
+      if (state.purchasingSubmitting || kind !== state.purchasingFormKind || !state.purchasingForm) return false;
+      const validation = validatePurchasingForm(kind); if (!validation.payload) { if (!PurchasingPresenter.showFieldError(kind, validation.field, validation.message)) Toast.error(validation.message); return false; }
+      purchasingRequest += 1; state.purchasingSubmitting = true; Modal.footer(PurchasingPresenter.renderFormFooter(kind, { loading: true }));
+      try { const response = kind === "create" ? await Api.Purchasing.create(validation.payload) : await Api.Purchasing.update(state.purchasingForm.id, validation.payload); if (!response?.success) { Toast.error(response?.message || `Purchasing could not be ${kind === "create" ? "created" : "updated"}.`); return false; } Toast.success(response.message || `Purchasing ${kind === "create" ? "created" : "updated"}.`); closePurchasingModal(true); await loadPurchasing(); return true; }
+      catch (error) { Toast.error(readableLoadError(error, `Purchasing could not be ${kind === "create" ? "created" : "updated"}. Please try again.`)); return false; }
+      finally { state.purchasingSubmitting = false; if (state.purchasingFormKind === kind) Modal.footer(PurchasingPresenter.renderFormFooter(kind)); }
+    }
+
+    function closePurchasingModal(force = false) { if (state.purchasingSubmitting && !force) return; purchasingRequest += 1; state.purchasingForm = null; state.purchasingFormKind = null; state.purchasingBusyId = null; Modal.close(); }
+    function purchasingError(message) { Toast.error(message); return false; }
+
+    async function deletePurchasing(id) {
+      const row = state.purchasing.find((item) => String(item?.ID || "") === String(id || "")); if (!row || state.purchasingBusyId) return purchasingError("This Purchasing record is no longer available for deletion.");
+      purchasingRequest += 1; state.purchasingBusyId = String(row.ID);
+      try { const confirmed = await Dialog.confirm({ title: "Delete Purchasing", confirmText: "Delete Purchasing", loadingText: "Deleting...", message: PurchasingPresenter.renderDeleteMessage(row, { supplierNames: purchasingNames(state.partners), productNames: purchasingNames(state.products) }), onConfirm: async () => { const response = await Api.Purchasing.remove(row.ID); if (!response?.success) { Toast.error(response?.message || "Purchasing could not be deleted."); return false; } Toast.success(response.message || "Purchasing deleted."); return true; } }); if (confirmed && state.page === "purchasing") await loadPurchasing(); return Boolean(confirmed); }
+      catch (error) { Toast.error(readableLoadError(error, "Purchasing could not be deleted. Please try again.")); return false; }
+      finally { state.purchasingBusyId = null; }
+    }
+
     async function restorePurchasing(id) {
       const purchasingId = String(id || "").trim();
       if (!purchasingId || state.page !== "purchasing" || state.purchasingMode !== "deleted" || state.purchasingRestoreBusyId || state.purchasingRestoreConfirming) return false;
@@ -1104,6 +1260,7 @@
 
       let succeeded = false;
       let attempted = false;
+      purchasingRequest += 1;
       state.purchasingRestoreConfirming = true;
       try {
         const confirmed = await Dialog.confirm({
@@ -1115,7 +1272,7 @@
             if (attempted || state.purchasingRestoreBusyId || state.page !== "purchasing" || state.purchasingMode !== "deleted") return false;
             attempted = true;
             state.purchasingRestoreBusyId = purchasingId;
-            PurchasingPresenter.render(state.deletedPurchasing, "deleted", purchasingId);
+            renderPurchasing();
             try {
               const response = await Api.Purchasing.restore(purchasingId);
               if (!response?.success) { Toast.error(response?.message || "Purchasing could not be restored."); return true; }
@@ -1133,7 +1290,7 @@
         if (confirmed && state.page === "purchasing" && state.purchasingMode === "deleted") await loadPurchasing();
       } finally {
         state.purchasingRestoreConfirming = false;
-        if (state.page === "purchasing" && state.purchasingMode === "deleted" && !succeeded) PurchasingPresenter.render(state.deletedPurchasing, "deleted", state.purchasingRestoreBusyId);
+        if (state.page === "purchasing" && state.purchasingMode === "deleted" && !succeeded) renderPurchasing();
       }
 
       return succeeded;
@@ -1327,6 +1484,17 @@
 
       getPurchasingMode,
       setPurchasingMode,
+      searchPurchasing,
+      refreshPurchasing,
+      changePurchasingPage,
+      changePurchasingPageSize,
+      openCreatePurchasing,
+      openEditPurchasing,
+      viewPurchasing,
+      updatePurchasingForm,
+      submitPurchasingForm,
+      closePurchasingModal,
+      deletePurchasing,
       restorePurchasing,
 
       loadProducts,
