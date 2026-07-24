@@ -75,6 +75,24 @@
 
       returnMode: "active",
 
+      returnSearch: "",
+
+      returnLoading: false,
+
+      returnError: "",
+
+      returnBusyId: null,
+
+      returnForm: null,
+
+      returnFormKind: null,
+
+      returnPickups: null,
+
+      returnPickupDetails: {},
+
+      returnSubmitting: false,
+
       returnRestoreBusyId: null,
 
       returnRestoreConfirming: false,
@@ -198,6 +216,8 @@
       if (state.page === "partners") partnerRequest += 1;
 
       if (state.page === "purchasing") purchasingRequest += 1;
+
+      if (state.page === "returns") { returnRequest += 1; state.returnForm = null; state.returnFormKind = null; }
 
       state.page = page;
 
@@ -449,8 +469,8 @@
     }
     function resetPagination(module, mode) { paginationState(module, mode).modeState.page = 1; }
     function bindPaginationActions() {
-      document.addEventListener("click", (event) => { const button = event.target.closest("[data-pagination-action]"); if (!button || button.disabled) return; const module = button.dataset.paginationModule; if (module === "purchasing") return; const mode = button.dataset.paginationMode || "active"; const current = paginationState(module, mode); current.modeState.page += button.dataset.paginationAction === "previous" ? -1 : 1; paginationRenderers[`${module}:${mode}`]?.(); });
-      document.addEventListener("change", (event) => { const select = event.target.closest("[data-pagination-size]"); if (!select) return; const module = select.dataset.paginationSize; if (module === "purchasing") return; const mode = select.dataset.paginationMode || "active"; const current = paginationState(module, mode); current.moduleState.pageSize = validPageSize(select.value); current.moduleState.explicit = true; current.modeState.page = 1; paginationRenderers[`${module}:${mode}`]?.(); });
+      document.addEventListener("click", (event) => { const button = event.target.closest("[data-pagination-action]"); if (!button || button.disabled) return; const module = button.dataset.paginationModule; if (module === "purchasing" || module === "returns") return; const mode = button.dataset.paginationMode || "active"; const current = paginationState(module, mode); current.modeState.page += button.dataset.paginationAction === "previous" ? -1 : 1; paginationRenderers[`${module}:${mode}`]?.(); });
+      document.addEventListener("change", (event) => { const select = event.target.closest("[data-pagination-size]"); if (!select) return; const module = select.dataset.paginationSize; if (module === "purchasing" || module === "returns") return; const mode = select.dataset.paginationMode || "active"; const current = paginationState(module, mode); current.moduleState.pageSize = validPageSize(select.value); current.moduleState.explicit = true; current.modeState.page = 1; paginationRenderers[`${module}:${mode}`]?.(); });
     }
 
     function applyDefaultPageSize(value, rerenderCurrent = false) {
@@ -902,6 +922,8 @@
         state.deletedPickups = records;
       } else {
         state.pickups = records;
+        state.returnPickups = null;
+        state.returnPickupDetails = {};
       }
 
       PickupsPresenter.render(records, mode);
@@ -962,24 +984,28 @@
     async function loadReturns() {
       const mode = state.returnMode;
       const request = ++returnRequest;
-      ReturnsPresenter.renderLoading(mode);
+      state.returnLoading = true; state.returnError = "";
+      ReturnsPresenter.renderLoading({ mode });
       try {
         const response = mode === "deleted" ? await Api.Return.findDeleted() : await Api.Return.list();
         if (request !== returnRequest || state.page !== "returns" || mode !== state.returnMode) return false;
         if (!response?.success || !Array.isArray(response.data)) throw new Error(response?.message || "Load returns failed.");
         if (mode === "deleted") state.deletedReturns = Utils.deepClone(response.data);
         else state.returns = Utils.deepClone(response.data);
-        ReturnsPresenter.render(response.data, mode, state.returnRestoreBusyId);
+        state.returnLoading = false; renderReturns();
         return true;
       } catch (error) {
         if (request !== returnRequest || state.page !== "returns" || mode !== state.returnMode) return false;
         Toast.error(readableLoadError(error, mode === "deleted" ? "Deleted Returns could not be loaded." : "Load returns failed."));
-        ReturnsPresenter.renderError(mode);
+        state.returnLoading = false; state.returnError = readableLoadError(error, "Returns could not be loaded.");
+        ReturnsPresenter.renderError({ mode, message: state.returnError });
         return false;
       }
     }
 
     function refreshReturns() {
+      state.returnSearch = "";
+      const input = DOM.$("inp-return-search"); if (input) input.value = "";
       return loadReturns();
     }
 
@@ -1008,7 +1034,7 @@
     async function restoreReturn(id) {
       const returnId = String(id || "").trim();
 
-      if (!returnId || state.returnRestoreBusyId || state.returnRestoreConfirming) {
+      if (!returnId || state.page !== "returns" || state.returnMode !== "deleted" || state.returnRestoreBusyId || state.returnRestoreConfirming) {
         return false;
       }
 
@@ -1043,6 +1069,7 @@
 
             restoreAttempted = true;
             state.returnRestoreBusyId = returnId;
+            renderReturns();
 
             try {
               const response = await Api.Return.restore(returnId);
@@ -1068,13 +1095,45 @@
       }
 
       if (!confirmed) {
-        if (state.page === "returns" && state.returnMode === "deleted") ReturnsPresenter.render(state.deletedReturns, "deleted", state.returnRestoreBusyId);
+        if (state.page === "returns" && state.returnMode === "deleted") renderReturns();
         return false;
       }
 
       if (state.page === "returns" && state.returnMode === "deleted") await loadReturns();
       return restoreSucceeded;
     }
+
+    function returnSource() { return state.returnMode === "deleted" ? state.deletedReturns : state.returns; }
+    function returnStatus(row) { return truthy(row?.Deleted, false) ? "Deleted" : Format.status(truthy(row?.IsActive, true)); }
+    function returnMatches(row, query) { if (!query) return true; return [row?.ID,row?.PickupID,row?.PickupDetailID,row?.PartnerID,row?.PartnerName,row?.ProductID,row?.ProductName,row?.Tanggal,Format.date(row?.Tanggal),row?.Qty,row?.Keterangan,row?.restoreReason,returnStatus(row)].some((value)=>String(value??"").toLowerCase().includes(query)); }
+    function renderReturns() {
+      if (state.page !== "returns" || state.returnLoading) return;
+      const mode=state.returnMode, source=returnSource(), query=state.returnSearch.trim().toLowerCase();
+      const filtered=source.filter((row)=>returnMatches(row,query));
+      const rows=paginateRows("returns",mode,filtered,"return-pagination","lbl-return-info",mode==="deleted"?"Return terhapus":"Return",renderReturns);
+      ReturnsPresenter.render({mode,rows,busyId:state.returnRestoreBusyId||state.returnBusyId,emptyMessage:source.length&&query?"No returns match your search.":mode==="deleted"?"Belum ada Return terhapus.":"No returns available."});
+    }
+    function searchReturns(value) { state.returnSearch=String(value??""); resetPagination("returns",state.returnMode); renderReturns(); }
+    function changeReturnPage(direction) { const current=paginationState("returns",state.returnMode); current.modeState.page+=direction==="previous"?-1:1; renderReturns(); }
+    function changeReturnPageSize(value) { const current=paginationState("returns",state.returnMode); current.moduleState.pageSize=validPageSize(value); current.moduleState.explicit=true; current.modeState.page=1; renderReturns(); }
+    function returnRow(id) { return returnSource().find((row)=>String(row?.ID)===String(id||"")); }
+    function validReturnDetail(response) { return Boolean(response?.success&&response.data?.return&&typeof response.data.return==="object"&&Object.prototype.hasOwnProperty.call(response.data,"availableQty")); }
+    function returnFormView() { return {form:state.returnForm,pickups:state.returnPickups||[]}; }
+    function selectableReturns(records) { return (Array.isArray(records)?records:[]).filter((row)=>truthy(row?.IsActive,true)&&!truthy(row?.Deleted,false)); }
+    async function ensureReturnPickups() { if (state.returnPickups) return state.returnPickups; const response=await Api.Pickup.findAll(); if(!response?.success) throw new Error(response?.message||"Pickup headers could not be loaded."); state.returnPickups=selectableReturns(response.data); return state.returnPickups; }
+    async function openCreateReturn() {
+      if(state.returnSubmitting||state.returnMode!=="active")return;
+      try { const pickups=await ensureReturnPickups(); if(!pickups.length){Toast.warning("No active Pickup headers are available for Return.");return;} state.returnFormKind="create"; state.returnForm={Tanggal:"",PickupID:"",PickupDetailID:"",Qty:"",Keterangan:"",details:[],loadingDetails:false}; Modal.open({title:"Add Return",width:"lg",body:ReturnsPresenter.renderCreateForm(returnFormView()),footer:ReturnsPresenter.renderFormFooter("create")}); }
+      catch(error){Toast.error(readableLoadError(error,"Pickup headers could not be loaded."));}
+    }
+    async function changeReturnPickup(id) { if(!state.returnForm||state.returnFormKind!=="create"||state.returnSubmitting)return; const request=++returnRequest; const clean=String(id||""); Object.assign(state.returnForm,{PickupID:clean,PickupDetailID:"",Qty:"",details:[],loadingDetails:Boolean(clean)}); Modal.body(ReturnsPresenter.renderCreateForm(returnFormView())); if(!clean)return; try { let details=state.returnPickupDetails[clean]; if(!details){const response=await Api.Pickup.findById(clean);if(!response?.success||!Array.isArray(response.data?.details))throw new Error(response?.message||"Pickup Details could not be loaded.");details=selectableReturns(response.data.details);state.returnPickupDetails[clean]=details;} if(request!==returnRequest||!state.returnForm)return;state.returnForm.loadingDetails=false;state.returnForm.details=details;Modal.body(ReturnsPresenter.renderCreateForm(returnFormView()));if(!details.length)Toast.warning("The selected Pickup has no active Details."); } catch(error){if(request!==returnRequest||!state.returnForm)return;state.returnForm.loadingDetails=false;Modal.body(ReturnsPresenter.renderCreateForm(returnFormView()));Toast.error(readableLoadError(error,"Pickup Details could not be loaded."));} }
+    async function openEditReturn(id) { const clean=String(id||"").trim();if(!clean||state.returnSubmitting||state.returnBusyId)return Toast.error("Return ID is unavailable.");const request=++returnRequest;state.returnBusyId=clean;ReturnsPresenter.setRowBusy(clean,true);Modal.open({title:"Edit Return",width:"lg",body:Components.loading("Loading return..."),footer:ReturnsPresenter.renderFormFooter("edit",{loading:true})});try{const response=await Api.Return.findById(clean);if(request!==returnRequest||state.page!=="returns")return;if(!validReturnDetail(response))throw new Error(response?.message||"Return context is unavailable for editing.");const data=response.data,row=data.return;state.returnFormKind="edit";state.returnForm={id:clean,Tanggal:dateInput(row.Tanggal),Qty:String(row.Qty??""),Keterangan:String(row.Keterangan||""),availableQty:data.availableQty,pickupHeader:data.pickupHeader,pickupDetail:data.pickupDetail};Modal.body(ReturnsPresenter.renderEditForm(returnFormView()));Modal.footer(ReturnsPresenter.renderFormFooter("edit"));}catch(error){if(request===returnRequest){const message=readableLoadError(error,"Return could not be loaded for editing.");Toast.error(message);Modal.body(Components.empty(Utils.escapeHTML(message)));}}finally{if(request===returnRequest){state.returnBusyId=null;ReturnsPresenter.setRowBusy(clean,false);}} }
+    async function viewReturn(id) { const clean=String(id||"").trim();if(!clean||state.returnBusyId)return Toast.error("Return ID is unavailable.");const request=++returnRequest;state.returnBusyId=clean;ReturnsPresenter.setRowBusy(clean,true);Modal.open({title:"Return Detail",width:"lg",body:Components.loading("Loading return..."),footer:ReturnsPresenter.renderDetailFooter()});try{const response=await Api.Return.findById(clean);if(request!==returnRequest||state.page!=="returns")return;if(!validReturnDetail(response))throw new Error(response?.message||"Return detail is unavailable.");Modal.body(ReturnsPresenter.renderDetail(response.data));}catch(error){if(request===returnRequest){const message=readableLoadError(error,"Return detail could not be loaded.");Toast.error(message);Modal.body(Components.empty(Utils.escapeHTML(message)));}}finally{if(request===returnRequest){state.returnBusyId=null;ReturnsPresenter.setRowBusy(clean,false);}} }
+    function updateReturnForm(kind,field,value) { if(kind!==state.returnFormKind||!state.returnForm||!["Tanggal","PickupID","PickupDetailID","Qty","Keterangan"].includes(field))return;if(field==="PickupID"){if(String(state.returnForm.PickupID||"")===String(value||""))return;return changeReturnPickup(value);}state.returnForm[field]=value;if(field==="PickupDetailID")state.returnForm.Qty=""; }
+    function validateReturnForm() { const form=state.returnForm||{}, qty=Number(form.Qty); if(!String(form.Tanggal||"").trim())return {message:"Tanggal is required."};if(state.returnFormKind==="create"&&!String(form.PickupID||"").trim())return {message:"Pickup is required."};if(state.returnFormKind==="create"&&!String(form.PickupDetailID||"").trim())return {message:"Pickup Detail is required."};if(!Number.isFinite(qty))return {message:"Qty must be numeric."};if(qty<=0)return {message:"Qty must be greater than zero."};return {document:{Tanggal:String(form.Tanggal).trim(),Qty:qty,Keterangan:String(form.Keterangan||"").trim(),...(state.returnFormKind==="create"?{PickupDetailID:String(form.PickupDetailID).trim()}:{})}}; }
+    async function submitReturnForm(kind) { if(kind!==state.returnFormKind||!state.returnForm||state.returnSubmitting)return false;const validation=validateReturnForm();if(validation.message){Toast.warning(validation.message);return false;}state.returnSubmitting=true;Modal.footer(ReturnsPresenter.renderFormFooter(kind,{loading:true}));try{const response=kind==="create"?await Api.Return.create(validation.document):await Api.Return.update(state.returnForm.id,validation.document);if(!response?.success){Toast.error(response?.message||`Return could not be ${kind==="create"?"created":"updated"}.`);return false;}Toast.success(response.message||`Return ${kind==="create"?"created":"updated"}.`);state.returnSubmitting=false;closeReturnModal();await loadReturns();return true;}catch(error){Toast.error(readableLoadError(error,`Return could not be ${kind==="create"?"created":"updated"}. Please try again.`));return false;}finally{state.returnSubmitting=false;} }
+    function closeReturnModal(){if(state.returnSubmitting)return;returnRequest+=1;state.returnForm=null;state.returnFormKind=null;Modal.close();}
+    async function deleteReturn(id) { const row=returnRow(id);if(!row||state.returnSubmitting||state.returnBusyId){Toast.error("This Return is no longer available for deletion.");return false;}let succeeded=false;await Dialog.confirm({title:"Deactivate Return",confirmText:"Delete / Deactivate",loadingText:"Deactivating...",message:ReturnsPresenter.renderDeleteMessage(row),onConfirm:async()=>{if(state.returnSubmitting)return false;state.returnSubmitting=true;try{const response=await Api.Return.remove(String(row.ID));if(!response?.success){Toast.error(response?.message||"Return could not be deactivated.");return false;}succeeded=true;Toast.success(response.message||"Return deactivated.");return true;}catch(error){Toast.error(readableLoadError(error,"Return could not be deactivated. Please try again."));return false;}finally{state.returnSubmitting=false;}}});if(succeeded)await loadReturns();return succeeded;}
 
     //===========================================================================
     // Purchasing
@@ -1396,6 +1455,11 @@
 
           break;
 
+        case "returns":
+          searchReturns(keyword);
+
+          break;
+
         default:
           break;
       }
@@ -1489,9 +1553,16 @@
       refreshReturns,
       getReturnMode,
       setReturnMode,
-      showReturnError,
-      showReturnSuccess,
-      showReturnWarning,
+      searchReturns,
+      changeReturnPage,
+      changeReturnPageSize,
+      openCreateReturn,
+      openEditReturn,
+      viewReturn,
+      updateReturnForm,
+      submitReturnForm,
+      closeReturnModal,
+      deleteReturn,
       restoreReturn,
 
       getPurchasingMode,

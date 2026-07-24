@@ -214,6 +214,8 @@
 
       bindPurchasing();
 
+      bindReturns();
+
       document.addEventListener(
         "click",
 
@@ -230,6 +232,37 @@
       document.addEventListener("input", handlePurchasingInput);
       document.addEventListener("change", handlePurchasingInput);
       document.addEventListener("submit", handlePurchasingSubmit);
+    }
+
+    //===========================================================================
+    // Return intent delegation
+    //===========================================================================
+
+    function bindReturns() {
+      document.addEventListener("click", handleReturnClick);
+      document.addEventListener("input", handleReturnInput);
+      document.addEventListener("change", handleReturnInput);
+    }
+
+    function handleReturnClick(event) {
+      const page=event.target.closest("[data-pagination-action][data-pagination-module='returns']");
+      if(page){if(!page.disabled)App.changeReturnPage(page.dataset.paginationAction);return;}
+      const mode=event.target.closest("[data-return-mode]");if(mode)return App.setReturnMode(mode.dataset.returnMode);
+      if(event.target.closest("#btn-return-add"))return App.openCreateReturn();
+      if(event.target.closest("#btn-return-refresh"))return App.refreshReturns();
+      const action=event.target.closest("[data-return-action]");
+      if(action){if(action.disabled||action.getAttribute("aria-disabled")==="true")return;const id=action.dataset.returnId;if(action.dataset.returnAction==="view")return App.viewReturn(id);if(action.dataset.returnAction==="edit")return App.openEditReturn(id);if(action.dataset.returnAction==="delete")return App.deleteReturn(id);if(action.dataset.returnAction==="restore")return App.restoreReturn(id);}
+      const create=event.target.closest("[data-return-create-action]");if(create?.dataset.returnCreateAction==="cancel")return App.closeReturnModal();if(create?.dataset.returnCreateAction==="save")return App.submitReturnForm("create");
+      const edit=event.target.closest("[data-return-edit-action]");if(edit?.dataset.returnEditAction==="cancel")return App.closeReturnModal();if(edit?.dataset.returnEditAction==="save")return App.submitReturnForm("edit");
+      if(event.target.closest("[data-return-detail-action='close']"))return App.closeReturnModal();
+      if(event.target.closest("#btn-modal-close")&&document.querySelector("[data-return-create-field], [data-return-edit-field], [data-return-detail-action]"))App.closeReturnModal();
+    }
+
+    function handleReturnInput(event) {
+      if(event.type==="change"&&event.target?.dataset?.paginationSize==="returns")return App.changeReturnPageSize(event.target.value);
+      if(event.target?.id==="inp-return-search")return App.searchReturns(event.target.value);
+      const create=event.target?.dataset?.returnCreateField;if(create)return App.updateReturnForm("create",create,event.target.value);
+      const edit=event.target?.dataset?.returnEditField;if(edit)return App.updateReturnForm("edit",edit,event.target.value);
     }
 
     function handlePurchasingClick(event) {

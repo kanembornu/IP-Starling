@@ -6481,7 +6481,8 @@ function testReturnUxConsistencySourceContracts() {
   const view = HtmlService.createHtmlOutputFromFile("935.View.Returns").getContent();
   const presenter = HtmlService.createHtmlOutputFromFile("979.View.Returns.Presenter").getContent();
   const app = HtmlService.createHtmlOutputFromFile("970.View.App").getContent();
-  const ui = `${view}\n${presenter}\n${app}`;
+  const events = HtmlService.createHtmlOutputFromFile("980.View.Event").getContent();
+  const ui = `${view}\n${presenter}\n${app}\n${events}`;
 
   ["btn-return-add", "inp-return-search", "btn-return-refresh", "tbl-returns", "return-pagination"].forEach((id) => {
     if (view.indexOf(`id="${id}"`) < 0) throw new Error(`Return UX control ${id} is missing.`);
@@ -6494,14 +6495,19 @@ function testReturnUxConsistencySourceContracts() {
   if (/btn-return-trash|return-trash|openReturnTrash|renderReturnTrash|returnTrash/.test(ui)) throw new Error("Obsolete Return Deleted modal path remains.");
   if (!/overflow-x-auto/.test(view) || !/sm:flex-row/.test(view)) throw new Error("Return active page is not narrow-screen safe.");
   if (!/min-w-\[20rem\][^"']*whitespace-normal[^"']*break-words/.test(presenter)) throw new Error("Deleted Return reason column is cramped or truncated.");
-  if (!/Status Restore/.test(presenter) || !/Keterangan/.test(presenter) || !/ret\.restoreReason/.test(presenter)) throw new Error("Deleted Return eligibility explanation is not visible.");
-  if (!/blocked = ret\.canRestore !== true/.test(presenter) || !/busy \|\| blocked \? "disabled"/.test(presenter)) throw new Error("Blocked Return Restore is not disabled from server eligibility.");
-  if (!/page\.map\(mode === "deleted" \? renderDeletedRow : renderRow\)/.test(presenter) || !/data-return-action="restore"/.test(presenter)) throw new Error("Return Deleted rows do not render inline.");
+  if (!/Status Restore/.test(presenter) || !/Keterangan/.test(presenter) || !/row\?\.restoreReason/.test(presenter)) throw new Error("Deleted Return eligibility explanation is not visible.");
+  if (!/row\?\.canRestore===true&&!busy/.test(presenter) || !/data-return-action="restore"/.test(presenter)) throw new Error("Blocked Return Restore is not disabled from server eligibility.");
+  if (!/rows\.map\(\(row\) => mode === "deleted" \? renderDeletedRow/.test(presenter)) throw new Error("Return Deleted rows do not render inline.");
   if (!/resetPagination\("returns", next\)/.test(app) || !/request !== returnRequest[^\n]+mode !== state\.returnMode/.test(app)) throw new Error("Return mode reset or stale-response guard is missing.");
   if (/<tr[^>]*\bh-\[/.test(presenter) || /restoreReason[^\n]{0,160}\btruncate\b/.test(presenter)) throw new Error("Return inline rows have a height or reason-truncation regression.");
   if (/data-[^=\s]*(?:purge|hard-delete|permanent-delete)/i.test(ui)) throw new Error("Permanent Return delete UX was introduced.");
   if (/SpreadsheetApp|RepositoryWriter|AuditLogService|AppLogService/.test(ui)) throw new Error("Return UI accesses spreadsheet or audit writers directly.");
   if (/Api\.|google\.script\.run/.test(view)) throw new Error("Return View markup introduced orchestration.");
+  if (/Api\.|google\.script\.run|\basync\b|\bawait\b|\bPromise\b|addEventListener|\bToast\.|\bDialog\.|\bModal\.|\bApp\.|\b(?:Service|Controller|Repository|SpreadsheetApp)\b/.test(presenter)) throw new Error("ReturnsPresenter contains orchestration, state ownership, or forbidden access.");
+  ["returnMode", "returns", "deletedReturns", "returnSearch", "returnRequest", "returnSubmitting"].forEach((owner) => { if (app.indexOf(owner) < 0) throw new Error(`App does not own Return ${owner}.`); });
+  ["Api.Return.list", "Api.Return.findDeleted", "Api.Return.findById", "Api.Return.create", "Api.Return.update", "Api.Return.remove", "Api.Return.restore", "Api.Pickup.findAll", "Api.Pickup.findById"].forEach((call) => { if (app.indexOf(call) < 0) throw new Error(`App Return workflow is missing ${call}.`); });
+  if (/\bApi\.|ReturnsPresenter\./.test(events)) throw new Error("Return Events bypass App ownership.");
+  ["App.setReturnMode", "App.searchReturns", "App.refreshReturns", "App.openCreateReturn", "App.openEditReturn", "App.viewReturn", "App.deleteReturn", "App.restoreReturn", "App.submitReturnForm"].forEach((intent) => { if (events.indexOf(intent) < 0) throw new Error(`Return Event delegation is missing ${intent}.`); });
 }
 
 function testPurchasingUxConsistencySourceContracts() {
