@@ -216,6 +216,8 @@
 
       bindReturns();
 
+      bindExpenses();
+
       document.addEventListener(
         "click",
 
@@ -232,6 +234,57 @@
       document.addEventListener("input", handlePurchasingInput);
       document.addEventListener("change", handlePurchasingInput);
       document.addEventListener("submit", handlePurchasingSubmit);
+    }
+
+    //===========================================================================
+    // Expense intent delegation
+    //===========================================================================
+
+    function bindExpenses() {
+      document.addEventListener("click", handleExpenseClick);
+      document.addEventListener("input", handleExpenseInput);
+      document.addEventListener("change", handleExpenseChange);
+      document.addEventListener("submit", handleExpenseSubmit);
+    }
+
+    function handleExpenseClick(event) {
+      const page = event.target.closest("[data-pagination-action][data-pagination-module='expenses']");
+      if (page) { if (!page.disabled && page.getAttribute("aria-disabled") !== "true") App.changeExpensePage(page.dataset.paginationAction); return; }
+      const mode = event.target.closest("[data-expense-mode]");
+      if (mode) return App.setExpenseMode(mode.dataset.expenseMode);
+      if (event.target.closest("#btn-expense-add")) return App.openCreateExpense();
+      if (event.target.closest("#btn-expense-refresh")) return App.refreshExpenses();
+      const action = event.target.closest("[data-expense-action]");
+      if (action) {
+        if (action.disabled || action.getAttribute("aria-disabled") === "true") return;
+        const id = action.dataset.expenseId;
+        if (action.dataset.expenseAction === "view") return App.viewExpense(id);
+        if (action.dataset.expenseAction === "edit") return App.openEditExpense(id);
+        if (action.dataset.expenseAction === "delete") return App.deleteExpense(id);
+        if (action.dataset.expenseAction === "restore") return App.restoreExpense(id);
+      }
+      const create = event.target.closest("[data-expense-create-action]");
+      if (create?.dataset.expenseCreateAction === "cancel") return App.closeExpenseModal();
+      const edit = event.target.closest("[data-expense-edit-action]");
+      if (edit?.dataset.expenseEditAction === "cancel") return App.closeExpenseModal();
+      if (event.target.closest("[data-expense-detail-action='close']")) return App.closeExpenseModal();
+      if (event.target.closest("#btn-modal-close") && document.querySelector("[data-expense-create-field], [data-expense-edit-field], [data-expense-detail-action]")) return App.closeExpenseModal();
+    }
+
+    function handleExpenseInput(event) {
+      const create = event.target?.dataset?.expenseCreateField;
+      if (create) return App.updateExpenseForm("create", create, event.target.value);
+      const edit = event.target?.dataset?.expenseEditField;
+      if (edit) return App.updateExpenseForm("edit", edit, event.target.value);
+    }
+
+    function handleExpenseChange(event) {
+      if (event.target?.dataset?.paginationSize === "expenses") return App.changeExpensePageSize(event.target.value);
+    }
+
+    function handleExpenseSubmit(event) {
+      if (event.target?.id === "expense-create-form") { event.preventDefault(); App.submitExpenseForm("create"); }
+      if (event.target?.id === "expense-edit-form") { event.preventDefault(); App.submitExpenseForm("edit"); }
     }
 
     //===========================================================================

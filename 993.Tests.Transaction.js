@@ -6868,67 +6868,36 @@ function testExpenseFrontendArchitectureAndSearchContract() {
   const app = expenseFrontendSource("970.View.App");
   const presenter = expenseFrontendSource("977.View.Expenses.Presenter");
   const events = expenseFrontendSource("980.View.Event");
-  const searchBlock = presenter.match(
-    /function search\(keyword = ""\)[\s\S]*?function matchesSearch/,
-  );
-
-  if (
-    !/await Api\.Expense\.listDeleted\(\)/.test(app) ||
-    !/await Api\.Expense\.list\(\)/.test(app) ||
-    !/ExpensesPresenter\.render\(records, mode\)/.test(app)
-  ) {
-    throw new Error("Expense App loading orchestration is invalid.");
-  }
-
-  if (
-    !searchBlock ||
-    !/query = normalize\(keyword\)/.test(searchBlock[0]) ||
-    !/\.includes\(query\)/.test(presenter) ||
-    /Api\.Expense\./.test(searchBlock[0])
-  ) {
-    throw new Error("Expense client-side search contract is invalid.");
-  }
-
-  if (
-    !/input\.dataset\.module \|\| App\.currentPage\(\)/.test(events) ||
-    !/Utils\.debounce/.test(events)
-  ) {
-    throw new Error("Reusable Events search routing is invalid.");
-  }
+  const forbiddenPresenter = /\bApi\b|google\.script\.run|\bPromise\b|\basync\b|\bawait\b|\bApp\b|addEventListener|\bToast\b|\bDialog\b|\bModal\b|SpreadsheetApp|Repository|Controller|Service|AuditLogService|requestToken|requestSequence/;
+  if (forbiddenPresenter.test(presenter)) throw new Error("ExpensePresenter is not render-only.");
+  ["render", "renderLoading", "renderError", "renderCreateForm", "renderEditForm", "renderFormFooter", "renderDetail", "renderDeleteMessage", "renderRestoreMessage"].forEach((name) => {
+    if (!new RegExp(`\\b${name}\\b`).test(presenter)) throw new Error(`ExpensePresenter.${name} is missing.`);
+  });
+  ["expenseMode", "expenses", "deletedExpenses", "expenseSearch", "expenseLoading", "expenseError", "expenseRequest", "loadExpenses", "searchExpenses", "renderExpenses"].forEach((contract) => {
+    if (!app.includes(contract)) throw new Error(`Expense App ownership is missing: ${contract}`);
+  });
+  if (!/expenseSource\(\)\.filter[\s\S]*paginateRows\("expenses"/.test(app)) throw new Error("Expense filtering must occur before selected-page slicing.");
+  if (!/request !== expenseRequest \|\| state\.page !== "expenses" \|\| mode !== state\.expenseMode/.test(app)) throw new Error("Expense stale list responses are not rejected.");
+  if (!/bindExpenses\(\)/.test(events) || /Api\.Expense|ExpensesPresenter/.test(events)) throw new Error("Expense Events must delegate intent only.");
 }
 
 function testExpenseFrontendCrudAndTrashContract() {
+  const app = expenseFrontendSource("970.View.App");
   const presenter = expenseFrontendSource("977.View.Expenses.Presenter");
-  const calls = {
-    create: (presenter.match(/Api\.Expense\.create\(/g) || []).length,
-    get: (presenter.match(/Api\.Expense\.get\(/g) || []).length,
-    update: (presenter.match(/Api\.Expense\.update\(/g) || []).length,
-    remove: (presenter.match(/Api\.Expense\.remove\(/g) || []).length,
-    restore: (presenter.match(/Api\.Expense\.restore\(/g) || []).length,
-  };
-
-  if (
-    calls.create !== 1 ||
-    calls.get !== 2 ||
-    calls.update !== 1 ||
-    calls.remove !== 1 ||
-    calls.restore !== 1
-  ) {
-    throw new Error(`Expense Presenter API call surface is invalid: ${JSON.stringify(calls)}`);
-  }
-
-  if (
-    !/expenseActionsBound/.test(presenter) ||
-    !/mode !== "trash" \|\| !expense/.test(presenter) ||
-    !/restoreSubmitting/.test(presenter) ||
-    !/deleteSubmitting/.test(presenter) ||
-    /google\.script\.run/.test(presenter)
-  ) {
-    throw new Error("Expense Presenter action or Trash guards are invalid.");
-  }
+  const events = expenseFrontendSource("980.View.Event");
+  ["create", "get", "update", "remove", "restore"].forEach((method) => {
+    if (!new RegExp(`Api\\.Expense\\.${method}\\(`).test(app)) throw new Error(`App Expense ${method} workflow is missing.`);
+  });
+  if (!/Dialog\.confirm/.test(app) || !/Toast\.success/.test(app) || !/Toast\.error/.test(app)) throw new Error("App does not own Expense confirmation and toast decisions.");
+  if (!/state\.expenseSubmitting/.test(app) || !/attempted \|\| state\.expenseBusyId/.test(app)) throw new Error("Expense duplicate mutation guards are missing.");
+  if (!/data-expense-action="restore"/.test(presenter) || !/data-expense-action="edit"/.test(presenter) || !/data-expense-action="delete"/.test(presenter)) throw new Error("Expense Active or Deleted actions are missing.");
+  if (!/action\.dataset\.expenseAction === "restore"[\s\S]*App\.restoreExpense/.test(events) || /Api\.Expense|ExpensesPresenter/.test(events)) throw new Error("Expense Event action delegation is invalid.");
+  if ((events.match(/function bindExpenses\(/g) || []).length !== 1 || (events.match(/bindExpenses\(\);/g) || []).length !== 1) throw new Error("Expense listeners must be registered exactly once.");
+  if (!/module === "purchasing" \|\| module === "returns" \|\| module === "expenses"/.test(app)) throw new Error("Shared pagination can double-dispatch Expense intent.");
 }
 
 function testExpenseFrontendValidationAndDisplayContract() {
+  const app = expenseFrontendSource("970.View.App");
   const presenter = expenseFrontendSource("977.View.Expenses.Presenter");
   const messages = [
     "Category is required.",
@@ -6940,7 +6909,7 @@ function testExpenseFrontendValidationAndDisplayContract() {
   ];
 
   messages.forEach((message) => {
-    if (presenter.split(message).length - 1 < 2) {
+    if (!app.includes(message)) {
       throw new Error(`Expense Create/Edit validation is missing: ${message}`);
     }
   });
@@ -6948,11 +6917,13 @@ function testExpenseFrontendValidationAndDisplayContract() {
   if (
     !/formatCurrency\(expense\[FIELD\.AMOUNT\]\)/.test(presenter) ||
     !/formatDate\(expense\[FIELD\.DATE\]\)/.test(presenter) ||
-    !/formatDateTime\(expense\[FIELD\.CREATED_AT\]\)/.test(presenter) ||
-    !/formatDateTime\(expense\[FIELD\.UPDATED_AT\]\)/.test(presenter)
+    !/formatDateTime\(expense\.CreatedAt\)/.test(presenter) ||
+    !/formatDateTime\(expense\.UpdatedAt\)/.test(presenter) ||
+    !/rows\.map\(\(row\) => renderRow\(row, mode, view\.busyId\)\)\.join\(""\)/.test(presenter)
   ) {
     throw new Error("Expense display formatting contract is invalid.");
   }
+  if (!/DEFAULT_PAGE_SIZE/.test(expenseFrontendSource("970.View.App")) || /permanently erase[\s\S]*Api\.Expense/.test(presenter)) throw new Error("Expense pagination or soft-delete behavior regressed.");
 }
 
 function testExpenseDashboardCompatibility() {

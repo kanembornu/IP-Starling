@@ -132,6 +132,20 @@
       expenseMode: "active",
 
       expenseLoading: false,
+
+      expenseError: "",
+
+      expenseSearch: { active: "", trash: "" },
+
+      expenseForm: null,
+
+      expenseFormKind: null,
+
+      expenseSubmitting: false,
+
+      expenseBusyId: null,
+
+      expenseConfirming: false,
     };
 
     let productsLoaded = false;
@@ -218,6 +232,8 @@
       if (state.page === "purchasing") purchasingRequest += 1;
 
       if (state.page === "returns") { returnRequest += 1; state.returnForm = null; state.returnFormKind = null; }
+
+      if (state.page === "expenses") { expenseRequest += 1; state.expenseForm = null; state.expenseFormKind = null; state.expenseSubmitting = false; }
 
       state.page = page;
 
@@ -469,8 +485,8 @@
     }
     function resetPagination(module, mode) { paginationState(module, mode).modeState.page = 1; }
     function bindPaginationActions() {
-      document.addEventListener("click", (event) => { const button = event.target.closest("[data-pagination-action]"); if (!button || button.disabled) return; const module = button.dataset.paginationModule; if (module === "purchasing" || module === "returns") return; const mode = button.dataset.paginationMode || "active"; const current = paginationState(module, mode); current.modeState.page += button.dataset.paginationAction === "previous" ? -1 : 1; paginationRenderers[`${module}:${mode}`]?.(); });
-      document.addEventListener("change", (event) => { const select = event.target.closest("[data-pagination-size]"); if (!select) return; const module = select.dataset.paginationSize; if (module === "purchasing" || module === "returns") return; const mode = select.dataset.paginationMode || "active"; const current = paginationState(module, mode); current.moduleState.pageSize = validPageSize(select.value); current.moduleState.explicit = true; current.modeState.page = 1; paginationRenderers[`${module}:${mode}`]?.(); });
+      document.addEventListener("click", (event) => { const button = event.target.closest("[data-pagination-action]"); if (!button || button.disabled) return; const module = button.dataset.paginationModule; if (module === "purchasing" || module === "returns" || module === "expenses") return; const mode = button.dataset.paginationMode || "active"; const current = paginationState(module, mode); current.modeState.page += button.dataset.paginationAction === "previous" ? -1 : 1; paginationRenderers[`${module}:${mode}`]?.(); });
+      document.addEventListener("change", (event) => { const select = event.target.closest("[data-pagination-size]"); if (!select) return; const module = select.dataset.paginationSize; if (module === "purchasing" || module === "returns" || module === "expenses") return; const mode = select.dataset.paginationMode || "active"; const current = paginationState(module, mode); current.moduleState.pageSize = validPageSize(select.value); current.moduleState.explicit = true; current.modeState.page = 1; paginationRenderers[`${module}:${mode}`]?.(); });
     }
 
     function applyDefaultPageSize(value, rerenderCurrent = false) {
@@ -1371,6 +1387,21 @@
     // Expenses
     //===========================================================================
 
+    function normalizeExpense(value) { return String(value ?? "").trim().toLowerCase(); }
+    function expenseSource() { return state.expenseMode === "trash" ? state.deletedExpenses : state.expenses; }
+    function expenseMatches(row, query) {
+      const dateInput = ExpensesPresenter.dateInputValue(row?.Tanggal);
+      const values = [row?.ID, dateInput, dateInput ? ExpensesPresenter.formatDate(row?.Tanggal) : "", row?.Kategori, row?.Keterangan, row?.Nominal, ExpensesPresenter.formatCurrency(row?.Nominal)];
+      return values.some((value) => normalizeExpense(value).includes(query));
+    }
+    function renderExpenses() {
+      if (state.page !== "expenses") return;
+      const mode = state.expenseMode; const query = state.expenseSearch[mode];
+      const filtered = query ? expenseSource().filter((row) => expenseMatches(row, query)) : expenseSource().slice();
+      const page = paginateRows("expenses", mode, filtered, "expense-pagination", "lbl-expense-info", mode === "trash" ? "Expense terhapus" : "Expense", renderExpenses);
+      ExpensesPresenter.render({ mode, search: query, rows: page, busyId: state.expenseBusyId, emptyType: query ? "search" : "database" });
+    }
+
     async function loadExpenses() {
       const mode = state.expenseMode;
       const request = ++expenseRequest;
@@ -1379,7 +1410,8 @@
         : "Load expenses failed.";
 
       state.expenseLoading = true;
-      ExpensesPresenter.renderLoading(mode);
+      state.expenseError = "";
+      ExpensesPresenter.renderLoading({ mode, search: state.expenseSearch[mode] });
 
       let res;
 
@@ -1388,20 +1420,22 @@
           ? await Api.Expense.listDeleted()
           : await Api.Expense.list();
       } catch (error) {
-        if (request !== expenseRequest || mode !== state.expenseMode) return;
+        if (request !== expenseRequest || state.page !== "expenses" || mode !== state.expenseMode) return;
 
         state.expenseLoading = false;
-        Toast.error(readableLoadError(error, fallback));
-        ExpensesPresenter.renderError(mode);
+        state.expenseError = readableLoadError(error, fallback);
+        Toast.error(state.expenseError);
+        ExpensesPresenter.renderError({ mode, search: state.expenseSearch[mode], message: state.expenseError });
         return;
       }
 
-      if (request !== expenseRequest || mode !== state.expenseMode) return;
+      if (request !== expenseRequest || state.page !== "expenses" || mode !== state.expenseMode) return;
 
       if (!res || !res.success) {
         state.expenseLoading = false;
-        Toast.error(res?.message || fallback);
-        ExpensesPresenter.renderError(mode);
+        state.expenseError = res?.message || fallback;
+        Toast.error(state.expenseError);
+        ExpensesPresenter.renderError({ mode, search: state.expenseSearch[mode], message: state.expenseError });
         return;
       }
 
@@ -1414,7 +1448,7 @@
         state.expenses = records;
       }
 
-      ExpensesPresenter.render(records, mode);
+      renderExpenses();
     }
 
     function setExpenseMode(mode) {
@@ -1427,6 +1461,137 @@
       state.expenseMode = nextMode;
       resetPagination("expenses", nextMode);
       return loadExpenses();
+    }
+
+    function refreshExpenses() {
+      state.expenseSearch[state.expenseMode] = "";
+      resetPagination("expenses", state.expenseMode);
+      return loadExpenses();
+    }
+
+    function searchExpenses(keyword) {
+      state.expenseSearch[state.expenseMode] = normalizeExpense(keyword);
+      resetPagination("expenses", state.expenseMode);
+      renderExpenses();
+    }
+
+    function changeExpensePage(action) {
+      const current = paginationState("expenses", state.expenseMode);
+      if (action === "previous" && current.modeState.page > 1) current.modeState.page -= 1;
+      if (action === "next" && current.modeState.page < current.modeState.totalPages) current.modeState.page += 1;
+      renderExpenses();
+    }
+
+    function changeExpensePageSize(value) {
+      const current = paginationState("expenses", state.expenseMode);
+      current.moduleState.pageSize = validPageSize(value); current.moduleState.explicit = true; current.modeState.page = 1;
+      renderExpenses();
+    }
+
+    function todayExpenseDate() { const date = new Date(); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; }
+    function numericExpenseInput(value) { if (value === null || value === undefined || value === "") return ""; const number = Number(value); return Number.isFinite(number) ? String(number) : ""; }
+    function openCreateExpense() {
+      if (state.page !== "expenses" || state.expenseMode !== "active" || state.expenseSubmitting) return false;
+      state.expenseFormKind = "create"; state.expenseForm = { Tanggal: todayExpenseDate(), Kategori: "", Keterangan: "", Nominal: "" };
+      Modal.open({ title: "Create Expense", width: "md", body: ExpensesPresenter.renderCreateForm({ form: state.expenseForm }), footer: ExpensesPresenter.renderFormFooter("create") });
+      DOM.$("inp-expense-create-date")?.focus(); return true;
+    }
+
+    async function openEditExpense(id) {
+      const cleanId = String(id || "").trim();
+      if (!cleanId || state.page !== "expenses" || state.expenseMode !== "active" || state.expenseSubmitting) { if (!cleanId) Toast.error("Expense ID is unavailable."); return false; }
+      const request = ++expenseRequest; state.expenseFormKind = "edit"; state.expenseForm = null;
+      Modal.open({ title: "Edit Expense", width: "md", body: Components.loading("Loading expense for editing..."), footer: ExpensesPresenter.renderFormFooter("edit", { loading: true }) });
+      try {
+        const response = await Api.Expense.get(cleanId);
+        if (request !== expenseRequest || state.page !== "expenses" || state.expenseFormKind !== "edit") return false;
+        if (!response?.success || !response.data || typeof response.data !== "object") throw new Error(response?.message || "Expense could not be loaded for editing.");
+        state.expenseForm = { ID: cleanId, Tanggal: ExpensesPresenter.dateInputValue(response.data.Tanggal), Kategori: String(response.data.Kategori ?? ""), Keterangan: String(response.data.Keterangan ?? ""), Nominal: numericExpenseInput(response.data.Nominal) };
+        Modal.body(ExpensesPresenter.renderEditForm({ form: state.expenseForm })); Modal.footer(ExpensesPresenter.renderFormFooter("edit")); DOM.$("inp-expense-edit-date")?.focus(); return true;
+      } catch (error) {
+        if (request !== expenseRequest || state.page !== "expenses") return false;
+        Toast.error(readableLoadError(error, "Expense could not be loaded for editing. Please try again.")); closeExpenseModal(); return false;
+      }
+    }
+
+    async function viewExpense(id) {
+      const cleanId = String(id || "").trim(); if (!cleanId || state.page !== "expenses") return false;
+      const request = ++expenseRequest; state.expenseFormKind = "detail";
+      Modal.open({ title: "Expense Detail", width: "lg", body: Components.loading("Loading expense detail..."), footer: ExpensesPresenter.renderDetailFooter() });
+      try {
+        const response = await Api.Expense.get(cleanId);
+        if (request !== expenseRequest || state.page !== "expenses" || state.expenseFormKind !== "detail") return false;
+        if (!response?.success || !response.data || typeof response.data !== "object") throw new Error(response?.message || "Expense detail could not be loaded.");
+        Modal.body(ExpensesPresenter.renderDetail(response.data)); return true;
+      } catch (error) { if (request === expenseRequest && state.page === "expenses") { Toast.error(readableLoadError(error, "Expense detail could not be loaded. Please try again.")); closeExpenseModal(); } return false; }
+    }
+
+    function updateExpenseForm(kind, field, value) {
+      if (kind !== state.expenseFormKind || !state.expenseForm || ["Tanggal", "Kategori", "Keterangan", "Nominal"].indexOf(field) < 0) return;
+      state.expenseForm[field] = value; ExpensesPresenter.clearFieldError(kind, field);
+    }
+
+    function validateExpenseForm(kind) {
+      const form = state.expenseForm || {}; const date = String(form.Tanggal ?? "").trim(); const category = String(form.Kategori ?? "").trim(); const description = String(form.Keterangan ?? "").trim(); const amountText = String(form.Nominal ?? "").trim(); const amount = Number(amountText);
+      const invalid = (field, message, suffix) => ({ valid: false, field, message, element: DOM.$(`inp-expense-${kind}-${suffix}`) });
+      if (!date) return invalid("Tanggal", "Date is required.", "date");
+      if (!ExpensesPresenter.dateInputValue(date)) return invalid("Tanggal", "Date must use YYYY-MM-DD.", "date");
+      if (!category) return invalid("Kategori", "Category is required.", "category");
+      if (category.length > 100) return invalid("Kategori", "Category cannot exceed 100 characters.", "category");
+      if (!description) return invalid("Keterangan", "Description is required.", "description");
+      if (description.length > 255) return invalid("Keterangan", "Description cannot exceed 255 characters.", "description");
+      if (!amountText) return invalid("Nominal", "Amount is required.", "amount");
+      if (!Number.isFinite(amount)) return invalid("Nominal", "Amount must be a valid number.", "amount");
+      if (amount < 0) return invalid("Nominal", "Amount cannot be negative.", "amount");
+      const id = String(form.ID || "").trim();
+      if (kind === "edit" && !id) return { valid: false, field: "ID", message: "Expense ID is unavailable.", element: null };
+      return { valid: true, id, payload: { Tanggal: date, Kategori: category, Keterangan: description, Nominal: amount } };
+    }
+
+    async function submitExpenseForm(kind) {
+      if (kind !== state.expenseFormKind || !state.expenseForm || state.expenseSubmitting || state.page !== "expenses") return false;
+      const validation = validateExpenseForm(kind);
+      if (!validation.valid) { if (!ExpensesPresenter.showFieldError(kind, validation.field, validation.message)) Toast.error(validation.message); validation.element?.focus(); return false; }
+      state.expenseSubmitting = true; Modal.footer(ExpensesPresenter.renderFormFooter(kind, { loading: true }));
+      try {
+        const response = kind === "create" ? await Api.Expense.create(validation.payload) : await Api.Expense.update(validation.id, validation.payload);
+        if (!response?.success) { Toast.error(response?.message || `Expense could not be ${kind === "create" ? "created" : "updated"}.`); return false; }
+        Toast.success(response.message || `Expense ${kind === "create" ? "created" : "updated"}.`); closeExpenseModal(true); await loadExpenses(); return true;
+      } catch (error) { Toast.error(readableLoadError(error, `Expense could not be ${kind === "create" ? "created" : "updated"}. Please try again.`)); return false; }
+      finally { state.expenseSubmitting = false; if (state.expenseFormKind === kind) Modal.footer(ExpensesPresenter.renderFormFooter(kind)); }
+    }
+
+    function closeExpenseModal(force = false) {
+      if (state.expenseSubmitting && !force) return false;
+      expenseRequest += 1; state.expenseForm = null; state.expenseFormKind = null; Modal.close(); return true;
+    }
+
+    async function deleteExpense(id) {
+      const cleanId = String(id || "").trim(); if (!cleanId || state.page !== "expenses" || state.expenseMode !== "active" || state.expenseBusyId || state.expenseConfirming) return false;
+      const row = state.expenses.find((item) => String(item?.ID) === cleanId); if (!row) { Toast.error("This Expense is no longer available."); return false; }
+      state.expenseConfirming = true; let succeeded = false; let attempted = false;
+      try { await Dialog.confirm({ title: "Delete Expense", confirmText: "Delete", loadingText: "Deleting...", message: ExpensesPresenter.renderDeleteMessage(row), onConfirm: async () => {
+        if (attempted || state.expenseBusyId || state.page !== "expenses" || state.expenseMode !== "active") return false;
+        attempted = true; state.expenseBusyId = cleanId; renderExpenses();
+        try { const response = await Api.Expense.remove(cleanId); if (!response?.success) { Toast.error(response?.message || "Expense could not be deleted."); return true; } succeeded = true; Toast.success(response.message || "Expense deleted."); state.expenses = state.expenses.filter((item) => String(item.ID) !== cleanId); renderExpenses(); return true; }
+        catch (error) { Toast.error(readableLoadError(error, "Expense could not be deleted. Please try again.")); return true; }
+        finally { state.expenseBusyId = null; }
+      } }); if (succeeded && state.page === "expenses" && state.expenseMode === "active") await loadExpenses(); } finally { state.expenseConfirming = false; if (state.page === "expenses" && state.expenseMode === "active") renderExpenses(); }
+      return succeeded;
+    }
+
+    async function restoreExpense(id) {
+      const cleanId = String(id || "").trim(); if (!cleanId || state.page !== "expenses" || state.expenseMode !== "trash" || state.expenseBusyId || state.expenseConfirming) return false;
+      const row = state.deletedExpenses.find((item) => String(item?.ID) === cleanId); if (!row) { Toast.error("This deleted Expense is no longer available."); return false; }
+      state.expenseConfirming = true; let succeeded = false; let attempted = false;
+      try { await Dialog.confirm({ title: "Restore Expense", confirmText: "Restore", loadingText: "Restoring...", message: ExpensesPresenter.renderRestoreMessage(row), onConfirm: async () => {
+        if (attempted || state.expenseBusyId || state.page !== "expenses" || state.expenseMode !== "trash") return false;
+        attempted = true; state.expenseBusyId = cleanId; renderExpenses();
+        try { const response = await Api.Expense.restore(cleanId); if (!response?.success) { Toast.error(response?.message || "Expense could not be restored."); return true; } succeeded = true; Toast.success(response.message || "Expense restored."); state.deletedExpenses = state.deletedExpenses.filter((item) => String(item.ID) !== cleanId); renderExpenses(); return true; }
+        catch (error) { Toast.error(readableLoadError(error, "Expense could not be restored. Please try again.")); return true; }
+        finally { state.expenseBusyId = null; }
+      } }); if (succeeded && state.page === "expenses" && state.expenseMode === "trash") await loadExpenses(); } finally { state.expenseConfirming = false; if (state.page === "expenses" && state.expenseMode === "trash") renderExpenses(); }
+      return succeeded;
     }
 
     //===========================================================================
@@ -1446,7 +1611,7 @@
           break;
 
         case "expenses":
-          ExpensesPresenter.search(keyword);
+          searchExpenses(keyword);
 
           break;
 
@@ -1549,6 +1714,18 @@
       getDeletedExpenses,
       getExpenseMode,
       setExpenseMode,
+      refreshExpenses,
+      searchExpenses,
+      changeExpensePage,
+      changeExpensePageSize,
+      openCreateExpense,
+      openEditExpense,
+      viewExpense,
+      updateExpenseForm,
+      submitExpenseForm,
+      closeExpenseModal,
+      deleteExpense,
+      restoreExpense,
 
       refreshReturns,
       getReturnMode,
