@@ -71,6 +71,10 @@ function listLogs(filters, pagination) {
   return _logsControllerResponse(() => LogsService.list(filters || {}, pagination || {}));
 }
 
+function listLogsPage(filters, pagination) {
+  return _logsControllerResponse(() => LogsService.page(filters || {}, pagination || {}));
+}
+
 function getLogById(id) {
   return _logsControllerResponse(() => LogsService.getById(id));
 }

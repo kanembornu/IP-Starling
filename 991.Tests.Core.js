@@ -38,9 +38,9 @@ function testRepositoryCacheOversizedValueBypass() {
     return {
       calls,
       values,
-      get(key) { calls.get += 1; return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : null; },
+      get(key) { calls.get += 1; if (options.getError) throw options.getError; return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : null; },
       put(key, value) { calls.put += 1; if (options.putError) throw options.putError; values[key] = value; },
-      remove(key) { calls.remove += 1; delete values[key]; },
+      remove(key) { calls.remove += 1; if (options.removeError) throw options.removeError; delete values[key]; },
     };
   }
 
@@ -72,6 +72,19 @@ function testRepositoryCacheOversizedValueBypass() {
   let programmingErrorPropagated = false;
   try { programmingErrorCache.remember(schema, () => ({ ok: true })); } catch (error) { programmingErrorPropagated = /Unexpected cache adapter defect/.test(error.message); }
   if (!programmingErrorPropagated) throw new Error("Unrelated cache programming errors must propagate.");
+
+  const getQuotaAdapter = cacheDouble({ getError: new Error("Cache quota temporarily unavailable") });
+  const getQuotaCache = RepositoryCache.createForTesting(getQuotaAdapter);
+  let getQuotaComputes = 0;
+  const getQuotaValue = getQuotaCache.remember({ ...schema, TABLE: "CacheGetQuota" }, () => { getQuotaComputes += 1; return { complete: true }; });
+  if (!getQuotaValue.complete || getQuotaComputes !== 1 || getQuotaAdapter.calls.put !== 1) throw new Error("Cache get quota failure did not bypass to one complete computation.");
+
+  const invalidAdapter = cacheDouble({ removeError: new Error("Service invoked too many times for cache") });
+  const invalidCache = RepositoryCache.createForTesting(invalidAdapter);
+  invalidAdapter.values[invalidCache.key({ ...schema, TABLE: "InvalidCache" })] = "{invalid";
+  let invalidComputes = 0;
+  const invalidValue = invalidCache.remember({ ...schema, TABLE: "InvalidCache" }, () => { invalidComputes += 1; return { recovered: true }; });
+  if (!invalidValue.recovered || invalidComputes !== 1 || invalidAdapter.calls.remove !== 1) throw new Error("Invalid cache removal quota failure blocked recomputation.");
 
   let computeErrorPropagated = false;
   let computeErrorCalls = 0;

@@ -4,12 +4,13 @@ function _settingsAssert(condition, message) {
 
 function _settingsTestHarness(options = {}) {
   let sequence = 0;
+  let physicalReads = 0;
   const headers = SETTINGS_SCHEMA.HEADERS.slice();
   const rows = (options.rows || []).map((row) => headers.map((header) => Object.prototype.hasOwnProperty.call(row, header) ? row[header] : ""));
   const cacheValues = {};
   const base = {
     headers: () => (options.headers || headers).slice(),
-    rows: () => rows.map((row) => row.slice()),
+    rows: () => { physicalReads++; return rows.map((row) => row.slice()); },
     mapRows: (schema, values) => values.map((row) => {
       const result = {}; headers.forEach((header, index) => { result[header] = row[index]; }); return result;
     }),
@@ -30,7 +31,7 @@ function _settingsTestHarness(options = {}) {
     removeAll: (keys) => keys.forEach((key) => delete cacheValues[key]),
   };
   const service = SettingsService({ base, reader: {}, writer, cache, repositoryCache: { clear: () => {} }, generateId: () => `ST-TEST-${++sequence}`, now: () => new Date("2026-07-22T00:00:00Z"), currentUser: () => "SETTINGS_TEST" });
-  return { service, rows, headers, cacheValues };
+  return { service, rows, headers, cacheValues, physicalReadCount: () => physicalReads };
 }
 
 function _settingsRow(key, value, type, overrides = {}) {
@@ -119,8 +120,64 @@ function testSettingsSchemaAuditGuard() {
   _settingsAssert(harness.service.seedMissing().success === false, "Seeding proceeded despite a schema defect.");
 }
 
+function testSettingsListResolvedBoundedPhysicalRead() {
+  const harness = _settingsTestHarness({ rows: [
+    _settingsRow("DEFAULT_PAGE_SIZE", "25", "INTEGER"),
+    _settingsRow("DASHBOARD_DEFAULT_RANGE", "LAST_7_DAYS", "ENUM"),
+  ] });
+  const first = harness.service.listResolved();
+  _settingsAssert(first.success && first.data.length === harness.service.definitions().length, "Settings list resolution failed.");
+  _settingsAssert(harness.physicalReadCount() === 1, "Cold Settings list resolution must physically read the Settings source once.");
+  const second = harness.service.listResolved();
+  _settingsAssert(second.success && JSON.stringify(second.data) === JSON.stringify(first.data), "Cached Settings list shape changed.");
+  _settingsAssert(harness.physicalReadCount() === 1, "Cached Settings list resolution reread the Settings source.");
+}
+
+function testSettingsCacheFailureBypass() {
+  let reads = 0;
+  const headers = SETTINGS_SCHEMA.HEADERS.slice();
+  const rows = [_settingsRow("DEFAULT_PAGE_SIZE", "25", "INTEGER")];
+  const values = rows.map((row) => headers.map((header) => row[header] ?? ""));
+  const service = SettingsService({
+    base: {
+      headers: () => headers.slice(),
+      rows: () => { reads++; return values.map((row) => row.slice()); },
+      mapRows: (schema, source) => source.map((row) => { const item = {}; headers.forEach((header, index) => { item[header] = row[index]; }); return item; }),
+    },
+    reader: {}, writer: {}, repositoryCache: { clear: () => {} },
+    cache: {
+      get: () => { throw new Error("Cache temporarily unavailable."); },
+      put: () => { throw new Error("Cache quota exceeded."); },
+      remove: () => { throw new Error("Cache temporarily unavailable."); },
+      removeAll: () => {},
+    },
+  });
+  const response = service.listResolved();
+  _settingsAssert(response.success && response.data.find((item) => item.key === "DEFAULT_PAGE_SIZE").value === 25, "Settings cache failure blocked a valid source read.");
+  _settingsAssert(reads === 1, "Settings cache bypass changed the one-read source contract.");
+}
+
+function testSettingsFrontendSessionLoadContract() {
+  const app = HtmlService.createHtmlOutputFromFile("970.View.App").getContent();
+  const ensureStart = app.indexOf("function ensureSettingsLoaded");
+  const ensureEnd = app.indexOf("function applyLogsFilterControls", ensureStart);
+  const ensureSource = app.slice(ensureStart, ensureEnd);
+  const loadStart = app.indexOf("async function loadSettings()");
+  const loadEnd = app.indexOf("function settingInputValue", loadStart);
+  const loadSource = app.slice(loadStart, loadEnd);
+  _settingsAssert((ensureSource.match(/Api\.Settings\.list\(/g) || []).length === 1, "Settings session loader must own one canonical list request.");
+  _settingsAssert(!/Api\.Settings\.list\(/.test(loadSource), "Settings page bypasses the session loader.");
+  _settingsAssert(/settingsLoading/.test(ensureSource) && /settingsLoaded/.test(ensureSource), "Settings session load does not deduplicate cached and in-flight requests.");
+  _settingsAssert(/applyDefaultPageSize\(15, true\)/.test(app), "Immediate Settings failure fallback 15 is missing.");
+  const mutateStart = app.indexOf("async function mutateSetting");
+  const mutateEnd = app.indexOf("function bindSettingsActions", mutateStart);
+  const mutateSource = app.slice(mutateStart, mutateEnd);
+  _settingsAssert(!/ensureSettingsLoaded\(true\)|Api\.Settings\.list\(/.test(mutateSource), "Settings mutation performs a redundant list reload.");
+  _settingsAssert(/state\.settings = state\.settings\.map/.test(mutateSource), "Settings mutation does not update the session cache from its authoritative response.");
+}
+
 function runSettingsFocusedTests() {
-  runTestSuite("Settings focused tests", [testSettingsRegistryAndParsing, testSettingsResolutionAndAudit, testSettingsMutationAndSeeding, testSettingsSchemaAuditGuard, testSettingsSchemaDiagnosticReadOnlyContract, testSettingsLegacyMigrationSourceContract]);
+  runTestSuite("Settings focused tests", [testSettingsRegistryAndParsing, testSettingsResolutionAndAudit, testSettingsMutationAndSeeding, testSettingsSchemaAuditGuard, testSettingsListResolvedBoundedPhysicalRead, testSettingsCacheFailureBypass, testSettingsFrontendSessionLoadContract, testSettingsSchemaDiagnosticReadOnlyContract, testSettingsLegacyMigrationSourceContract]);
 }
 
 function _settingsDiagnosticLog(prefix, value) {

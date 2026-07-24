@@ -6,7 +6,7 @@
  * =============================================================================
  */
 
-function PurchasingService() {
+function PurchasingService(options = {}) {
   const base = EntityService.create(PURCHASING_SCHEMA);
   const mutableFields = [
     PURCHASING_FIELDS.DATE,
@@ -33,7 +33,25 @@ function PurchasingService() {
   }
 
   function allRows(schema) {
+    if (typeof options.readPhysicalRows === "function") {
+      return options.readPhysicalRows(schema).slice();
+    }
     return RepositoryBase.mapRows(schema, RepositoryReader.raw(schema));
+  }
+
+  function rowsById(rows, schema) {
+    return rows.reduce((lookup, row) => {
+      const id = row && row[schema.PRIMARY_KEY];
+      if (requireId(id)) lookup[id] = row;
+      return lookup;
+    }, Object.create(null));
+  }
+
+  function buildRestoreContext() {
+    return {
+      products: rowsById(allRows(PRODUCT_SCHEMA), PRODUCT_SCHEMA),
+      partners: rowsById(allRows(PARTNER_SCHEMA), PARTNER_SCHEMA),
+    };
   }
 
   function rawById(schema, id) {
@@ -142,15 +160,18 @@ function PurchasingService() {
         );
       }).filter((row) => requireId(row[PURCHASING_SCHEMA.PRIMARY_KEY]))
         .sort((left, right) => String(left[PURCHASING_SCHEMA.PRIMARY_KEY]).localeCompare(String(right[PURCHASING_SCHEMA.PRIMARY_KEY])));
-    return Response.success(rows.map((row) => Object.assign({}, row, evaluateRestoreEligibility(row))));
+    if (!rows.length) return Response.success([]);
+    const context = buildRestoreContext();
+    return Response.success(rows.map((row) => Object.assign({}, row, evaluateRestoreEligibility(row, context))));
   }
 
-  function evaluateRestoreEligibility(row) {
+  function evaluateRestoreEligibility(row, context) {
     const issues = [];
     const productId = row && row[PURCHASING_FIELDS.PRODUCT_ID]; const supplierId = row && row[PURCHASING_FIELDS.SUPPLIER_ID];
     if (!productId || !supplierId) issues.push("Data referensi Purchasing tidak lengkap.");
-    const product = productId ? rawById(PRODUCT_SCHEMA, productId) : null;
-    const supplier = supplierId ? rawById(PARTNER_SCHEMA, supplierId) : null;
+    const dependencies = context || buildRestoreContext();
+    const product = productId ? dependencies.products[productId] || null : null;
+    const supplier = supplierId ? dependencies.partners[supplierId] || null : null;
     if (productId && !product) issues.push("Produk terkait tidak ditemukan.");
     else if (product && isTrue(product[PRODUCT_SCHEMA.SYSTEM.IS_DELETED])) issues.push("Produk terkait masih berada di data terhapus.");
     else if (product && !isTrue(product[PRODUCT_SCHEMA.SYSTEM.IS_ACTIVE])) issues.push("Produk terkait tidak aktif.");

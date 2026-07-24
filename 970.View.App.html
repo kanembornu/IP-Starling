@@ -136,6 +136,10 @@
 
     let settingsRequest = 0;
 
+    let settingsLoaded = false;
+
+    let settingsLoading = null;
+
     let logsRequest = 0;
 
     let productRequest = 0;
@@ -467,12 +471,24 @@
 
     async function loadDefaultPageSize() {
       try {
-        const response = await Api.Settings.list();
-        const setting = response?.success && Array.isArray(response.data) ? response.data.find((item) => item.key === "DEFAULT_PAGE_SIZE") : null;
+        const settings = await ensureSettingsLoaded();
+        const setting = settings.find((item) => item.key === "DEFAULT_PAGE_SIZE");
         const previous = state.logsPageSize;
         applyDefaultPageSize(setting?.valid === false ? 15 : setting?.value, true);
         if (state.page === "logs" && state.logsPageSize !== previous) { state.logsPage = 1; loadLogs(); }
       } catch (error) { applyDefaultPageSize(15, true); }
+    }
+
+    function ensureSettingsLoaded(forceReload = false) {
+      if (!forceReload && settingsLoaded) return Promise.resolve(Utils.deepClone(state.settings));
+      if (!forceReload && settingsLoading) return settingsLoading;
+      settingsLoading = Api.Settings.list().then((response) => {
+        if (!response?.success || !Array.isArray(response.data)) throw new Error(response?.message || "Settings could not be loaded.");
+        state.settings = Utils.deepClone(response.data);
+        settingsLoaded = true;
+        return Utils.deepClone(state.settings);
+      }).finally(() => { settingsLoading = null; });
+      return settingsLoading;
     }
 
     function applyLogsFilterControls() {
@@ -498,10 +514,10 @@
       applyLogsFilterControls(); const request = ++logsRequest; LogsPresenter.renderLoading();
       const filters = resolvedLogsFilters(Utils.deepClone(state.logsFilters));
       try {
-        const [list, summary] = await Promise.all([Api.Logs.list(filters, { page: state.logsPage, pageSize: state.logsPageSize }), Api.Logs.summary(filters)]);
+        const response = await Api.Logs.page(filters, { page: state.logsPage, pageSize: state.logsPageSize });
         if (request !== logsRequest || state.page !== "logs") return;
-        if (!list?.success || !summary?.success) throw new Error(list?.message || summary?.message || "Logs could not be loaded.");
-        LogsPresenter.render(list.data); LogsPresenter.renderSummary(summary.data); applyLogsFilterControls();
+        if (!response?.success || !response.data?.list || !response.data?.summary) throw new Error(response?.message || "Logs could not be loaded.");
+        LogsPresenter.render(response.data.list); LogsPresenter.renderSummary(response.data.summary); applyLogsFilterControls();
       } catch (error) { if (request !== logsRequest || state.page !== "logs") return; LogsPresenter.renderError(readableLoadError(error, "Logs could not be loaded.")); }
     }
 
@@ -540,9 +556,8 @@
     async function loadSettings() {
       const request = ++settingsRequest;
       SettingsPresenter.renderLoading();
-      let response;
       try {
-        response = await Api.Settings.list();
+        await ensureSettingsLoaded();
       } catch (error) {
         if (request !== settingsRequest || state.page !== "settings") return;
         Toast.error(readableLoadError(error, "Settings could not be loaded."));
@@ -550,12 +565,6 @@
         return;
       }
       if (request !== settingsRequest || state.page !== "settings") return;
-      if (!response?.success || !Array.isArray(response.data)) {
-        Toast.error(response?.message || "Settings could not be loaded.");
-        SettingsPresenter.renderError(response?.message);
-        return;
-      }
-      state.settings = Utils.deepClone(response.data);
       state.settingBusyKey = null;
       SettingsPresenter.render(state.settings);
     }
@@ -592,7 +601,10 @@
         }
         Toast.success(reset ? "Setting reset to default." : "Setting saved.");
         if (key === "DEFAULT_PAGE_SIZE") applyDefaultPageSize(response.data?.value);
-        await loadSettings();
+        state.settings = state.settings.map((item) => item.key === key ? Utils.deepClone(response.data) : item);
+        settingsLoaded = true;
+        state.settingBusyKey = null;
+        SettingsPresenter.render(state.settings);
         return true;
       } catch (error) {
         if (request !== settingsRequest || state.page !== "settings") return false;

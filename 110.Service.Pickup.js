@@ -335,16 +335,23 @@ function PickupService(options) {
 
     const headers = physicalRows(PICKUP_HEADER_SCHEMA);
     const details = physicalRows(PICKUP_DETAIL_SCHEMA);
+    const returns = physicalRows(RETURN_SCHEMA);
     const partners = physicalRows(PARTNER_SCHEMA);
     const products = physicalRows(PRODUCT_SCHEMA);
     const partnerById = Object.create(null);
     const productById = Object.create(null);
+    const detailsByPickupId = Object.create(null);
 
     partners.forEach((partner) => {
       partnerById[partner[PARTNER_SCHEMA.PRIMARY_KEY]] = partner;
     });
     products.forEach((product) => {
       productById[product[PRODUCT_SCHEMA.PRIMARY_KEY]] = product;
+    });
+    details.forEach((detail) => {
+      const pickupId = detail[PICKUP_DETAIL_FIELDS.PICKUP_ID];
+      if (!detailsByPickupId[pickupId]) detailsByPickupId[pickupId] = [];
+      detailsByPickupId[pickupId].push(detail);
     });
 
     const search = String(request.search || "").trim().toLowerCase();
@@ -366,10 +373,7 @@ function PickupService(options) {
         const pickupId = header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY];
         const partnerId = header[PICKUP_HEADER_FIELDS.PARTNER_ID];
         const partner = partnerById[partnerId];
-        const pickupDetails = details
-          .filter((detail) => {
-            return detail[PICKUP_DETAIL_FIELDS.PICKUP_ID] === pickupId;
-          })
+        const pickupDetails = (detailsByPickupId[pickupId] || [])
           .map((detail) => {
             const productId = detail[PICKUP_DETAIL_FIELDS.PRODUCT_ID];
             const product = productById[productId];
@@ -402,7 +406,12 @@ function PickupService(options) {
               return `${name} (${detail[PICKUP_DETAIL_FIELDS.QTY]})`;
             })
             .join(", "),
-          restoreEligibility: evaluateRestoreEligibility(pickupId),
+          restoreEligibility: evaluateRestoreEligibilityFromRows(
+            pickupId,
+            headers,
+            details,
+            returns,
+          ),
         });
       });
 

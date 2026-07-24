@@ -120,20 +120,21 @@ function SettingsService(dependencies = {}) {
     return base.mapRows(schema, base.rows(schema));
   }
 
-  function rowsForKey(key) {
-    return physicalRows().filter((row) => String(row[SETTINGS_FIELDS.KEY] || "").trim() === key);
+  function rowsForKey(key, sourceRows) {
+    const rows = Array.isArray(sourceRows) ? sourceRows : physicalRows();
+    return rows.filter((row) => String(row[SETTINGS_FIELDS.KEY] || "").trim() === key);
   }
 
-  function activeOverride(def) {
-    const matches = rowsForKey(def.key);
+  function activeOverride(def, sourceRows) {
+    const matches = rowsForKey(def.key, sourceRows);
     if (matches.length > 1) throw new Error(`Duplicate physical setting key: ${def.key}.`);
     const row = matches[0];
     if (!row || row[schema.SYSTEM.IS_DELETED] === true || row[schema.SYSTEM.IS_ACTIVE] === false) return null;
     return row;
   }
 
-  function resolved(def) {
-    const row = activeOverride(def);
+  function resolved(def, sourceRows) {
+    const row = activeOverride(def, sourceRows);
     const result = publicDefinition(def);
     if (!row) return Object.assign(result, { value: parse(def, def.defaultValue), source: "DEFAULT", valid: true });
     try {
@@ -144,17 +145,27 @@ function SettingsService(dependencies = {}) {
   }
 
   function remember(key, callback) {
-    const cached = cache.get(key);
+    let cached = null;
+    try { cached = cache.get(key); } catch (error) { cached = null; }
     if (cached) {
-      try { return JSON.parse(cached); } catch (error) { cache.remove(key); }
+      try { return JSON.parse(cached); }
+      catch (error) {
+        try { cache.remove(key); } catch (removeError) { /* cache remains best-effort */ }
+      }
     }
     const value = callback();
-    cache.put(key, JSON.stringify(value), CACHE_CONFIG.EXPIRE_SECONDS);
+    try { cache.put(key, JSON.stringify(value), CACHE_CONFIG.EXPIRE_SECONDS); }
+    catch (error) { /* a valid Settings read must not fail with the cache */ }
     return value;
   }
 
   function listResolved() {
-    try { return Response.success(remember(`${cachePrefix}:list`, () => registry.map(resolved))); }
+    try {
+      return Response.success(remember(`${cachePrefix}:list`, () => {
+        const rows = physicalRows();
+        return registry.map((def) => resolved(def, rows));
+      }));
+    }
     catch (error) { return Response.error(error.message); }
   }
 

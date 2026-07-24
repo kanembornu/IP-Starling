@@ -163,6 +163,23 @@ const LogsService = (() => {
     } catch (error) { return Response.error(error.message); }
   }
 
+  function page(filters = {}, pagination = {}) {
+    try {
+      const rows = filteredRows(filters);
+      const requested = pagination.pageSize == null || pagination.pageSize === "" ? null : Number(pagination.pageSize);
+      const pageSize = requested === null ? null : Math.max(1, Math.min(PAGINATION_CONFIG.MAX_LIMIT, Math.floor(requested) || PAGINATION_CONFIG.DEFAULT_LIMIT));
+      return Response.success({
+        list: RepositoryQuery.paginate(rows, Math.max(1, Number(pagination.page) || 1), pageSize),
+        summary: {
+          total: rows.length,
+          errors: rows.filter((row) => row.Level === "ERROR").length,
+          warnings: rows.filter((row) => row.Level === "WARN").length,
+          audit: rows.filter((row) => row.Category === "AUDIT").length,
+        },
+      });
+    } catch (error) { return Response.error(error.message); }
+  }
+
   function audit() {
     const findings = [];
     let sheet;
@@ -200,7 +217,7 @@ const LogsService = (() => {
     return Response.success({ classification: findings.length ? "NEEDS_DATA_CLEANUP" : "SAFE", sheetExists: true, rowCount: rows.length, headers, findings });
   }
 
-  return Object.freeze({ LEVELS, CATEGORIES, ACTIONS, STATUSES, record, bestEffort, list, getById, summary, audit });
+  return Object.freeze({ LEVELS, CATEGORIES, ACTIONS, STATUSES, record, bestEffort, list, page, getById, summary, audit });
 })();
 
 const AuditLogService = Object.freeze({ record(event) { return LogsService.record(Object.assign({}, event, { category: "AUDIT" })); }, bestEffort(event) { return LogsService.bestEffort(Object.assign({}, event, { category: "AUDIT" })); } });

@@ -16,6 +16,16 @@ function runLogsFocusedTests() {
   _logsAssert(first.indexOf("fn") < 0 && first.indexOf("'=SUM") >= 0, "Function omission or formula safety failed.");
   const deep = { a: { b: { c: { d: { e: { f: { g: true } } } } } } }; _logsAssert(LogSanitizer.serialize(deep).indexOf("[MAX_DEPTH]") >= 0, "Maximum depth marker missing.");
   const long = LogSanitizer.serialize({ value: "x".repeat(LogSanitizer.MAX_LENGTH + 100) }); _logsAssert(long.indexOf("[TRUNCATED:") >= 0, "Truncation marker missing.");
+  const app = HtmlService.createHtmlOutputFromFile("970.View.App").getContent();
+  const api = HtmlService.createHtmlOutputFromFile("965.View.API").getContent();
+  const loadStart = app.indexOf("async function loadLogs()");
+  const loadEnd = app.indexOf("function bindLogsActions()", loadStart);
+  const loadSource = app.slice(loadStart, loadEnd);
+  _logsAssert((loadSource.match(/Api\.Logs\.page\(/g) || []).length === 1, "Logs load must issue one combined page request.");
+  _logsAssert(!/Api\.Logs\.(?:list|summary)\(/.test(loadSource), "Logs load still issues duplicate list or summary requests.");
+  _logsAssert(/request !== logsRequest \|\| state\.page !== "logs"/.test(loadSource), "Logs stale-response rejection is missing.");
+  _logsAssert(/if \(incomplete \|\| invalid\) return;/.test(app), "Incomplete or invalid custom Logs range can dispatch.");
+  _logsAssert((api.match(/page\(filters, pagination\) \{ return run\("listLogsPage"/g) || []).length === 1, "Logs browser API combined endpoint is missing or duplicated.");
 }
 
 function _logsInitializeEmptySheet(audit) {
@@ -48,6 +58,10 @@ function _runLogsControlledWriteTest() {
     _logsAssert(matches[0].Context.indexOf("[REDACTED]") >= 0, "Controlled fixture was not redacted.");
     const fetched = LogsService.getById(fixtureId); _logsAssert(fetched.success && fetched.data.ID === fixtureId, "getById failed.");
     const listed = LogsService.list({ module: "LogsAcceptance", search: marker }, { page: 1, pageSize: 10 }); _logsAssert(listed.success && listed.data.data.some((row) => row.ID === fixtureId), "Filtering or search failed.");
+    const page = LogsService.page({ module: "LogsAcceptance", search: marker }, { page: 1, pageSize: 10 });
+    _logsAssert(page.success && page.data.list.data.some((row) => row.ID === fixtureId), "Combined Logs page filtering failed.");
+    _logsAssert(page.data.summary.total === page.data.list.total && page.data.summary.errors === 1, "Combined Logs page summary differs from its filtered dataset.");
+    _logsAssert(listLogsPage({ module: "LogsAcceptance", search: marker }, { page: 1, pageSize: 10 }).success, "Combined Logs controller failed.");
   } finally { if (fixtureId) _logsRemoveControlledFixture(fixtureId); }
   _logsAssert(_logsPhysicalSignature(RepositoryBase.rows(LOG_SCHEMA)) === beforeSignature, "Pre-existing production rows changed or cleanup failed.");
 }

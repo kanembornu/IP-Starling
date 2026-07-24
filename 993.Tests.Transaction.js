@@ -1931,29 +1931,18 @@ function testPickupTrashReadEligibilityResults() {
   }
 }
 
-function testPickupTrashReadMissingEligibility() {
+function testPickupTrashReadBoundedDependencyReads() {
   const fixture = pickupTrashReadFixture();
-  let headerReads = 0;
-  fixture.service = PickupService({
-    readPhysicalRows(schema) {
-      if (schema === PICKUP_HEADER_SCHEMA) {
-        headerReads++;
-        return headerReads === 1 ? fixture.rows.headers : [];
-      }
-      if (schema === PICKUP_DETAIL_SCHEMA) return fixture.rows.details;
-      if (schema === RETURN_SCHEMA) return fixture.rows.returns;
-      if (schema === PARTNER_SCHEMA) return fixture.rows.partners;
-      if (schema === PRODUCT_SCHEMA) return fixture.rows.products;
-      throw new Error("Unexpected Pickup Trash schema.");
-    },
-  });
+  const startedAt = Date.now();
   const rows = pickupTrashRows(fixture.service.listDeleted());
-  if (
-    rows.length !== 3 ||
-    rows.some((row) => row.restoreEligibility.code !== "NOT_FOUND")
-  ) {
-    throw new Error("Pickup Trash NOT_FOUND eligibility behavior is not explicit.");
+  const durationMs = Date.now() - startedAt;
+  if (rows.length !== 3 || fixture.readCount() !== 5) {
+    throw new Error("Pickup Trash must read Header, Detail, Return, Partner, and Product once per request.");
   }
+  if (rows.some((row) => !row.restoreEligibility || !row.restoreEligibility.code)) {
+    throw new Error("Pickup Trash bounded reads lost restore eligibility metadata.");
+  }
+  Logger.log(`PICKUP DELETED PERFORMANCE: rows=${rows.length}, dependencyReads=${fixture.readCount()}, durationMs=${durationMs}`);
 }
 
 function testPickupTrashReadPerformsZeroWrites() {
@@ -5602,6 +5591,10 @@ function manualPurchasingStatusFalse(value) {
 }
 
 function purchasingTestMasterData(partnerType) {
+  const startedAt = Date.now();
+  if (typeof activePurchasingFixtureCount === "number") {
+    activePurchasingFixtureCount++;
+  }
   const suffix = `${new Date().getTime()}_${Math.floor(Math.random() * 100000)}`;
   const partnerResponse = PartnerService().create({
     Nama: `Purchasing Test ${suffix}`,
@@ -5623,15 +5616,22 @@ function purchasingTestMasterData(partnerType) {
     throw new Error("Could not create controlled Product fixture.");
   }
 
+  if (typeof activePurchasingFixtureCount === "number") {
+    Logger.log(`PURCHASING FIXTURE SETUP: ${Date.now() - startedAt} ms`);
+  }
   return { partner: partnerResponse.data, product: productResponse.data };
 }
 
 function purchasingCleanupMasterData(fixture) {
   if (!fixture) return;
+  const startedAt = Date.now();
   const partner = RepositoryReader.findById(PARTNER_SCHEMA, fixture.partner.ID);
   const product = RepositoryReader.findById(PRODUCT_SCHEMA, fixture.product.ID);
   if (partner) PartnerService().remove(fixture.partner.ID);
   if (product) ProductService().remove(fixture.product.ID);
+  if (typeof activePurchasingFixtureCount === "number") {
+    Logger.log(`PURCHASING DEPENDENCY CLEANUP: ${Date.now() - startedAt} ms`);
+  }
 }
 
 function purchasingDocument(fixture, changes) {
@@ -5655,6 +5655,7 @@ function purchasingWithFixture(test, partnerType) {
       purchase = row;
     });
   } finally {
+    const cleanupStartedAt = Date.now();
     if (purchase && PurchasingService().findById(purchase.ID).success) {
       PurchasingService().remove(purchase.ID);
     }
@@ -5662,6 +5663,9 @@ function purchasingWithFixture(test, partnerType) {
       Logger.log(`CLEANUP: Purchasing fixture ${purchase.ID} is soft-deleted.`);
     }
     purchasingCleanupMasterData(fixture);
+    if (typeof activePurchasingFixtureCount === "number") {
+      Logger.log(`PURCHASING FIXTURE CLEANUP: ${Date.now() - cleanupStartedAt} ms`);
+    }
   }
 }
 
@@ -5745,6 +5749,51 @@ function testPurchasingFindDeletedResponseShape() {
     "PurchasingService.findDeleted()",
   );
   purchasingAssertDeletedResponse(response, "PurchasingService.findDeleted()");
+}
+
+function testPurchasingFindDeletedBoundedDependencyReads() {
+  const reads = { purchasing: 0, products: 0, partners: 0 };
+  const purchases = Array.from({ length: 287 }, (_, index) => ({
+    ID: `PC-PERF-${String(index + 1).padStart(3, "0")}`,
+    Tanggal: "2026-07-24",
+    SupplierID: "PT-PERF-1",
+    ProductID: "PR-PERF-1",
+    Qty: 1,
+    Harga: 1000,
+    Total: 1000,
+    Deleted: true,
+    IsActive: false,
+  }));
+  const service = PurchasingService({
+    readPhysicalRows(schema) {
+      if (schema === PURCHASING_SCHEMA) {
+        reads.purchasing++;
+        return purchases;
+      }
+      if (schema === PRODUCT_SCHEMA) {
+        reads.products++;
+        return [{ ID: "PR-PERF-1", Deleted: false, IsActive: true }];
+      }
+      if (schema === PARTNER_SCHEMA) {
+        reads.partners++;
+        return [{ ID: "PT-PERF-1", Jenis: "Supplier", Deleted: false, IsActive: true }];
+      }
+      throw new Error("Unexpected Purchasing performance schema.");
+    },
+  });
+  const startedAt = Date.now();
+  const response = service.findDeleted();
+  const durationMs = Date.now() - startedAt;
+  if (!response.success || response.data.length !== 287) {
+    throw new Error("Controlled 287-row Purchasing Deleted fixture was not returned completely.");
+  }
+  if (reads.purchasing !== 1 || reads.products !== 1 || reads.partners !== 1) {
+    throw new Error("Purchasing Deleted must read Purchasing, Product, and Partner once per request.");
+  }
+  if (response.data.some((row) => row.canRestore !== true || row.restoreIssues.length !== 0)) {
+    throw new Error("Purchasing Deleted batching changed safe restore eligibility.");
+  }
+  Logger.log(`PURCHASING DELETED PERFORMANCE: rows=${response.data.length}, purchasingReads=${reads.purchasing}, productReads=${reads.products}, partnerReads=${reads.partners}, durationMs=${durationMs}`);
 }
 
 function testPurchasingStatisticsEmpty() {
@@ -6513,38 +6562,57 @@ function testPurchasingFrontendArchitectureSourceContracts() {
 
 function testPurchasingAggregatePhaseRegistrationContracts() {
   const phases = PURCHASING_ACCEPTANCE_PHASES;
-  if (!Array.isArray(phases) || phases.length !== 3) throw new Error("Purchasing canonical phase registry is unavailable.");
-  const expectedOrder = ["read", "mutation", "restore"];
-  if (!expectedOrder.every((key, index) => phases[index]?.key === key)) throw new Error("Purchasing canonical phase order must be Read, Mutation, Restore.");
+  if (!Array.isArray(phases) || phases.length !== 4) throw new Error("Purchasing canonical phase registry is unavailable.");
+  const expectedOrder = ["read", "validation", "crud", "restore"];
+  if (!expectedOrder.every((key, index) => phases[index]?.key === key)) throw new Error("Purchasing canonical phase order must be Read, Validation, CRUD, Restore.");
 
+  const canonicalRegistries = [PURCHASING_READ_TESTS, PURCHASING_VALIDATION_TESTS, PURCHASING_CRUD_TESTS, PURCHASING_RESTORE_TESTS];
+  if (!canonicalRegistries.every((registry, index) => phases[index].tests === registry)) throw new Error("Purchasing phases do not consume their canonical registries.");
+  if (PURCHASING_MUTATION_TESTS.length !== PURCHASING_VALIDATION_TESTS.length + PURCHASING_CRUD_TESTS.length || PURCHASING_MUTATION_TESTS.some((test, index) => test !== PURCHASING_VALIDATION_TESTS.concat(PURCHASING_CRUD_TESTS)[index])) throw new Error("Purchasing legacy Mutation registry must derive from Validation and CRUD without drift.");
   const assigned = phases.reduce((tests, phase) => {
-    if (!Array.isArray(phase.suites) || !phase.suites.length) throw new Error(`Purchasing ${phase.key} phase has no suites.`);
-    const phaseTests = phase.suites.reduce((suiteTests, suite) => suiteTests.concat(suite.tests || []), []);
-    if (phaseTests.length !== phase.expectedCount) throw new Error(`Unexpected Purchasing ${phase.key} count: ${phaseTests.length}; expected ${phase.expectedCount}.`);
-    return tests.concat(phaseTests);
+    if (!Array.isArray(phase.tests) || !phase.tests.length) throw new Error(`Purchasing ${phase.key} phase has no canonical tests.`);
+    if (phase.tests.length !== phase.expectedCount) throw new Error(`Unexpected Purchasing ${phase.key} count: ${phase.tests.length}; expected ${phase.expectedCount}.`);
+    return tests.concat(phase.tests);
   }, []);
-  const assignedNames = assigned.map((test) => test.name);
   if (assigned.some((test) => typeof test !== "function" || !test.name)) throw new Error("A registered Purchasing test is not a callable named function.");
+  const assignedNames = assigned.map((test) => test.name);
   const uniqueNames = new Set(assignedNames);
   if (uniqueNames.size !== assignedNames.length) throw new Error("A Purchasing test is registered in more than one canonical phase.");
-  if (assigned.length !== 53 || uniqueNames.size !== 53) throw new Error(`Purchasing phase registry must contain exactly 53 known tests; found ${uniqueNames.size}.`);
+  const expectedProductionCount = canonicalRegistries.reduce((count, registry) => count + registry.length, 0);
+  if (PURCHASING_KNOWN_TESTS.length !== expectedProductionCount || assigned.length !== expectedProductionCount || uniqueNames.size !== expectedProductionCount) throw new Error(`Purchasing phase registry must contain ${expectedProductionCount} known tests; found ${uniqueNames.size}.`);
+  if (PURCHASING_KNOWN_TESTS.some((test, index) => test !== assigned[index])) throw new Error("Purchasing known-test registry differs from canonical phase order.");
   const metaTests = phases.reduce((tests, phase) => tests.concat(phase.metaTests || []), []);
-  const metaNames = metaTests.map((test) => test.name);
   if (metaTests.some((test) => typeof test !== "function" || !test.name)) throw new Error("A registered Purchasing meta-test is not a callable named function.");
+  const metaNames = metaTests.map((test) => test.name);
   if (metaNames.length !== 1 || metaNames[0] !== "testPurchasingAggregatePhaseRegistrationContracts") throw new Error("Purchasing aggregate registration contract must be the sole Read meta-test.");
   if (phases[0].metaTests !== PURCHASING_META_TESTS || phases.slice(1).some((phase) => phase.metaTests.length)) throw new Error("Purchasing meta-test ownership must belong only to the Read phase.");
   if (assignedNames.some((name) => metaNames.indexOf(name) >= 0)) throw new Error("Purchasing meta-tests must not distort production phase membership.");
   const allRegisteredNames = assignedNames.concat(metaNames);
-  if (new Set(allRegisteredNames).size !== 54) throw new Error(`Purchasing production and meta registries must contain 54 unique tests; found ${new Set(allRegisteredNames).size}.`);
+  const expectedTotalWithMeta = expectedProductionCount + metaNames.length;
+  if (new Set(allRegisteredNames).size !== expectedTotalWithMeta) throw new Error(`Purchasing production and meta registries must contain ${expectedTotalWithMeta} unique tests; found ${new Set(allRegisteredNames).size}.`);
   if ((assignedNames.filter((name) => name === "testPurchasingFrontendArchitectureSourceContracts")).length !== 1 || (assignedNames.filter((name) => name === "testPurchasingUxConsistencySourceContracts")).length !== 1) throw new Error("Purchasing frontend architecture contracts must be registered exactly once.");
+  if ((assignedNames.filter((name) => name === "testPurchasingFindDeletedBoundedDependencyReads")).length !== 1) throw new Error("Purchasing bounded dependency-read performance coverage must be registered exactly once.");
   if (phases.filter((phase) => phase.audit === true).length !== 1 || phases[0].audit !== true) throw new Error("Purchasing live-data audit must belong only to the read phase.");
+  const canonicalRunners = [runPurchasingReadAcceptance, runPurchasingValidationAcceptance, runPurchasingCrudAcceptance, runPurchasingRestoreAcceptance];
+  if (!canonicalRunners.every((runner, index) => phases[index].runner === runner.name)) throw new Error("Purchasing phase runner names differ from canonical phase ownership.");
   const phaseRunnerNames = new Set(phases.map((phase) => phase.runner));
   if (assigned.some((test) => phaseRunnerNames.has(test.name) || test.name === "runPurchasingAcceptancePhase")) throw new Error("A Purchasing phase recursively registers an aggregate runner.");
 
-  let failFastMessage = "";
-  try { runPurchasingModuleAcceptance(); } catch (error) { failFastMessage = error.message; }
-  const requiredRunners = ["runPurchasingReadAcceptance()", "runPurchasingMutationAcceptance()", "runPurchasingRestoreAcceptance()"];
-  if (!requiredRunners.every((name) => failFastMessage.indexOf(name) >= 0)) throw new Error("Deprecated Purchasing combined runner does not fail fast with all canonical phase names.");
+  const requiredRunners = ["runPurchasingReadAcceptance()", "runPurchasingValidationAcceptance()", "runPurchasingCrudAcceptance()", "runPurchasingRestoreAcceptance()"];
+  [runPurchasingModuleAcceptance, runPurchasingMutationAcceptance].forEach((deprecatedRunner) => {
+    const registeredBefore = activeTestRegistry ? activeTestRegistry.size : 0;
+    let failFastMessage = "";
+    try { deprecatedRunner(); } catch (error) { failFastMessage = error.message; }
+    if (!failFastMessage || !requiredRunners.every((name) => failFastMessage.indexOf(name) >= 0)) throw new Error(`${deprecatedRunner.name} does not fail fast with all canonical phase names.`);
+    if (activeTestRegistry && activeTestRegistry.size !== registeredBefore) throw new Error(`${deprecatedRunner.name} executed or registered a test before failing.`);
+  });
+
+  const cleanupSource = purchasingWithFixture.toString();
+  if (!/finally\s*\{/.test(cleanupSource) || cleanupSource.indexOf("purchasingCleanupMasterData(fixture)") < 0) throw new Error("Purchasing fixture cleanup must remain protected by finally.");
+  const acceptanceSource = runPurchasingAcceptancePhase.toString();
+  if (acceptanceSource.indexOf("reportTiming: true") < 0 || acceptanceSource.indexOf("fixtureCount") < 0 || completePurchasingAcceptancePhase.toString().indexOf("fixtures") < 0) throw new Error("Purchasing phase timing and fixture-count reporting is missing.");
+  const aggregateSources = canonicalRunners.map((runner) => runner.toString()).concat([runPurchasingAcceptancePhase.toString(), runPurchasingModuleAcceptance.toString(), runPurchasingMutationAcceptance.toString()]);
+  if (aggregateSources.some((source) => /\b(?:RepositoryReader|RepositoryWriter|SpreadsheetApp|PurchasingService|ProductService|PartnerService)\b/.test(source))) throw new Error("Purchasing aggregate runners must not access production data directly.");
 }
 
 function expenseControllerAssertResponse(response, expectedSuccess) {

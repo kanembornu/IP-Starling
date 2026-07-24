@@ -28,7 +28,7 @@ const RepositoryCache = (() => {
     return bytes;
   }
 
-  function isBypassablePutError(error) {
+  function isBypassableCacheError(error) {
     const message = String(error?.message || error || "");
 
     return /argument too large:\s*value|value[^\n]*too large|cache[^\n]*(?:quota|limit)|(?:quota|limit)[^\n]*cache|service invoked too many times[^\n]*cache/i.test(message);
@@ -45,7 +45,13 @@ const RepositoryCache = (() => {
       return null;
     }
 
-    const value = cache.get(key(schema));
+    let value;
+    try {
+      value = cache.get(key(schema));
+    } catch (error) {
+      if (isBypassableCacheError(error)) return null;
+      throw error;
+    }
 
     if (!value) {
       return null;
@@ -54,7 +60,10 @@ const RepositoryCache = (() => {
     try {
       return JSON.parse(value);
     } catch (err) {
-      remove(schema);
+      try { remove(schema); }
+      catch (error) {
+        if (!isBypassableCacheError(error)) throw error;
+      }
 
       return null;
     }
@@ -74,7 +83,7 @@ const RepositoryCache = (() => {
     try {
       cache.put(key(schema), serialized, CACHE_CONFIG.EXPIRE_SECONDS);
     } catch (error) {
-      if (!isBypassablePutError(error)) {
+      if (!isBypassableCacheError(error)) {
         throw error;
       }
     }

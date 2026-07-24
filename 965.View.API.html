@@ -64,6 +64,7 @@
 
     const Logs = Object.freeze({
       list(filters, pagination) { return run("listLogs", filters, pagination); },
+      page(filters, pagination) { return run("listLogsPage", filters, pagination); },
       get(id) { return run("getLogById", id); },
       summary(filters) { return run("getLogsSummary", filters); },
     });

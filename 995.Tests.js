@@ -7,9 +7,16 @@ let activeTestRegistry = null;
 
 let activeAggregateStartedAt = null;
 
-function runTestSuite(name, tests) {
+let activePurchasingFixtureCount = null;
+
+function runTestSuite(name, tests, options) {
   const suiteStartedAt = Date.now();
-  Logger.log(`START: ${name}`);
+  const settings = options || {};
+  const fixtureCount = () => typeof settings.fixtureCount === "function" ? settings.fixtureCount() : 0;
+  const getAggregateElapsed = () => activeAggregateStartedAt ? Date.now() - activeAggregateStartedAt : Date.now() - suiteStartedAt;
+  Logger.log(settings.reportTiming
+    ? `START: ${name} (${tests.length} registered tests; aggregate ${getAggregateElapsed()} ms; fixtures ${fixtureCount()})`
+    : `START: ${name}`);
 
   let currentTest = null;
   const selectedTests = activeTestRegistry
@@ -27,22 +34,31 @@ function runTestSuite(name, tests) {
   try {
     selectedTests.forEach((test) => {
       currentTest = test;
-      Logger.log(`RUN: ${test.name}`);
+      const testStartedAt = Date.now();
+      Logger.log(settings.reportTiming
+        ? `RUN: ${test.name} (suite ${testStartedAt - suiteStartedAt} ms; aggregate ${getAggregateElapsed()} ms; fixtures ${fixtureCount()})`
+        : `RUN: ${test.name}`);
       test();
-      Logger.log(`PASS: ${test.name}`);
+      Logger.log(settings.reportTiming
+        ? `PASS: ${test.name} (test ${Date.now() - testStartedAt} ms; suite ${Date.now() - suiteStartedAt} ms; aggregate ${getAggregateElapsed()} ms; fixtures ${fixtureCount()})`
+        : `PASS: ${test.name}`);
     });
   } catch (error) {
     const suiteElapsed = Date.now() - suiteStartedAt;
     const aggregateElapsed = activeAggregateStartedAt ? Date.now() - activeAggregateStartedAt : suiteElapsed;
     Logger.log(
-      `FAIL: ${currentTest ? currentTest.name : name} - ${error.message} (suite ${suiteElapsed} ms; aggregate ${aggregateElapsed} ms)`,
+      settings.reportTiming
+        ? `FAIL: ${currentTest ? currentTest.name : name} - ${error.message} (suite ${suiteElapsed} ms; aggregate ${aggregateElapsed} ms; fixtures ${fixtureCount()})`
+        : `FAIL: ${currentTest ? currentTest.name : name} - ${error.message} (suite ${suiteElapsed} ms; aggregate ${aggregateElapsed} ms)`,
     );
     throw error;
   }
 
   const suiteElapsed = Date.now() - suiteStartedAt;
   const aggregateElapsed = activeAggregateStartedAt ? Date.now() - activeAggregateStartedAt : suiteElapsed;
-  Logger.log(`COMPLETE: ${name} (${selectedTests.length} tests; suite ${suiteElapsed} ms; aggregate ${aggregateElapsed} ms)`);
+  Logger.log(settings.reportTiming
+    ? `COMPLETE: ${name} (${selectedTests.length} tests; suite ${suiteElapsed} ms; aggregate ${aggregateElapsed} ms; fixtures ${fixtureCount()})`
+    : `COMPLETE: ${name} (${selectedTests.length} tests; suite ${suiteElapsed} ms; aggregate ${aggregateElapsed} ms)`);
 }
 
 function runCoreRegressionTests() {
@@ -172,7 +188,7 @@ function runPickupTrashReadTests() {
     testPickupTrashReadFilteringAndShape,
     testPickupTrashReadSortingAndSearch,
     testPickupTrashReadEligibilityResults,
-    testPickupTrashReadMissingEligibility,
+    testPickupTrashReadBoundedDependencyReads,
     testPickupTrashReadPerformsZeroWrites,
     testPickupTrashReadController,
   ]);
@@ -577,6 +593,7 @@ const PURCHASING_DELETED_LIST_TESTS = [
     testPurchasingFindDeletedEmpty,
     testPurchasingFindDeletedFiltering,
     testPurchasingFindDeletedResponseShape,
+    testPurchasingFindDeletedBoundedDependencyReads,
 ];
 
 function runPurchasingDeletedListTests() {
@@ -602,7 +619,7 @@ function runPurchasingWriteTests() {
   runTestSuite("Purchasing write tests", PURCHASING_WRITE_TESTS);
 }
 
-const PURCHASING_RESTORE_TESTS = [
+const PURCHASING_RESTORE_TESTS = Object.freeze([
     testPurchasingRestoreValid,
     testPurchasingRestoreAlreadyActive,
     testPurchasingRestoreRejectsInactiveNonDeleted,
@@ -610,7 +627,7 @@ const PURCHASING_RESTORE_TESTS = [
     testPurchasingRestoreRejectsNonSupplierPartner,
     testPurchasingRestoreRejectsInactiveProduct,
     testPurchasingRestoreRecalculatesTotal,
-];
+]);
 
 function runPurchasingRestoreTests() {
   runTestSuite("Purchasing restore tests", PURCHASING_RESTORE_TESTS);
@@ -640,9 +657,35 @@ const PURCHASING_API_TESTS = [
     testPurchasingFrontendArchitectureSourceContracts,
 ];
 
-const PURCHASING_META_TESTS = [
+const PURCHASING_META_TESTS = Object.freeze([
     testPurchasingAggregatePhaseRegistrationContracts,
-];
+]);
+
+const PURCHASING_READ_TESTS = Object.freeze(
+  PURCHASING_CONTROLLER_TESTS
+    .concat(PURCHASING_API_TESTS)
+    .concat(PURCHASING_READ_SERVICE_TESTS)
+    .concat(PURCHASING_DELETED_LIST_TESTS),
+);
+
+const PURCHASING_VALIDATION_TESTS = Object.freeze(
+  PURCHASING_MUTATION_VALIDATION_TESTS.slice(),
+);
+
+const PURCHASING_CRUD_TESTS = Object.freeze(
+  PURCHASING_WRITE_TESTS.slice(),
+);
+
+const PURCHASING_MUTATION_TESTS = Object.freeze(
+  PURCHASING_VALIDATION_TESTS.concat(PURCHASING_CRUD_TESTS),
+);
+
+const PURCHASING_KNOWN_TESTS = Object.freeze(
+  PURCHASING_READ_TESTS
+    .concat(PURCHASING_VALIDATION_TESTS)
+    .concat(PURCHASING_CRUD_TESTS)
+    .concat(PURCHASING_RESTORE_TESTS),
+);
 
 function runPurchasingApiTests() {
   runTestSuite("Purchasing browser API tests", PURCHASING_API_TESTS);
@@ -653,38 +696,37 @@ const PURCHASING_ACCEPTANCE_PHASES = Object.freeze([
     key: "read",
     name: "READ",
     runner: "runPurchasingReadAcceptance",
-    expectedCount: 23,
+    expectedCount: PURCHASING_READ_TESTS.length,
     audit: true,
     metaTests: PURCHASING_META_TESTS,
-    suites: Object.freeze([
-      Object.freeze({ name: "Purchasing controller tests", tests: PURCHASING_CONTROLLER_TESTS }),
-      Object.freeze({ name: "Purchasing browser API tests", tests: PURCHASING_API_TESTS }),
-      Object.freeze({ name: "Purchasing read service tests", tests: PURCHASING_READ_SERVICE_TESTS }),
-      Object.freeze({ name: "Purchasing deleted-list tests", tests: PURCHASING_DELETED_LIST_TESTS }),
-    ]),
+    tests: PURCHASING_READ_TESTS,
   }),
   Object.freeze({
-    key: "mutation",
-    name: "MUTATION",
-    runner: "runPurchasingMutationAcceptance",
-    expectedCount: 23,
+    key: "validation",
+    name: "VALIDATION",
+    runner: "runPurchasingValidationAcceptance",
+    expectedCount: PURCHASING_VALIDATION_TESTS.length,
     audit: false,
     metaTests: Object.freeze([]),
-    suites: Object.freeze([
-      Object.freeze({ name: "Purchasing mutation validation tests", tests: PURCHASING_MUTATION_VALIDATION_TESTS }),
-      Object.freeze({ name: "Purchasing write tests", tests: PURCHASING_WRITE_TESTS }),
-    ]),
+    tests: PURCHASING_VALIDATION_TESTS,
+  }),
+  Object.freeze({
+    key: "crud",
+    name: "CRUD",
+    runner: "runPurchasingCrudAcceptance",
+    expectedCount: PURCHASING_CRUD_TESTS.length,
+    audit: false,
+    metaTests: Object.freeze([]),
+    tests: PURCHASING_CRUD_TESTS,
   }),
   Object.freeze({
     key: "restore",
     name: "RESTORE",
     runner: "runPurchasingRestoreAcceptance",
-    expectedCount: 7,
+    expectedCount: PURCHASING_RESTORE_TESTS.length,
     audit: false,
     metaTests: Object.freeze([]),
-    suites: Object.freeze([
-      Object.freeze({ name: "Purchasing restore tests", tests: PURCHASING_RESTORE_TESTS }),
-    ]),
+    tests: PURCHASING_RESTORE_TESTS,
   }),
 ]);
 
@@ -703,18 +745,21 @@ function beginPurchasingAcceptancePhase(name) {
   }
   activeTestRegistry = new Set();
   activeAggregateStartedAt = Date.now();
-  Logger.log(`PURCHASING ACCEPTANCE PHASE START: ${name}`);
+  activePurchasingFixtureCount = 0;
+  Logger.log(`PURCHASING ACCEPTANCE PHASE START: ${name} (aggregate 0 ms; fixtures 0)`);
 }
 
 function completePurchasingAcceptancePhase(name) {
   const elapsed = activeAggregateStartedAt ? Date.now() - activeAggregateStartedAt : 0;
   const count = activeTestRegistry ? activeTestRegistry.size : 0;
-  Logger.log(`PURCHASING ACCEPTANCE PHASE COMPLETE: ${name} (${count} unique tests; aggregate ${elapsed} ms)`);
+  const fixtures = typeof activePurchasingFixtureCount === "number" ? activePurchasingFixtureCount : 0;
+  Logger.log(`PURCHASING ACCEPTANCE PHASE COMPLETE: ${name} (${count} unique tests; aggregate ${elapsed} ms; fixtures ${fixtures})`);
   activeTestRegistry = null;
   activeAggregateStartedAt = null;
+  activePurchasingFixtureCount = null;
 }
 
-/** Canonical order: READ, then MUTATION, then RESTORE in separate executions. */
+/** Canonical order: READ, VALIDATION, CRUD, then RESTORE in separate executions. */
 function runPurchasingAcceptancePhase(key) {
   const phase = PURCHASING_ACCEPTANCE_PHASES.find((entry) => entry.key === key);
   if (!phase) throw new Error(`Unknown Purchasing acceptance phase: ${key}`);
@@ -728,8 +773,12 @@ function runPurchasingAcceptancePhase(key) {
         throw new Error(`Purchasing production data audit failed: ${issues}`);
       }
     }
-    phase.suites.forEach((suite) => runTestSuite(suite.name, suite.tests));
-    if (phase.metaTests.length) runTestSuite(`Purchasing ${phase.name.toLowerCase()} meta tests`, phase.metaTests);
+    const reporting = {
+      reportTiming: true,
+      fixtureCount: () => activePurchasingFixtureCount,
+    };
+    runTestSuite(`Purchasing ${phase.name.toLowerCase()} tests`, phase.tests, reporting);
+    if (phase.metaTests.length) runTestSuite(`Purchasing ${phase.name.toLowerCase()} meta tests`, phase.metaTests, reporting);
   } finally {
     completePurchasingAcceptancePhase(phase.name);
   }
@@ -739,8 +788,16 @@ function runPurchasingReadAcceptance() {
   runPurchasingAcceptancePhase("read");
 }
 
+function runPurchasingValidationAcceptance() {
+  runPurchasingAcceptancePhase("validation");
+}
+
+function runPurchasingCrudAcceptance() {
+  runPurchasingAcceptancePhase("crud");
+}
+
 function runPurchasingMutationAcceptance() {
-  runPurchasingAcceptancePhase("mutation");
+  throw new Error("Purchasing Mutation acceptance is deprecated because it exceeds one Apps Script execution. Run in order: runPurchasingReadAcceptance(), runPurchasingValidationAcceptance(), runPurchasingCrudAcceptance(), runPurchasingRestoreAcceptance().");
 }
 
 function runPurchasingRestoreAcceptance() {
@@ -748,7 +805,7 @@ function runPurchasingRestoreAcceptance() {
 }
 
 function runPurchasingModuleAcceptance() {
-  throw new Error("Purchasing acceptance exceeds one Apps Script execution. Run in order: runPurchasingReadAcceptance(), runPurchasingMutationAcceptance(), runPurchasingRestoreAcceptance().");
+  throw new Error("Purchasing acceptance exceeds one Apps Script execution. Run in order: runPurchasingReadAcceptance(), runPurchasingValidationAcceptance(), runPurchasingCrudAcceptance(), runPurchasingRestoreAcceptance().");
 }
 
 /**
