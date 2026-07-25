@@ -572,6 +572,8 @@ function testPickupDateNormalization() {
       throw new Error(`Pickup ${sample.label} normalization failed.`);
     }
 
+    recordPickupFixture(1 + response.data.details.length);
+
     Logger.log(
       `Pickup date test created header ${response.data.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]}. Manual cleanup required.`,
     );
@@ -591,11 +593,11 @@ function testPickupPresenterDateContract() {
     "function dateInputValue(value)",
     "return calendarDateValue(value);",
     "function formatPickupDate(value)",
-    "formatPickupDate(pickup[FIELD.DATE])",
-    'detailField("Tanggal", formatPickupDate(header[FIELD.DATE]))',
-    "timestamp.getFullYear()",
-    "timestamp.getMonth()",
-    "timestamp.getDate()",
+    "formatPickupDate(row[FIELD.DATE])",
+    'detailField("Tanggal",formatPickupDate(header.Tanggal))',
+    "date.getFullYear()",
+    "date.getMonth()",
+    "date.getDate()",
   ];
 
   required.forEach((contract) => {
@@ -612,165 +614,114 @@ function testPickupPresenterDateContract() {
     throw new Error("Pickup presenter must not parse YYYY-MM-DD with new Date().");
   }
 
-  function extractNamedFunctionSource(content, functionMarker, label) {
-    const start = content.indexOf(functionMarker);
+  ["function pickupMatch(row,query)","function searchPickups(keyword", "renderPickups();"].forEach((contract) => {
+    if (appSource.indexOf(contract) === -1) throw new Error(`Pickup App search contract is missing: ${contract}`);
+  });
+}
 
-    if (start === -1) {
-      throw new Error(`Pickup ${label} function declaration was not found.`);
-    }
+function testPickupFrontendArchitectureContracts() {
+  const presenter = HtmlService.createHtmlOutputFromFile("974.View.Pickups.Presenter").getContent();
+  const app = HtmlService.createHtmlOutputFromFile("970.View.App").getContent();
+  const events = HtmlService.createHtmlOutputFromFile("980.View.Event").getContent();
+  const api = HtmlService.createHtmlOutputFromFile("965.View.API").getContent();
+  const view = HtmlService.createHtmlOutputFromFile("930.View.Pickups").getContent();
+  ["render","renderLoading","renderError","renderEmpty","renderDetail","renderForm","renderFormDetail","renderFormFooter"].forEach((name)=>{if(presenter.indexOf(name)===-1)throw new Error(`PickupPresenter is missing ${name}.`);});
+  ["Api.","PickupAPI","ProductAPI","PartnerAPI","App.","google.script.run","Toast.","Dialog.","Modal.","addEventListener","async function","new Promise","SpreadsheetApp","AuditLogService","Repository","Controller","Service"].forEach((token)=>{if(presenter.indexOf(token)!==-1)throw new Error(`PickupPresenter forbidden ownership: ${token}`);});
+  ["pickupMode","deletedPickups","pickupSearch","pickupRequest","pickupDetailRequest","pickupDependencyLoading","pickupForm","openCreatePickup","openEditPickup","viewPickup","deletePickup","restorePickup","submitPickupForm","Api.Pickup.create","Api.Pickup.update","Api.Pickup.remove","Api.Pickup.restore"].forEach((token)=>{if(app.indexOf(token)===-1)throw new Error(`App Pickup ownership is missing ${token}.`);});
+  ["bindPickups","App.openCreatePickup","App.openEditPickup","App.viewPickup","App.deletePickup","App.restorePickup","App.submitPickupForm","App.addPickupDetail","App.removePickupDetail"].forEach((token)=>{if(events.indexOf(token)===-1)throw new Error(`Pickup Event delegation is missing ${token}.`);});
+  if(/Api\.|PickupsPresenter\./.test(events.match(/function handlePickupClick[\s\S]*?function handlePickupSubmit[\s\S]*?\}/)?.[0]||""))throw new Error("Pickup Event handlers must delegate only to App.");
+  ["findAll()","findDeleted(options = {})","findById(id)","create(data)","update(id, data)","remove(id)","restore(id)"].forEach((token)=>{if(api.indexOf(token)===-1)throw new Error(`Pickup API contract is missing ${token}.`);});
+  if(/Api\.|google\.script\.run|SpreadsheetApp/.test(view))throw new Error("Pickup View must remain declarative.");
+}
 
-    const openingBrace = content.indexOf("{", start);
-
-    if (openingBrace === -1) {
-      throw new Error(`Pickup ${label} function opening brace was not found.`);
-    }
-
-    let depth = 0;
-    let quote = null;
-    let lineComment = false;
-    let blockComment = false;
-    let escaped = false;
-
-    for (let index = openingBrace; index < content.length; index++) {
-      const character = content[index];
-      const nextCharacter = content[index + 1];
-
-      if (lineComment) {
-        if (character === "\n") lineComment = false;
-        continue;
-      }
-
-      if (blockComment) {
-        if (character === "*" && nextCharacter === "/") {
-          blockComment = false;
-          index += 1;
-        }
-        continue;
-      }
-
-      if (quote) {
-        if (escaped) {
-          escaped = false;
-        } else if (character === "\\") {
-          escaped = true;
-        } else if (character === quote) {
-          quote = null;
-        }
-        continue;
-      }
-
-      if (character === "/" && nextCharacter === "/") {
-        lineComment = true;
-        index += 1;
-        continue;
-      }
-
-      if (character === "/" && nextCharacter === "*") {
-        blockComment = true;
-        index += 1;
-        continue;
-      }
-
-      if (character === '"' || character === "'" || character === "`") {
-        quote = character;
-        continue;
-      }
-
-      if (character === "{") depth += 1;
-
-      if (character === "}") {
-        depth -= 1;
-
-        if (depth === 0) {
-          return content.slice(start, index + 1);
-        }
-      }
-    }
-
-    throw new Error(`Pickup ${label} function braces are unbalanced.`);
+function testPickupAcceptancePhaseRegistrationContracts() {
+  const phases = PICKUP_ACCEPTANCE_PHASES;
+  const expectedMemberships = {
+    Read: "testCoreValidator|testCoreResponse|testRepositoryCacheOversizedValueBypass|testTransactionServicePublicApi|testTransactionServiceFindAll|testTransactionServiceFindByIdValidation|testTransactionServiceFindByIdResponseShape|testPickupServicePublicApi|testPickupServiceFindAll|testPickupServiceFindByIdValidation|testPickupServiceHeaderDetailRead|testPickupPresenterDateContract|testPickupFrontendArchitectureContracts|testPickupTrashReadFilteringAndShape|testPickupTrashReadSortingAndSearch|testPickupTrashReadEligibilityResults|testPickupTrashReadBoundedDependencyReads|testPickupTrashReadPerformsZeroWrites|testPickupTrashReadController|testPickupControllerPublicApi|testPickupControllerGetPickups|testPickupControllerGetPickupValidation|testPickupControllerSerialization",
+    Validation: "testPickupCreateMissingDocument|testPickupCreateMissingHeader|testPickupCreateEmptyDetails|testPickupCreateMissingTanggal|testPickupCreateInvalidTanggal|testPickupCreateMissingPartnerId|testPickupCreateInvalidPartnerId|testPickupCreateMissingProductId|testPickupCreateInvalidProductId|testPickupCreateInvalidQty|testPickupCreateDuplicateProductId|testPickupUpdateMissingId|testPickupUpdateUnknownId|testPickupUpdateMissingDocument|testPickupUpdateMissingHeader|testPickupUpdateEmptyDetails|testPickupUpdateMissingTanggal|testPickupUpdateMissingPartnerId|testPickupUpdateInvalidPartnerId|testPickupUpdateMissingProductId|testPickupUpdateInvalidProductId|testPickupUpdateInvalidQty|testPickupUpdateDuplicateProductId|testPickupRemoveMissingId|testPickupRemoveUnknownId|testPickupControllerCreateValidation|testPickupControllerUpdateValidation|testPickupControllerDeleteValidation|testPickupControllerRestoreValidation",
+    Mutation: "testPickupCreateValidSingleItem|testPickupCreateValidMultiItem|testPickupDateNormalization|testPickupUpdateSingleToMultiItem|testPickupUpdateMultiToSingleItem|testPickupUpdatePreservesHeaderIdentity|testPickupUpdateRecalculatesTotals|testPickupUpdateReplacesActiveDetails|testPickupRemoveHeaderAndDetails|testPickupRemovePreservesIdentity|testPickupRemoveDoesNotAffectOtherPickup|testPickupRemoveAlreadyDeleted",
+    Restore: "testPickupRestoreMissingId|testPickupRestoreUnknownId|testPickupIntegrityRestorePreflight|testPickupRestoreEligibilitySafe|testPickupRestoreEligibilityMultipleGenerations|testPickupRestoreEligibilityAmbiguousReturns|testPickupRestoreEligibilityMissingDetail|testPickupRestoreEligibilityRelationshipMismatch|testPickupRestoreEligibilityActivePickup|testPickupRestoreEligibilityMissingPickup|testPickupRestoreEligibilityPerformsZeroWrites|testPickupRestoreEligibilityIsDeterministic",
+  };
+  const expectedOrder = [
+    "runPickupReadAcceptance",
+    "runPickupValidationAcceptance",
+    "runPickupMutationAcceptance",
+    "runPickupRestoreAcceptance",
+  ];
+  if (!Array.isArray(phases) || phases.map((phase) => phase.runner).join("|") !== expectedOrder.join("|")) {
+    throw new Error("Pickup acceptance phase order is invalid.");
   }
 
-  function assertNoSearchSideEffects(section, label) {
-    const prohibited = section.match(
-      /Api\.Pickup|google\.script\.run|renderLoading|(?:state\.)?pickupLoading|App\.refresh|\.(?:create|update|remove|restore)\s*\(/,
-    );
-
-    if (prohibited) {
-      throw new Error(
-        `Pickup ${label} contains prohibited operation: ${prohibited[0]}`,
-      );
+  const allTests = [];
+  const memberships = Object.create(null);
+  phases.forEach((phase) => {
+    if (!Array.isArray(phase.tests) || !phase.tests.length) throw new Error(`${phase.name} has no registered tests.`);
+    if (phase.expectedCount !== phase.tests.length) throw new Error(`${phase.name} derived phase count is invalid.`);
+    if (phase.tests.map((test) => test.name).join("|") !== expectedMemberships[phase.name]) {
+      throw new Error(`${phase.name} membership differs from the canonical Pickup acceptance contract.`);
     }
-  }
+    const withinPhase = new Set();
+    phase.tests.forEach((test) => {
+      if (typeof test !== "function" || !test.name) throw new Error(`${phase.name} contains a non-callable test.`);
+      if (withinPhase.has(test.name)) throw new Error(`${test.name} is duplicated within ${phase.name}.`);
+      withinPhase.add(test.name);
+      memberships[test.name] = (memberships[test.name] || 0) + 1;
+      allTests.push(test);
+    });
+  });
+  const duplicates = Object.keys(memberships).filter((name) => memberships[name] !== 1);
+  if (duplicates.length) throw new Error(`Pickup tests must belong to exactly one phase: ${duplicates.join(", ")}`);
 
-  const searchSection = extractNamedFunctionSource(
-    source,
-    "function search(keyword",
-    "Presenter search",
-  );
-  const trashFilterSection = extractNamedFunctionSource(
-    source,
-    "function filterTrash(keyword",
-    "Presenter filterTrash",
-  );
-  const normalizeSearchSection = extractNamedFunctionSource(
-    source,
-    "function normalizeSearch(value)",
-    "Presenter normalizeSearch",
-  );
-  const appSearchSection = extractNamedFunctionSource(
-    appSource,
-    "function searchPickups(keyword",
-    "App searchPickups",
-  );
-  const searchContracts = [
-    'activeQuery = String(keyword ?? "").trim();',
-    "renderList(filter(activeQuery));",
+  const requiredOnce = [
+    testPickupFrontendArchitectureContracts,
+    testPickupTrashReadBoundedDependencyReads,
+    testPickupTrashReadPerformsZeroWrites,
+    testPickupRestoreEligibilityPerformsZeroWrites,
   ];
-  const trashFilterContracts = [
-    "pickup[FIELD.ID]",
-    "pickup[FIELD.PARTNER_ID]",
-    "pickup.partnerName",
-    "pickup[FIELD.DATE]",
-    "formatPickupDate(pickup[FIELD.DATE])",
-    "detail.ProductID",
-    "detail.productName",
-    ".includes(value)",
-  ];
-
-  searchContracts.forEach((contract) => {
-    if (searchSection.indexOf(contract) === -1) {
-      throw new Error(`Pickup local search contract is missing: ${contract}`);
-    }
+  requiredOnce.forEach((test) => {
+    if (memberships[test.name] !== 1) throw new Error(`${test.name} must be registered exactly once.`);
+  });
+  PICKUP_RESTORE_ACCEPTANCE_TESTS.forEach((test) => {
+    if (!/Restore|Eligibility/.test(test.name)) throw new Error(`Non-restore test is registered in Restore: ${test.name}`);
+  });
+  phases.filter((phase) => phase.name !== "Restore").forEach((phase) => {
+    phase.tests.forEach((test) => {
+      if (/RestoreEligibility|IntegrityRestorePreflight|PickupRestoreMissing|PickupRestoreUnknown/.test(test.name)) {
+        throw new Error(`Restore test is registered outside Restore: ${test.name}`);
+      }
+    });
   });
 
-  trashFilterContracts.forEach((contract) => {
-    if (trashFilterSection.indexOf(contract) === -1) {
-      throw new Error(`Pickup date search contract is missing: ${contract}`);
-    }
+  const phaseRunnerSources = [
+    runPickupReadAcceptance,
+    runPickupValidationAcceptance,
+    runPickupMutationAcceptance,
+    runPickupRestoreAcceptance,
+  ].map((runner) => runner.toString()).join("\n");
+  if (/RepositoryReader|RepositoryWriter|SpreadsheetApp|PickupService\(/.test(phaseRunnerSources)) {
+    throw new Error("Pickup phase runners must not access production data directly.");
+  }
+  if (!/reportTiming:\s*true/.test(runPickupAcceptancePhase.toString()) || !/fixtureCount/.test(runPickupAcceptancePhase.toString())) {
+    throw new Error("Pickup phase timing or fixture-count reporting is missing.");
+  }
+
+  const deprecatedSource = runPickupModuleAcceptance.toString();
+  expectedOrder.concat("runPickupAcceptanceMetaTests").forEach((name) => {
+    if (deprecatedSource.indexOf(`${name}()`) === -1) throw new Error(`Deprecated Pickup runner must list ${name}().`);
   });
-
-  if (
-    appSearchSection.indexOf('String(keyword ?? "").trim()') === -1 ||
-    appSearchSection.indexOf("PickupsPresenter.search(value)") === -1
-  ) {
-    throw new Error("Pickup App search orchestration contract is missing.");
+  if (/runTestSuite|runPickupAcceptancePhase/.test(deprecatedSource)) {
+    throw new Error("Deprecated Pickup runner must fail before executing tests.");
   }
-
-  if (
-    normalizeSearchSection.indexOf(
-      'String(value ?? "").trim().toLowerCase()',
-    ) === -1
-  ) {
-    throw new Error("Pickup search normalization contract is missing.");
+  let failedFast = false;
+  try {
+    runPickupModuleAcceptance();
+  } catch (error) {
+    failedFast = expectedOrder.every((name) => String(error.message).indexOf(`${name}()`) !== -1);
   }
+  if (!failedFast || activeTestRegistry !== null) throw new Error("Deprecated Pickup runner did not fail fast with zero tests.");
 
-  assertNoSearchSideEffects(searchSection, "Presenter search");
-  assertNoSearchSideEffects(trashFilterSection, "Presenter filterTrash");
-  assertNoSearchSideEffects(
-    normalizeSearchSection,
-    "Presenter normalizeSearch",
-  );
-  assertNoSearchSideEffects(appSearchSection, "App searchPickups");
+  const summary = phases.map((phase) => `${phase.name}=${phase.tests.length}`).join(", ");
+  Logger.log(`PICKUP PHASE REGISTRATION: ${summary}; total=${allTests.length}; unique=${Object.keys(memberships).length}`);
 }
 
 function testPickupCreateMissingPartnerId() {
@@ -961,6 +912,8 @@ function testPickupCreateValidSingleItem() {
     throw new Error("Single-item pickup creation response is invalid.");
   }
 
+  recordPickupFixture(1 + response.data.details.length);
+
   Logger.log(
     `Pickup test created header ${response.data.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]} and detail ${response.data.details[0][PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]}.`,
   );
@@ -1026,6 +979,8 @@ function testPickupCreateValidMultiItem() {
     throw new Error("Multi-item pickup creation response is invalid.");
   }
 
+  recordPickupFixture(1 + response.data.details.length);
+
   Logger.log(
     `Pickup test created header ${response.data.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]} and details ${response.data.details.map((detail) => detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]).join(", ")}.`,
   );
@@ -1055,6 +1010,8 @@ function createPickupUpdateTestTransaction(detailCount) {
   if (!response.success) {
     throw new Error("Pickup update test transaction could not be created.");
   }
+
+  recordPickupFixture(1 + response.data.details.length);
 
   Logger.log(
     `Pickup update test created header ${response.data.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]} and details ${response.data.details.map((detail) => detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY]).join(", ")}. Manual cleanup required.`,
@@ -2220,6 +2177,7 @@ function testPickupIntegrityRestorePreflight() {
   if (!RepositoryWriter.insert(PICKUP_DETAIL_SCHEMA, duplicate)) {
     throw new Error("Duplicate restore-risk fixture could not be created.");
   }
+  recordPickupFixture(1);
 
   const beforeHeader = findPickupRecordIncludingDeleted(PICKUP_HEADER_SCHEMA, identity.headerId);
   const beforeDetails = findPickupDetailsIncludingDeleted(identity.headerId);

@@ -214,6 +214,8 @@
 
       bindPurchasing();
 
+      bindPickups();
+
       bindReturns();
 
       bindExpenses();
@@ -235,6 +237,43 @@
       document.addEventListener("change", handlePurchasingInput);
       document.addEventListener("submit", handlePurchasingSubmit);
     }
+
+    //===========================================================================
+    // Pickup intent delegation
+    //===========================================================================
+
+    function bindPickups() {
+      document.addEventListener("click", handlePickupClick);
+      document.addEventListener("input", handlePickupInput);
+      document.addEventListener("change", handlePickupInput);
+      document.addEventListener("submit", handlePickupSubmit);
+    }
+
+    function handlePickupClick(event) {
+      const page=event.target.closest("[data-pagination-action][data-pagination-module='pickups']");
+      if(page){if(!page.disabled&&page.getAttribute("aria-disabled")!=="true")App.changePickupPage(page.dataset.paginationAction);return;}
+      const mode=event.target.closest("[data-pickup-mode]");if(mode)return App.setPickupMode(mode.dataset.pickupMode);
+      if(event.target.closest("#btn-pickup-add"))return App.openCreatePickup();
+      if(event.target.closest("#btn-pickup-refresh"))return App.refreshPickups();
+      const action=event.target.closest("[data-pickup-action]");
+      if(action){if(action.disabled||action.getAttribute("aria-disabled")==="true")return;const id=action.dataset.pickupId;if(action.dataset.pickupAction==="view")return App.viewPickup(id);if(action.dataset.pickupAction==="edit")return App.openEditPickup(id);if(action.dataset.pickupAction==="delete")return App.deletePickup(id);if(action.dataset.pickupAction==="restore")return App.restorePickup(id);}
+      const formAction=event.target.closest("[data-pickup-form-action]");
+      if(formAction?.dataset.pickupFormAction==="add-detail")return App.addPickupDetail();
+      if(formAction?.dataset.pickupFormAction==="remove-detail")return App.removePickupDetail(formAction.closest("[data-pickup-detail-id]")?.dataset.pickupDetailId);
+      if(formAction?.dataset.pickupFormAction==="cancel")return App.closePickupModal();
+      const detailAction=event.target.closest("[data-pickup-detail-action]");
+      if(detailAction?.dataset.pickupDetailAction==="close")return App.closePickupModal();
+      if(detailAction?.dataset.pickupDetailAction==="edit"){App.closePickupModal();return App.openEditPickup(detailAction.dataset.pickupId);}
+      if(event.target.closest("#btn-modal-close")&&document.querySelector("[data-pickup-form-field], [data-pickup-detail-action]"))return App.closePickupModal();
+    }
+
+    function handlePickupInput(event) {
+      if(event.type==="change"&&event.target?.dataset?.paginationSize==="pickups")return App.changePickupPageSize(event.target.value);
+      const header=event.target?.dataset?.pickupFormField;if(header)return App.updatePickupForm(header,event.target.value);
+      const detail=event.target?.dataset?.pickupDetailField;if(detail)return App.updatePickupForm(detail,event.target.value,event.target.closest("[data-pickup-detail-id]")?.dataset.pickupDetailId);
+    }
+
+    function handlePickupSubmit(event) { if(event.target?.id==="pickup-form"){event.preventDefault();App.submitPickupForm();} }
 
     //===========================================================================
     // Expense intent delegation

@@ -9,6 +9,14 @@ let activeAggregateStartedAt = null;
 
 let activePurchasingFixtureCount = null;
 
+let activePickupFixtureCount = null;
+
+function recordPickupFixture(rowCount) {
+  if (activePickupFixtureCount !== null) {
+    activePickupFixtureCount += Math.max(0, Number(rowCount) || 0);
+  }
+}
+
 function runTestSuite(name, tests, options) {
   const suiteStartedAt = Date.now();
   const settings = options || {};
@@ -125,6 +133,7 @@ function runPickupCreateWriteTests() {
 function runPickupPresenterDateTests() {
   runTestSuite("Pickup presenter date tests", [
     testPickupPresenterDateContract,
+    testPickupFrontendArchitectureContracts,
   ]);
 }
 
@@ -872,35 +881,133 @@ function runReturnTrashUiAlignmentVerification() {
  * once only. This suite includes controlled spreadsheet write fixtures.
  */
 function runPickupModuleAcceptance() {
-  if (activeTestRegistry) {
-    throw new Error("An aggregate test run is already active.");
-  }
+  throw new Error(
+    "Pickup acceptance is split to stay within Apps Script execution time. Run in order: runPickupReadAcceptance(), runPickupValidationAcceptance(), runPickupMutationAcceptance(), runPickupRestoreAcceptance(), runPickupAcceptanceMetaTests().",
+  );
+}
 
+const PICKUP_READ_ACCEPTANCE_TESTS = Object.freeze([
+  testCoreValidator,
+  testCoreResponse,
+  testRepositoryCacheOversizedValueBypass,
+  testTransactionServicePublicApi,
+  testTransactionServiceFindAll,
+  testTransactionServiceFindByIdValidation,
+  testTransactionServiceFindByIdResponseShape,
+  testPickupServicePublicApi,
+  testPickupServiceFindAll,
+  testPickupServiceFindByIdValidation,
+  testPickupServiceHeaderDetailRead,
+  testPickupPresenterDateContract,
+  testPickupFrontendArchitectureContracts,
+  testPickupTrashReadFilteringAndShape,
+  testPickupTrashReadSortingAndSearch,
+  testPickupTrashReadEligibilityResults,
+  testPickupTrashReadBoundedDependencyReads,
+  testPickupTrashReadPerformsZeroWrites,
+  testPickupTrashReadController,
+  testPickupControllerPublicApi,
+  testPickupControllerGetPickups,
+  testPickupControllerGetPickupValidation,
+  testPickupControllerSerialization,
+]);
+
+const PICKUP_VALIDATION_ACCEPTANCE_TESTS = Object.freeze([
+  testPickupCreateMissingDocument,
+  testPickupCreateMissingHeader,
+  testPickupCreateEmptyDetails,
+  testPickupCreateMissingTanggal,
+  testPickupCreateInvalidTanggal,
+  testPickupCreateMissingPartnerId,
+  testPickupCreateInvalidPartnerId,
+  testPickupCreateMissingProductId,
+  testPickupCreateInvalidProductId,
+  testPickupCreateInvalidQty,
+  testPickupCreateDuplicateProductId,
+  testPickupUpdateMissingId,
+  testPickupUpdateUnknownId,
+  testPickupUpdateMissingDocument,
+  testPickupUpdateMissingHeader,
+  testPickupUpdateEmptyDetails,
+  testPickupUpdateMissingTanggal,
+  testPickupUpdateMissingPartnerId,
+  testPickupUpdateInvalidPartnerId,
+  testPickupUpdateMissingProductId,
+  testPickupUpdateInvalidProductId,
+  testPickupUpdateInvalidQty,
+  testPickupUpdateDuplicateProductId,
+  testPickupRemoveMissingId,
+  testPickupRemoveUnknownId,
+  testPickupControllerCreateValidation,
+  testPickupControllerUpdateValidation,
+  testPickupControllerDeleteValidation,
+  testPickupControllerRestoreValidation,
+]);
+
+const PICKUP_MUTATION_ACCEPTANCE_TESTS = Object.freeze([
+  testPickupCreateValidSingleItem,
+  testPickupCreateValidMultiItem,
+  testPickupDateNormalization,
+  testPickupUpdateSingleToMultiItem,
+  testPickupUpdateMultiToSingleItem,
+  testPickupUpdatePreservesHeaderIdentity,
+  testPickupUpdateRecalculatesTotals,
+  testPickupUpdateReplacesActiveDetails,
+  testPickupRemoveHeaderAndDetails,
+  testPickupRemovePreservesIdentity,
+  testPickupRemoveDoesNotAffectOtherPickup,
+  testPickupRemoveAlreadyDeleted,
+]);
+
+const PICKUP_RESTORE_ACCEPTANCE_TESTS = Object.freeze([
+  testPickupRestoreMissingId,
+  testPickupRestoreUnknownId,
+  testPickupIntegrityRestorePreflight,
+  testPickupRestoreEligibilitySafe,
+  testPickupRestoreEligibilityMultipleGenerations,
+  testPickupRestoreEligibilityAmbiguousReturns,
+  testPickupRestoreEligibilityMissingDetail,
+  testPickupRestoreEligibilityRelationshipMismatch,
+  testPickupRestoreEligibilityActivePickup,
+  testPickupRestoreEligibilityMissingPickup,
+  testPickupRestoreEligibilityPerformsZeroWrites,
+  testPickupRestoreEligibilityIsDeterministic,
+]);
+
+const PICKUP_ACCEPTANCE_PHASES = Object.freeze([
+  Object.freeze({ name: "Read", runner: "runPickupReadAcceptance", expectedCount: PICKUP_READ_ACCEPTANCE_TESTS.length, tests: PICKUP_READ_ACCEPTANCE_TESTS }),
+  Object.freeze({ name: "Validation", runner: "runPickupValidationAcceptance", expectedCount: PICKUP_VALIDATION_ACCEPTANCE_TESTS.length, tests: PICKUP_VALIDATION_ACCEPTANCE_TESTS }),
+  Object.freeze({ name: "Mutation", runner: "runPickupMutationAcceptance", expectedCount: PICKUP_MUTATION_ACCEPTANCE_TESTS.length, tests: PICKUP_MUTATION_ACCEPTANCE_TESTS }),
+  Object.freeze({ name: "Restore", runner: "runPickupRestoreAcceptance", expectedCount: PICKUP_RESTORE_ACCEPTANCE_TESTS.length, tests: PICKUP_RESTORE_ACCEPTANCE_TESTS }),
+]);
+
+const PICKUP_ACCEPTANCE_META_TESTS = Object.freeze([
+  testPickupAcceptancePhaseRegistrationContracts,
+]);
+
+function runPickupAcceptancePhase(name, tests) {
+  if (activeTestRegistry) throw new Error("An aggregate test run is already active.");
   activeTestRegistry = new Set();
   activeAggregateStartedAt = Date.now();
-
+  activePickupFixtureCount = 0;
   try {
-    Logger.log("PICKUP ACCEPTANCE: CORE REGRESSIONS");
-    runCoreRegressionTests();
-
-    Logger.log("PICKUP ACCEPTANCE: PICKUP REGRESSIONS");
-    runTransactionReadTests();
-    runPickupCreateValidationTests();
-    runPickupCreateWriteTests();
-    runPickupPresenterDateTests();
-    runPickupUpdateValidationTests();
-    runPickupUpdateWriteTests();
-    runPickupRemoveRestoreTests();
-    runPickupRestoreEligibilityTests();
-    runPickupTrashReadTests();
-    runPickupControllerTests();
-
-    Logger.log(`COMPLETE: Pickup module acceptance (${activeTestRegistry.size} unique tests)`);
+    runTestSuite(`Pickup ${name} acceptance`, tests, {
+      reportTiming: true,
+      fixtureCount: () => activePickupFixtureCount,
+    });
+    Logger.log(`COMPLETE: Pickup ${name} acceptance (${activeTestRegistry.size} unique tests; aggregate ${Date.now() - activeAggregateStartedAt} ms; fixtures ${activePickupFixtureCount})`);
   } finally {
     activeTestRegistry = null;
     activeAggregateStartedAt = null;
+    activePickupFixtureCount = null;
   }
 }
+
+function runPickupReadAcceptance() { return runPickupAcceptancePhase("Read", PICKUP_READ_ACCEPTANCE_TESTS); }
+function runPickupValidationAcceptance() { return runPickupAcceptancePhase("Validation", PICKUP_VALIDATION_ACCEPTANCE_TESTS); }
+function runPickupMutationAcceptance() { return runPickupAcceptancePhase("Mutation", PICKUP_MUTATION_ACCEPTANCE_TESTS); }
+function runPickupRestoreAcceptance() { return runPickupAcceptancePhase("Restore", PICKUP_RESTORE_ACCEPTANCE_TESTS); }
+function runPickupAcceptanceMetaTests() { return runTestSuite("Pickup acceptance registration meta-tests", PICKUP_ACCEPTANCE_META_TESTS, { reportTiming: true }); }
 
 function runReturnModuleAcceptance() {
   if (activeTestRegistry) {
@@ -936,7 +1043,7 @@ function runReturnModuleAcceptance() {
 
 function runPickupReturnModuleAcceptance() {
   throw new Error(
-    "Pickup-Return acceptance is split to stay within Apps Script execution time. Run runPickupModuleAcceptance() first, then runReturnModuleAcceptance().",
+    "Pickup-Return acceptance is split to stay within Apps Script execution time. Run runPickupReadAcceptance(), runPickupValidationAcceptance(), runPickupMutationAcceptance(), runPickupRestoreAcceptance(), runPickupAcceptanceMetaTests(), then runReturnModuleAcceptance().",
   );
 }
 

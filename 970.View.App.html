@@ -65,6 +65,20 @@
 
       pickupLoading: false,
 
+      pickupError: "",
+
+      pickupForm: null,
+
+      pickupFormKind: null,
+
+      pickupProducts: null,
+
+      pickupPartners: null,
+
+      pickupSubmitting: false,
+
+      pickupBusyId: null,
+
       pickupRestoreBusyId: null,
 
       pickupRestoreConfirming: false,
@@ -160,6 +174,14 @@
 
     let pickupRequest = 0;
 
+    let pickupDetailRequest = 0;
+
+    let pickupDependencyRequest = 0;
+
+    let pickupDependencyLoading = null;
+
+    let pickupNextDetailId = 1;
+
     let returnRequest = 0;
 
     let purchasingRequest = 0;
@@ -228,6 +250,8 @@
       if (state.page === "products") productRequest += 1;
 
       if (state.page === "partners") partnerRequest += 1;
+
+      if (state.page === "pickups") { pickupRequest += 1; pickupDetailRequest += 1; state.pickupForm = null; state.pickupFormKind = null; state.pickupSubmitting = false; }
 
       if (state.page === "purchasing") purchasingRequest += 1;
 
@@ -485,8 +509,8 @@
     }
     function resetPagination(module, mode) { paginationState(module, mode).modeState.page = 1; }
     function bindPaginationActions() {
-      document.addEventListener("click", (event) => { const button = event.target.closest("[data-pagination-action]"); if (!button || button.disabled) return; const module = button.dataset.paginationModule; if (module === "purchasing" || module === "returns" || module === "expenses") return; const mode = button.dataset.paginationMode || "active"; const current = paginationState(module, mode); current.modeState.page += button.dataset.paginationAction === "previous" ? -1 : 1; paginationRenderers[`${module}:${mode}`]?.(); });
-      document.addEventListener("change", (event) => { const select = event.target.closest("[data-pagination-size]"); if (!select) return; const module = select.dataset.paginationSize; if (module === "purchasing" || module === "returns" || module === "expenses") return; const mode = select.dataset.paginationMode || "active"; const current = paginationState(module, mode); current.moduleState.pageSize = validPageSize(select.value); current.moduleState.explicit = true; current.modeState.page = 1; paginationRenderers[`${module}:${mode}`]?.(); });
+      document.addEventListener("click", (event) => { const button = event.target.closest("[data-pagination-action]"); if (!button || button.disabled) return; const module = button.dataset.paginationModule; if (module === "pickups" || module === "purchasing" || module === "returns" || module === "expenses") return; const mode = button.dataset.paginationMode || "active"; const current = paginationState(module, mode); current.modeState.page += button.dataset.paginationAction === "previous" ? -1 : 1; paginationRenderers[`${module}:${mode}`]?.(); });
+      document.addEventListener("change", (event) => { const select = event.target.closest("[data-pagination-size]"); if (!select) return; const module = select.dataset.paginationSize; if (module === "pickups" || module === "purchasing" || module === "returns" || module === "expenses") return; const mode = select.dataset.paginationMode || "active"; const current = paginationState(module, mode); current.moduleState.pageSize = validPageSize(select.value); current.moduleState.explicit = true; current.modeState.page = 1; paginationRenderers[`${module}:${mode}`]?.(); });
     }
 
     function applyDefaultPageSize(value, rerenderCurrent = false) {
@@ -788,6 +812,7 @@
               state.deletedProducts = state.deletedProducts.filter((item) => String(item.ID) !== productId);
               ProductsPresenter.render(state.deletedProducts, "deleted", null);
               productsLoaded = false;
+              state.pickupProducts = null;
               return true;
             } catch (error) {
               console.error("Product restore failed", error);
@@ -818,11 +843,15 @@
     }
 
     async function saveProduct() {
-      return ProductsActions.save();
+      const result = await ProductsActions.save();
+      state.pickupProducts = null;
+      return result;
     }
 
     async function deleteProduct(id) {
-      return ProductsActions.remove(id);
+      const result = await ProductsActions.remove(id);
+      state.pickupProducts = null;
+      return result;
     }
 
     //===========================================================================
@@ -868,7 +897,7 @@
             const response = await Api.Partner.restore(cleanId); console.info("Partner restore response", response);
             if (request !== partnerRequest || state.page !== "partners" || state.partnerMode !== "deleted") return true;
             if (!response?.success) { Toast.error(response?.message || "Mitra tidak dapat dipulihkan."); return true; }
-            restored = true; Toast.success(response.message || "Mitra berhasil dipulihkan."); state.deletedPartners = state.deletedPartners.filter((item) => String(item.ID) !== cleanId); partnersLoaded = false; return true;
+            restored = true; Toast.success(response.message || "Mitra berhasil dipulihkan."); state.deletedPartners = state.deletedPartners.filter((item) => String(item.ID) !== cleanId); partnersLoaded = false; state.pickupPartners = null; return true;
           } catch (error) { console.error("Partner restore failed", error); if (request === partnerRequest && state.page === "partners" && state.partnerMode === "deleted") Toast.error(readableLoadError(error, "Mitra tidak dapat dipulihkan.")); return true; }
           finally { state.partnerRestoreBusyId = null; }
         } });
@@ -885,16 +914,28 @@
     function openEditPartner(id) {
       return PartnersActions.openEdit(id);
     }
-    function savePartner() {
-      return PartnersActions.save();
+    async function savePartner() {
+      const result = await PartnersActions.save();
+      state.pickupPartners = null;
+      return result;
     }
-    function deletePartner(id) {
-      return PartnersActions.remove(id);
+    async function deletePartner(id) {
+      const result = await PartnersActions.remove(id);
+      state.pickupPartners = null;
+      return result;
     }
 
     //===========================================================================
     // Pickups
     //===========================================================================
+
+    function pickupSource() { return state.pickupMode === "trash" ? state.deletedPickups : state.pickups; }
+    function pickupMatch(row,query) { if(!query)return true;return [row?.ID,row?.PickupNo,row?.PartnerID,row?.partnerName,row?.Tanggal,PickupsPresenter.formatPickupDate(row?.Tanggal),row?.Status,row?.Notes,...(Array.isArray(row?.details)?row.details.flatMap((d)=>[d.ProductID,d.productName,d.Qty]):[])].some((value)=>String(value??"").toLowerCase().includes(query)); }
+    function renderPickups() {
+      const mode=state.pickupMode,query=String(state.pickupSearch||"").trim().toLowerCase(),source=pickupSource(),filtered=source.filter((row)=>pickupMatch(row,query));
+      const rows=paginateRows("pickups",mode,filtered,"pickup-pagination","lbl-pickup-info",mode==="trash"?"Pickup terhapus":"Pickup",renderPickups);
+      PickupsPresenter.render({mode,rows,search:state.pickupSearch,busyId:state.pickupRestoreBusyId,emptyKind:source.length&&query?"search":"database"});
+    }
 
     async function loadPickups() {
       const mode = state.pickupMode;
@@ -904,7 +945,8 @@
         : "Load pickups failed.";
 
       state.pickupLoading = true;
-      PickupsPresenter.renderLoading(mode);
+      state.pickupError = "";
+      PickupsPresenter.renderLoading({ mode });
 
       let res;
 
@@ -913,20 +955,22 @@
           ? await Api.Pickup.findDeleted({})
           : await Api.Pickup.list();
       } catch (error) {
-        if (request !== pickupRequest || mode !== state.pickupMode) return;
+        if (request !== pickupRequest || mode !== state.pickupMode || state.page !== "pickups") return;
 
         state.pickupLoading = false;
         Toast.error(readableLoadError(error, fallback));
-        PickupsPresenter.renderError(mode);
+        state.pickupError = readableLoadError(error, fallback);
+        PickupsPresenter.renderError({ mode, message: state.pickupError });
         return;
       }
 
-      if (request !== pickupRequest || mode !== state.pickupMode) return;
+      if (request !== pickupRequest || mode !== state.pickupMode || state.page !== "pickups") return;
 
       if (!res || !res.success) {
         state.pickupLoading = false;
         Toast.error(res?.message || fallback);
-        PickupsPresenter.renderError(mode);
+        state.pickupError = res?.message || fallback;
+        PickupsPresenter.renderError({ mode, message: state.pickupError });
 
         return;
       }
@@ -942,7 +986,7 @@
         state.returnPickupDetails = {};
       }
 
-      PickupsPresenter.render(records, mode);
+      renderPickups();
     }
 
     function setPickupMode(mode) {
@@ -953,6 +997,7 @@
       }
 
       state.pickupMode = nextMode;
+      state.pickupSearch = "";
       resetPagination("pickups", nextMode);
       return loadPickups();
     }
@@ -965,7 +1010,7 @@
       try {
         await Dialog.confirm({ title: "Restore Pickup", confirmText: "Restore", loadingText: "Restoring...", message: `Restore Pickup <strong>${Utils.escapeHTML(row.PickupNo || cleanId)}</strong>?`, onConfirm: async () => {
           if (attempted || state.pickupRestoreBusyId || state.page !== "pickups" || state.pickupMode !== "trash") return false;
-          attempted = true; state.pickupRestoreBusyId = cleanId; PickupsPresenter.render(state.deletedPickups, "trash"); const request = pickupRequest;
+          attempted = true; state.pickupRestoreBusyId = cleanId; renderPickups(); const request = ++pickupRequest;
           try {
             const response = await Api.Pickup.restore(cleanId); console.info("Pickup restore response", response);
             if (request !== pickupRequest || state.page !== "pickups" || state.pickupMode !== "trash") return true;
@@ -974,24 +1019,44 @@
           } catch (error) { console.error("Pickup restore failed", error); if (request === pickupRequest && state.page === "pickups" && state.pickupMode === "trash") Toast.error(readableLoadError(error, "Pickup tidak dapat dipulihkan.")); return true; }
           finally { state.pickupRestoreBusyId = null; }
         } });
-      } finally { state.pickupRestoreConfirming = false; if (state.page === "pickups" && state.pickupMode === "trash") PickupsPresenter.render(state.deletedPickups, "trash"); }
+      } finally { state.pickupRestoreConfirming = false; if (state.page === "pickups" && state.pickupMode === "trash") renderPickups(); }
       return restored;
     }
 
     function searchPickups(keyword = "") {
       const value = String(keyword ?? "").trim();
 
-      if (state.pickupMode === "trash") {
-        if (state.pickupSearch === value) return Promise.resolve();
-
-        state.pickupSearch = value;
-        PickupsPresenter.search(value);
-        return Promise.resolve();
-      }
-
-      PickupsPresenter.search(value);
+      if (state.pickupSearch === value) return Promise.resolve();
+      state.pickupSearch = value;
+      resetPagination("pickups", state.pickupMode);
+      renderPickups();
       return Promise.resolve();
     }
+
+    function refreshPickups(){state.pickupSearch="";return loadPickups();}
+    function changePickupPage(direction){const current=paginationState("pickups",state.pickupMode);current.modeState.page+=direction==="previous"?-1:1;renderPickups();}
+    function changePickupPageSize(value){const current=paginationState("pickups",state.pickupMode);current.moduleState.pageSize=validPageSize(value);current.moduleState.explicit=true;current.modeState.page=1;renderPickups();}
+    function pickupSelectable(rows){return (Array.isArray(rows)?rows:[]).filter((row)=>row?.IsActive!==false&&String(row?.IsActive).toLowerCase()!=="false"&&row?.Deleted!==true&&String(row?.Deleted).toLowerCase()!=="true");}
+    function ensurePickupDependencies(){
+      if(state.pickupProducts&&state.pickupPartners)return Promise.resolve(true);
+      if(pickupDependencyLoading)return pickupDependencyLoading;
+      const request=++pickupDependencyRequest;
+      pickupDependencyLoading=Promise.all([state.pickupProducts?Promise.resolve({success:true,data:state.pickupProducts}):Api.Product.list(),state.pickupPartners?Promise.resolve({success:true,data:state.pickupPartners}):Api.Partner.list()]).then(([products,partners])=>{if(request!==pickupDependencyRequest)return false;if(!products?.success||!partners?.success)throw new Error(products?.message||partners?.message||"Master data for Pickup could not be loaded.");state.pickupProducts=pickupSelectable(products.data);state.pickupPartners=pickupSelectable(partners.data);if(!state.pickupProducts.length||!state.pickupPartners.length)throw new Error("Active Product and Partner data are required to create a Pickup.");return true;}).finally(()=>{if(request===pickupDependencyRequest)pickupDependencyLoading=null;});return pickupDependencyLoading;
+    }
+    function newPickupDetail(){return {localId:String(pickupNextDetailId++),ProductID:"",Qty:"",Notes:""};}
+    function pickupFormView(){return {kind:state.pickupFormKind,form:state.pickupForm,products:state.pickupProducts||[],partners:state.pickupPartners||[]};}
+    function showPickupForm(){Modal.open({title:state.pickupFormKind==="edit"?"Edit Pickup":"Add Pickup",width:"xl",body:PickupsPresenter.renderForm(pickupFormView()),footer:PickupsPresenter.renderFormFooter(state.pickupFormKind,state.pickupSubmitting)});DOM.$("inp-pickup-form-date")?.focus();}
+    async function openCreatePickup(){if(state.pickupSubmitting)return;const request=++pickupDetailRequest;try{await ensurePickupDependencies();if(request!==pickupDetailRequest||state.page!=="pickups")return;pickupNextDetailId=1;state.pickupFormKind="create";state.pickupForm={header:{Tanggal:"",PartnerID:"",Notes:""},details:[newPickupDetail()]};showPickupForm();}catch(error){if(request===pickupDetailRequest)Toast.error(readableLoadError(error,"Master data for Pickup could not be loaded."));}}
+    function validPickupDetail(response){return Boolean(response?.success&&response.data&&response.data.header&&Array.isArray(response.data.details));}
+    async function openEditPickup(id){const clean=String(id||"").trim();if(!clean||state.pickupSubmitting)return Toast.error("Pickup ID is unavailable.");const request=++pickupDetailRequest;state.pickupBusyId=clean;Modal.open({title:"Edit Pickup",width:"xl",body:Components.loading("Loading pickup..."),footer:PickupsPresenter.renderFormFooter("edit",true)});try{const [ready,response]=await Promise.all([ensurePickupDependencies(),Api.Pickup.findById(clean)]);if(!ready||request!==pickupDetailRequest||state.page!=="pickups")return;if(!validPickupDetail(response))throw new Error(response?.message||"Pickup could not be loaded for editing.");pickupNextDetailId=1;const header=response.data.header;const details=pickupSelectable(response.data.details).map((d)=>({localId:String(pickupNextDetailId++),ProductID:String(d.ProductID||""),Qty:d.Qty??"",Notes:String(d.Notes||"")}));state.pickupFormKind="edit";state.pickupForm={id:clean,header:{Tanggal:PickupsPresenter.dateInputValue(header.Tanggal),PartnerID:String(header.PartnerID||""),Notes:String(header.Notes||"")},details:details.length?details:[newPickupDetail()]};showPickupForm();}catch(error){if(request===pickupDetailRequest){Toast.error(readableLoadError(error,"Pickup could not be loaded for editing."));Modal.body(Components.empty("Pickup could not be loaded for editing."));}}finally{if(request===pickupDetailRequest)state.pickupBusyId=null;}}
+    async function viewPickup(id){const clean=String(id||"").trim();if(!clean)return Toast.error("Pickup ID is unavailable.");const request=++pickupDetailRequest;Modal.open({title:"Pickup Detail",width:"lg",body:Components.loading("Loading pickup..."),footer:PickupsPresenter.renderDetailFooter(clean)});try{const response=await Api.Pickup.findById(clean);if(request!==pickupDetailRequest||state.page!=="pickups")return;if(!validPickupDetail(response))throw new Error(response?.message||"Pickup detail is unavailable.");Modal.body(PickupsPresenter.renderDetail(response.data.header,response.data.details));}catch(error){if(request===pickupDetailRequest){const message=readableLoadError(error,"Load pickup failed.");Toast.error(message);Modal.body(Components.empty(message));}}}
+    function updatePickupForm(field,value,localId=""){if(!state.pickupForm||state.pickupSubmitting)return;if(localId&&["ProductID","Qty","Notes"].includes(field)){const detail=state.pickupForm.details.find((d)=>d.localId===localId);if(detail)detail[field]=value;}else if(["Tanggal","PartnerID","Notes"].includes(field))state.pickupForm.header[field]=value;}
+    function addPickupDetail(){if(!state.pickupForm||state.pickupSubmitting)return;state.pickupForm.details.push(newPickupDetail());Modal.body(PickupsPresenter.renderForm(pickupFormView()));}
+    function removePickupDetail(localId){if(!state.pickupForm||state.pickupSubmitting||state.pickupForm.details.length===1)return;state.pickupForm.details=state.pickupForm.details.filter((d)=>d.localId!==String(localId));Modal.body(PickupsPresenter.renderForm(pickupFormView()));}
+    function validatePickupForm(){const form=state.pickupForm||{},header={Tanggal:String(form.header?.Tanggal||"").trim(),PartnerID:String(form.header?.PartnerID||"").trim(),Notes:String(form.header?.Notes||"").trim()};if(!header.Tanggal)return {message:"Tanggal is required."};if(!header.PartnerID)return {message:"Partner is required."};if(!form.details?.length)return {message:"At least one item is required."};const seen=new Set(),details=[];for(const row of form.details){const product=String(row.ProductID||"").trim(),qty=Number(row.Qty);if(!product)return {message:"Each item needs a Product."};if(!Number.isFinite(qty))return {message:"Each Qty must be numeric."};if(qty<=0)return {message:"Each Qty must be greater than zero."};if(seen.has(product))return {message:"Duplicate Products are not allowed."};seen.add(product);details.push({ProductID:product,Qty:qty,Notes:String(row.Notes||"").trim()});}return {document:{header,details}};}
+    async function submitPickupForm(){if(state.pickupSubmitting||!state.pickupForm)return;const validation=validatePickupForm();if(!validation.document)return Toast.warning(validation.message);state.pickupSubmitting=true;pickupRequest++;Modal.footer(PickupsPresenter.renderFormFooter(state.pickupFormKind,true));const editing=state.pickupFormKind==="edit",id=state.pickupForm.id;try{const response=editing?await Api.Pickup.update(id,validation.document):await Api.Pickup.create(validation.document);if(!response?.success)throw new Error(response?.message||(editing?"Pickup could not be updated.":"Pickup could not be created."));Toast.success(response.message||(editing?"Pickup updated.":"Pickup created."));closePickupModal();await loadPickups();}catch(error){Toast.error(readableLoadError(error,editing?"Pickup could not be updated.":"Pickup could not be created."));}finally{state.pickupSubmitting=false;if(state.pickupForm)Modal.footer(PickupsPresenter.renderFormFooter(state.pickupFormKind,false));}}
+    async function deletePickup(id){const clean=String(id||"").trim(),row=state.pickups.find((item)=>String(item.ID)===clean);if(!clean||!row||state.pickupBusyId)return false;state.pickupBusyId=clean;try{const confirmed=await Dialog.confirm({title:"Delete Pickup",message:`Delete Pickup <strong>${Utils.escapeHTML(row.PickupNo||clean)}</strong>?`});if(!confirmed)return false;pickupRequest++;const response=await Api.Pickup.remove(clean);if(!response?.success)throw new Error(response?.message||"Pickup could not be deleted.");Toast.success(response.message||"Pickup deleted.");state.pickups=state.pickups.filter((item)=>String(item.ID)!==clean);renderPickups();return true;}catch(error){Toast.error(readableLoadError(error,"Pickup could not be deleted."));return false;}finally{state.pickupBusyId=null;}}
+    function closePickupModal(){pickupDetailRequest++;state.pickupForm=null;state.pickupFormKind=null;state.pickupSubmitting=false;Modal.close();}
 
     //===========================================================================
     // Returns
@@ -1710,6 +1775,19 @@
       getPickupRestoreBusyId,
       setPickupMode,
       restorePickup,
+      refreshPickups,
+      searchPickups,
+      changePickupPage,
+      changePickupPageSize,
+      openCreatePickup,
+      openEditPickup,
+      viewPickup,
+      updatePickupForm,
+      addPickupDetail,
+      removePickupDetail,
+      submitPickupForm,
+      deletePickup,
+      closePickupModal,
       getExpenses,
       getDeletedExpenses,
       getExpenseMode,
