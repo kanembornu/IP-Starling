@@ -334,3 +334,124 @@ function testCanonicalPaginationCalculations() {
   assert(presenterInputs[0][0].ID === 1 && presenterInputs[1][0].ID === 16, "Pickup page fixtures do not contain distinct row subsets.");
   assert(presenterInputs.flat().every((row) => row.group === "match"), "Pickup fixture was sliced before filtering.");
 }
+
+function frontendArchitectureSourceFixture() {
+  const html = (name) => HtmlService.createHtmlOutputFromFile(name).getContent();
+  return {
+    index: html("900.View.Index"),
+    api: html("965.View.API"),
+    app: html("970.View.App"),
+    events: html("980.View.Event"),
+    render: html("975.View.Render"),
+    shared: html("976.View.Shared.Presenter"),
+    views: ["920.View.Products", "925.View.Partners", "930.View.Pickups", "935.View.Returns", "940.View.Purchasing", "945.View.Expenses"].map(html),
+    presenters: {
+      ProductsPresenter: html("972.View.Products.Presenter"),
+      PartnersPresenter: html("973.View.Partners.Presenter"),
+      PickupsPresenter: html("974.View.Pickups.Presenter"),
+      ExpensesPresenter: html("977.View.Expenses.Presenter"),
+      PurchasingPresenter: html("978.View.Purchasing.Presenter"),
+      ReturnsPresenter: html("979.View.Returns.Presenter"),
+    },
+  };
+}
+
+function frontendArchitectureObjectBody(source, declaration) {
+  const marker = new RegExp(`(?:const\\s+${declaration}\\s*=\\s*\\(\\(\\)\\s*=>|const\\s+${declaration}\\s*=\\s*Object\\.freeze)`).exec(source);
+  if (!marker) return "";
+  const start = source.indexOf("{", marker.index);
+  let depth = 0; let quote = ""; let escaped = false;
+  for (let index = start; index < source.length; index += 1) {
+    const character = source[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === quote) quote = "";
+      continue;
+    }
+    if (character === "'" || character === '"' || character === "`") { quote = character; continue; }
+    if (character === "{") depth += 1;
+    if (character === "}" && --depth === 0) return source.slice(start + 1, index);
+  }
+  return "";
+}
+
+function frontendArchitecturePublicNames(source) {
+  const matches = Array.from(source.matchAll(/return Object\.freeze\(\{([\s\S]*?)\}\);/g));
+  if (!matches.length) return [];
+  return (matches[matches.length - 1][1].match(/\b[A-Za-z_$][\w$]*\b/g) || []).filter((name, index, names) => names.indexOf(name) === index);
+}
+
+function testFrontendArchitectureBoundaryContracts() {
+  const source = frontendArchitectureSourceFixture();
+  const forbiddenPresenter = /\bApp\.|\bApi\.|google\.script\.run|\bPromise\b|\basync\b|\bawait\b|addEventListener|\bToast\.|\bDialog\.|\bModal\.|\bstate\.|\b(?:Service|Controller|Repository|SpreadsheetApp)\b/;
+  Object.keys(source.presenters).forEach((name) => {
+    if (forbiddenPresenter.test(source.presenters[name])) throw new Error(`${name} is not render-only.`);
+  });
+
+  if (/\bApi\.|google\.script\.run|\b(?:Products|Partners|Pickups|Returns|Purchasing|Expenses)Presenter\.|\bstate\.|\bToast\.|\bDialog\.|\bModal\./.test(source.events)) throw new Error("Events bypass App or own application state/response behavior.");
+  if (/\bApp\.|\b(?:Products|Partners|Pickups|Returns|Purchasing|Expenses)Presenter\.|\bToast\.|\bDialog\.|\bdocument\.|\bDOM\./.test(source.api)) throw new Error("API owns DOM, App state, Presenter, toast, or confirmation behavior.");
+  if (/\b(?:Service|Controller|Repository|AuditLogService)\.|\bSpreadsheetApp\b/.test(source.app)) throw new Error("App reaches a backend layer directly.");
+
+  const views = source.views.join("\n");
+  if (/google\.script\.run|\bApi\.|\bApp\.|\b(?:Products|Partners|Pickups|Returns|Purchasing|Expenses)Presenter\.|\bon(?:click|change|submit|input)\s*=|SpreadsheetApp|Repository|AuditLogService/.test(views)) throw new Error("A CRUD View contains transport, orchestration, inline handlers, or backend access.");
+
+  if (/\bApp\.|\bApi\.|google\.script\.run|addEventListener|\bToast\.|\bDialog\.|\bModal\.|\bstate\.|Products?|Partners?|Pickups?|Returns?|Purchasing|Expenses?/.test(source.shared)) throw new Error("SharedPresenter contains orchestration, state, or module-specific logic.");
+  const sharedPublic = frontendArchitecturePublicNames(source.shared);
+  if (sharedPublic.length !== 1 || sharedPublic[0] !== "text") throw new Error("SharedPresenter exposes an unconsumed abstraction.");
+
+  const appPublic = frontendArchitecturePublicNames(source.app);
+  const eventCalls = Array.from(source.events.matchAll(/\bApp\.([A-Za-z_$][\w$]*)\s*\(/g), (match) => match[1]).filter((name, index, names) => names.indexOf(name) === index);
+  eventCalls.forEach((name) => {
+    if (!new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\(`).test(source.app) || appPublic.indexOf(name) < 0) throw new Error(`Event-called App.${name}() does not exist or is not public.`);
+  });
+
+  Array.from(source.app.matchAll(/\bApi\.([A-Za-z_$][\w$]*)\.([A-Za-z_$][\w$]*)\s*\(/g)).forEach((match) => {
+    const body = frontendArchitectureObjectBody(source.api, match[1]);
+    if (!body || !new RegExp(`\\b${match[2]}\\s*\\(`).test(body)) throw new Error(`App-called Api.${match[1]}.${match[2]}() does not exist.`);
+  });
+
+  Object.keys(source.presenters).forEach((presenter) => {
+    const publicNames = frontendArchitecturePublicNames(source.presenters[presenter]);
+    Array.from(source.app.matchAll(new RegExp(`\\b${presenter}\\.([A-Za-z_$][\\w$]*)\\s*\\(`, "g"))).forEach((match) => {
+      if (publicNames.indexOf(match[1]) < 0) throw new Error(`App-called ${presenter}.${match[1]}() does not exist.`);
+    });
+  });
+}
+
+function testFrontendArchitectureDuplicateAndDeadCodeContracts() {
+  const source = frontendArchitectureSourceFixture();
+  if (/983\.View\.Products\.Actions|986\.View\.Partners\.Actions|993\.Framework\.Actions/.test(source.index)) throw new Error("Legacy Product/Partner action controllers are still loaded.");
+  if (/960\.View\.Components/.test(source.index)) throw new Error("Unconsumed legacy component templates are still loaded.");
+  if (/\bProductsActions\.|\bPartnersActions\./.test(`${source.index}\n${source.app}\n${source.events}\n${source.views.join("\n")}`)) throw new Error("A second master-data mutation controller is reachable.");
+  if (!/const Events = \(\(\) => \{\s*let initialized = false;/.test(source.events) || !/function init\(\) \{\s*if \(initialized\) return;\s*initialized = true;/.test(source.events)) throw new Error("Event initialization is not idempotent.");
+  if (!/const App = \(\(\) => \{\s*let initialized = false;/.test(source.app) || !/async function init\(\) \{\s*if \(initialized\) return;\s*initialized = true;/.test(source.app)) throw new Error("App initialization is not idempotent.");
+  if ((source.app.match(/window\.addEventListener\(\s*"load",\s*App\.init/g) || []).length !== 1 || (source.app.match(/Events\.init\(\);/g) || []).length !== 1) throw new Error("Application bootstrap is missing or duplicated.");
+  if ((source.app.match(/DashboardPresenter\.bindRangeControls\s*\(/g) || []).length !== 1) throw new Error("Dashboard range controls are initialized more than once per load.");
+
+  ["bindSidebar", "bindTopbar", "bindGlobal", "bindMasterData", "bindKeyboard", "bindWindow", "bindPurchasing", "bindPickups", "bindReturns", "bindExpenses"].forEach((name) => {
+    if ((source.events.match(new RegExp(`\\b${name}\\(\\);`, "g")) || []).length !== 1) throw new Error(`${name} is initialized more than once.`);
+  });
+  if (/function reload\s*\(|\breload,/.test(source.events)) throw new Error("Obsolete Events.reload compatibility wrapper remains.");
+
+  const appPublic = frontendArchitecturePublicNames(source.app);
+  ["paginateRows", "resetPagination", "getProducts", "getPartners", "getPickups", "getDeletedPickups", "getPickupMode", "getPickupSearch", "getPickupRestoreBusyId", "getExpenses", "getDeletedExpenses", "getExpenseMode", "getReturnMode", "getPurchasingMode", "searchPickups", "searchExpenses"].forEach((name) => {
+    if (appPublic.indexOf(name) >= 0) throw new Error(`Dead App public method ${name} remains exported.`);
+  });
+  if (/function showReturn(?:Error|Success|Warning)\s*\(/.test(source.app)) throw new Error("Dead Return toast wrapper remains.");
+  if (/function renderInfo\s*\(/.test(`${source.presenters.ProductsPresenter}\n${source.presenters.PartnersPresenter}`)) throw new Error("Obsolete master-data info renderer remains.");
+  ["replace", "append", "prepend", "clear", "pickups", "returns", "show", "hide", "exists", "remove", "focus", "scrollTop"].forEach((name) => {
+    if (new RegExp(`(?:function\\s+${name}\\s*\\(|\\b${name},)`).test(source.render)) throw new Error(`Dead Render.${name}() wrapper remains.`);
+  });
+
+  ["Pickup", "Return", "Purchasing"].forEach((namespace) => {
+    const body = frontendArchitectureObjectBody(source.api, namespace);
+    if (/\bget\s*\(id\)/.test(body)) throw new Error(`Unreferenced Api.${namespace}.get() alias remains.`);
+  });
+
+  const runner = runFrontendArchitectureHardeningTests.toString();
+  if (!/^function runFrontendArchitectureHardeningTests\s*\(/.test(runner)) throw new Error("Frontend architecture runner is missing.");
+  ["testFrontendArchitectureBoundaryContracts", "testFrontendArchitectureDuplicateAndDeadCodeContracts"].forEach((name) => {
+    if ((runner.match(new RegExp(`\\b${name}\\b`, "g")) || []).length !== 1) throw new Error(`${name} is not registered exactly once.`);
+  });
+}

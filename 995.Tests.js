@@ -94,6 +94,13 @@ function runMasterDataRegressionTests() {
   ]);
 }
 
+function runFrontendArchitectureHardeningTests() {
+  runTestSuite("Frontend architecture hardening tests", [
+    testFrontendArchitectureBoundaryContracts,
+    testFrontendArchitectureDuplicateAndDeadCodeContracts,
+  ]);
+}
+
 function runTransactionReadTests() {
   runTestSuite("Transaction read tests", [
     testTransactionServicePublicApi,

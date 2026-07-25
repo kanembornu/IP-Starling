@@ -8,6 +8,8 @@
    */
 
   const App = (() => {
+    let initialized = false;
+
     //===========================================================================
     // State
     //===========================================================================
@@ -233,6 +235,9 @@
     //===========================================================================
 
     async function init() {
+      if (initialized) return;
+      initialized = true;
+
       Render.layout();
 
       Modal.init();
@@ -316,44 +321,6 @@
       return Array.isArray(state.partners)
         ? Utils.deepClone(state.partners)
         : [];
-    }
-
-    function getExpenses() {
-      return Array.isArray(state.expenses)
-        ? Utils.deepClone(state.expenses)
-        : [];
-    }
-
-    function getPickups() {
-      return Array.isArray(state.pickups)
-        ? Utils.deepClone(state.pickups)
-        : [];
-    }
-
-    function getDeletedPickups() {
-      return Array.isArray(state.deletedPickups)
-        ? Utils.deepClone(state.deletedPickups)
-        : [];
-    }
-
-    function getPickupMode() {
-      return state.pickupMode;
-    }
-
-    function getPickupSearch() {
-      return state.pickupSearch;
-    }
-
-    function getPickupRestoreBusyId() { return state.pickupRestoreBusyId; }
-
-    function getDeletedExpenses() {
-      return Array.isArray(state.deletedExpenses)
-        ? Utils.deepClone(state.deletedExpenses)
-        : [];
-    }
-
-    function getExpenseMode() {
-      return state.expenseMode;
     }
 
     function ensureProductsLoaded() {
@@ -756,8 +723,6 @@
       };
 
       DashboardPresenter.render(state.dashboard);
-
-      DashboardPresenter.bindRangeControls(state.dashboardRange, setDashboardRange);
     }
 
     function setDashboardRange(range) {
@@ -1192,20 +1157,6 @@
       return loadReturns();
     }
 
-    function showReturnError(message) {
-      Toast.error(message);
-    }
-
-    function showReturnSuccess(message) {
-      Toast.success(message);
-    }
-
-    function showReturnWarning(message) {
-      Toast.warning(message);
-    }
-
-    function getReturnMode() { return state.returnMode; }
-
     function setReturnMode(mode) {
       const next = mode === "deleted" ? "deleted" : "active";
       if (next === state.returnMode) return Promise.resolve();
@@ -1393,8 +1344,6 @@
       const rows = paginateRows("purchasing", mode, filtered, "purchasing-pagination", "lbl-purchasing-info", mode === "deleted" ? "Purchasing terhapus" : "Purchasing", renderPurchasing);
       PurchasingPresenter.render({ mode, rows, supplierNames, productNames, busyId: state.purchasingRestoreBusyId || state.purchasingBusyId, emptyMessage: source.length && query ? "No purchasing matches your search." : mode === "deleted" ? "Belum ada Purchasing terhapus." : "No purchasing available." });
     }
-
-    function getPurchasingMode() { return state.purchasingMode; }
 
     function setPurchasingMode(mode) {
       const next = mode === "deleted" ? "deleted" : "active";
@@ -1807,20 +1756,9 @@
       refresh,
       currentPage,
       search,
-      paginateRows,
-      resetPagination,
-
-      getProducts,
-      getPartners,
-      getPickups,
-      getDeletedPickups,
-      getPickupMode,
-      getPickupSearch,
-      getPickupRestoreBusyId,
       setPickupMode,
       restorePickup,
       refreshPickups,
-      searchPickups,
       changePickupPage,
       changePickupPageSize,
       openCreatePickup,
@@ -1832,12 +1770,8 @@
       submitPickupForm,
       deletePickup,
       closePickupModal,
-      getExpenses,
-      getDeletedExpenses,
-      getExpenseMode,
       setExpenseMode,
       refreshExpenses,
-      searchExpenses,
       changeExpensePage,
       changeExpensePageSize,
       openCreateExpense,
@@ -1850,7 +1784,6 @@
       restoreExpense,
 
       refreshReturns,
-      getReturnMode,
       setReturnMode,
       searchReturns,
       changeReturnPage,
@@ -1864,7 +1797,6 @@
       deleteReturn,
       restoreReturn,
 
-      getPurchasingMode,
       setPurchasingMode,
       searchPurchasing,
       refreshPurchasing,

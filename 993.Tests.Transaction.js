@@ -6851,7 +6851,7 @@ function testExpenseFrontendCrudAndTrashContract() {
   if (!/data-expense-action="restore"/.test(presenter) || !/data-expense-action="edit"/.test(presenter) || !/data-expense-action="delete"/.test(presenter)) throw new Error("Expense Active or Deleted actions are missing.");
   if (!/action\.dataset\.expenseAction === "restore"[\s\S]*App\.restoreExpense/.test(events) || /Api\.Expense|ExpensesPresenter/.test(events)) throw new Error("Expense Event action delegation is invalid.");
   if ((events.match(/function bindExpenses\(/g) || []).length !== 1 || (events.match(/bindExpenses\(\);/g) || []).length !== 1) throw new Error("Expense listeners must be registered exactly once.");
-  if (!/module === "purchasing" \|\| module === "returns" \|\| module === "expenses"/.test(app)) throw new Error("Shared pagination can double-dispatch Expense intent.");
+  if (!/\["products", "partners", "pickups", "purchasing", "returns", "expenses"\]\.includes\(module\)/.test(app)) throw new Error("Shared pagination can double-dispatch Expense intent.");
 }
 
 function testExpenseFrontendValidationAndDisplayContract() {
