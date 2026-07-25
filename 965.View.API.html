@@ -40,7 +40,10 @@
 
     const Dashboard = Object.freeze({
       get(range) {
-        return run("getDashboard", range);
+        return run("getDashboard", range).catch((error) => {
+          const message = typeof error === "string" ? error : error?.message;
+          throw new Error(message || "Dashboard request failed.");
+        });
       },
     });
 

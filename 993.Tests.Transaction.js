@@ -7107,6 +7107,136 @@ function testDashboardControllerAndFrontendContracts() {
   }
 }
 
+function dashboardFrontendBlock(source, start, end) {
+  const startIndex = source.indexOf(start);
+  if (startIndex < 0) throw new Error(`Dashboard source contract is missing: ${start}`);
+  const endIndex = end ? source.indexOf(end, startIndex + start.length) : source.length;
+  return source.slice(startIndex, endIndex < 0 ? source.length : endIndex);
+}
+
+function testDashboardViewDeclarativeContract() {
+  const view = expenseFrontendSource("950.View.Dashboard");
+  const required = [
+    "dashboard-preset", "dashboard-start", "dashboard-end", "dashboard-kpi",
+    "chart-overview", "chart-distribution", "dashboard-activities", "dashboard-statistics",
+  ];
+  required.forEach((id) => {
+    if (!view.includes(`id="${id}"`)) throw new Error(`Dashboard View is missing #${id}.`);
+  });
+  if (/<script|google\.script\.run|\bApi\.|\bApp\.|\bPromise\b|\basync\b|\bawait\b|addEventListener|onclick\s*=/.test(view)) {
+    throw new Error("Dashboard View contains transport, orchestration, or event behavior.");
+  }
+}
+
+function testDashboardEventDelegationContract() {
+  const events = expenseFrontendSource("980.View.Event");
+  const block = dashboardFrontendBlock(events, "function bindDashboard()", "function bindPurchasing()");
+  if ((events.match(/function bindDashboard\(/g) || []).length !== 1 ||
+      (events.match(/bindDashboard\(\);/g) || []).length !== 1 ||
+      (block.match(/document\.addEventListener\("change", handleDashboardChange\)/g) || []).length !== 1 ||
+      !/App\.changeDashboardRange\(\)/.test(block)) {
+    throw new Error("Dashboard Event binding or App delegation is invalid.");
+  }
+  if (/\bApi\.|DashboardPresenter|google\.script\.run|\bPromise\b|\basync\b|\bawait\b|\bToast\.|\bstate\b|new Chart/.test(block)) {
+    throw new Error("Dashboard Event owns orchestration, rendering, state, or transport.");
+  }
+}
+
+function testDashboardAppOrchestrationContract() {
+  const app = expenseFrontendSource("970.View.App");
+  const load = dashboardFrontendBlock(app, "async function loadDashboard()", "function changeDashboardRange()");
+  const change = dashboardFrontendBlock(app, "function changeDashboardRange()", "//===========================================================================\n    // Products");
+  const navigate = dashboardFrontendBlock(app, "async function navigate(page)", "function currentPage()");
+  const refresh = dashboardFrontendBlock(app, "async function refresh()", "//===========================================================================\n    // Pagination");
+  ["dashboard", "dashboardRange", "dashboardRangeControls", "dashboardLoading", "dashboardError", "dashboardRequest"].forEach((name) => {
+    if (!app.includes(name)) throw new Error(`Dashboard App state is missing: ${name}`);
+  });
+  if ((load.match(/Api\.Dashboard\.get\(/g) || []).length !== 1 ||
+      (load.match(/DashboardPresenter\.render\(state\.dashboard\)/g) || []).length !== 1 ||
+      !/request !== dashboardRequest \|\| state\.page !== "dashboard"/.test(load) ||
+      !/finally[\s\S]*request === dashboardRequest[\s\S]*dashboardLoading = false/.test(load) ||
+      !/normalizeDashboardData\(response\.data\)/.test(load)) {
+    throw new Error("Dashboard App request orchestration is invalid.");
+  }
+  if (!/dashboardRequest \+= 1/.test(navigate) || !/DashboardPresenter\.destroyCharts\(\)/.test(navigate)) {
+    throw new Error("Dashboard navigation does not invalidate pending work and charts.");
+  }
+  if ((refresh.match(/case "dashboard"/g) || []).length !== 1 ||
+      (refresh.match(/await loadDashboard\(\)/g) || []).length !== 1 ||
+      (change.match(/loadDashboard\(\)/g) || []).length !== 1) {
+    throw new Error("Dashboard route, refresh, or range intent can issue duplicate loads.");
+  }
+  if (!/changeDashboardRange,/.test(app)) throw new Error("Event-called App.changeDashboardRange is not public.");
+  if (/DashboardService|Controller|Repository|SpreadsheetApp|AuditLogService/.test(load + change)) {
+    throw new Error("Dashboard App crosses the browser-server architecture boundary.");
+  }
+}
+
+function testDashboardApiTransportContract() {
+  const api = expenseFrontendSource("965.View.API");
+  const block = dashboardFrontendBlock(api, "const Dashboard = Object.freeze({", "//===========================================================================\n    // Settings");
+  if ((block.match(/get\(range\)/g) || []).length !== 1 ||
+      (block.match(/run\("getDashboard", range\)/g) || []).length !== 1 ||
+      !/\.catch\(\(error\)/.test(block) ||
+      !/function run\(fn, \.\.\.args\)[\s\S]*return new Promise/.test(api) ||
+      !/google\.script\.run/.test(api)) {
+    throw new Error("Dashboard API Promise transport or error normalization is invalid.");
+  }
+  if (/\bDOM\.|document\.|DashboardPresenter|\bChart\b|\bToast\.|dashboardRequest|state\./.test(block)) {
+    throw new Error("Dashboard API contains DOM, chart, toast, or App state behavior.");
+  }
+}
+
+function testDashboardPresenterRenderOnlyContract() {
+  const presenter = expenseFrontendSource("971.View.Dashboard.Presenter");
+  const forbidden = /\bApi\.|google\.script\.run|\bPromise\b|\basync\b|\bawait\b|\bApp\.|addEventListener|\bToast\.|\bDialog\.|\bModal\.|SpreadsheetApp|Repository|Controller|Service|AuditLogService|dashboardRequest|requestSequence/;
+  if (forbidden.test(presenter)) throw new Error("DashboardPresenter is not render-only.");
+  ["render", "renderLoading", "renderError", "renderRangeError", "renderRangeControls", "destroyCharts"].forEach((name) => {
+    if (!new RegExp(`\\b${name}\\b`).test(presenter)) throw new Error(`DashboardPresenter.${name} is missing.`);
+  });
+  const app = expenseFrontendSource("970.View.App");
+  ["render", "renderLoading", "renderError", "renderRangeError", "renderRangeControls", "destroyCharts"].forEach((name) => {
+    if (app.includes(`DashboardPresenter.${name}(`) && !presenter.includes(`${name},`) && !presenter.includes(`${name} }`)) {
+      throw new Error(`App-called DashboardPresenter.${name} is not public.`);
+    }
+  });
+  const shared = expenseFrontendSource("976.View.Shared.Presenter");
+  if (/dashboard-|Dashboard|chart-overview|chart-distribution/.test(shared)) {
+    throw new Error("SharedPresenter contains Dashboard-specific rendering.");
+  }
+}
+
+function testDashboardChartLifecycleContract() {
+  const presenter = expenseFrontendSource("971.View.Dashboard.Presenter");
+  const destroy = dashboardFrontendBlock(presenter, "function destroyCharts()", "function render(data)");
+  const renderCharts = dashboardFrontendBlock(presenter, "function renderCharts(data)", "return Object.freeze");
+  if (!/trendChart\.destroy\(\)/.test(destroy) || !/breakdownChart\.destroy\(\)/.test(destroy) ||
+      !/trendChart = null/.test(destroy) || !/breakdownChart = null/.test(destroy) ||
+      renderCharts.indexOf("destroyCharts();") < 0 || renderCharts.indexOf("destroyCharts();") > renderCharts.indexOf("new Chart")) {
+    throw new Error("Dashboard chart replacement does not destroy existing instances first.");
+  }
+  if (!/function renderError[\s\S]*destroyCharts\(\)/.test(presenter)) {
+    throw new Error("Dashboard error rendering does not clear obsolete charts.");
+  }
+}
+
+function testDashboardFrontendRegistrationContract() {
+  const expected = [
+    testDashboardViewDeclarativeContract,
+    testDashboardEventDelegationContract,
+    testDashboardAppOrchestrationContract,
+    testDashboardApiTransportContract,
+    testDashboardPresenterRenderOnlyContract,
+    testDashboardChartLifecycleContract,
+    testDashboardFrontendRegistrationContract,
+  ].map((test) => test.name);
+  const registered = DASHBOARD_FRONTEND_ARCHITECTURE_TESTS.map((test) => test.name);
+  if (registered.length !== expected.length || new Set(registered).size !== registered.length ||
+      expected.some((name) => registered.indexOf(name) < 0)) {
+    throw new Error("Dashboard frontend architecture tests are missing or registered more than once.");
+  }
+}
+
 /**
  * Manual, read-only Pickup/Return production integrity diagnostic.
  * This deliberately reads physical rows and never calls a service or writer.

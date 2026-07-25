@@ -27,12 +27,13 @@
       Render.mount("dashboard-activities", Components.empty("Recent activities unavailable."));
     }
 
-    function renderRangeError(response) {
-      const rangeError = Array.isArray(response?.errors) && response.errors.some((item) =>
-        ["INVALID_PRESET", "INVALID_DATE", "START_AFTER_END", "RANGE_TOO_LARGE"].includes(item.code));
-      if (!rangeError) return renderError(response?.message);
+    function renderLoading() {
+      Render.mount("dashboard-kpi", Components.loading({ message: "Loading dashboard..." }));
+    }
+
+    function renderRangeError(message) {
       const error = DOM.$("dashboard-range-error");
-      if (error) { DOM.text(error, response.message); error.classList.remove("hidden"); }
+      if (error) { DOM.text(error, message || "Dashboard range is invalid."); error.classList.remove("hidden"); }
     }
 
     function renderKPI(summary) {
@@ -65,36 +66,20 @@
       if (label) DOM.text(label, `${range.startDate || ""} through ${range.endDate || ""} · ${range.timezone || ""} · ${range.granularity || ""}`);
     }
 
-    function bindRangeControls(range, onChange) {
+    function renderRangeControls(range = {}, message = "") {
       const preset = DOM.$("dashboard-preset");
       const start = DOM.$("dashboard-start");
       const end = DOM.$("dashboard-end");
       const error = DOM.$("dashboard-range-error");
-      if (!preset || preset.dataset.dashboardBound === "true") return;
-      preset.dataset.dashboardBound = "true";
+      if (!preset || !start || !end) return;
       preset.value = range.preset || "CURRENT_MONTH";
       start.value = range.startDate || "";
       end.value = range.endDate || "";
-      const updateVisibility = () => {
-        const custom = preset.value === "CUSTOM";
-        DOM.$("dashboard-start-wrap")?.classList.toggle("hidden", !custom);
-        DOM.$("dashboard-end-wrap")?.classList.toggle("hidden", !custom);
-      };
-      const submit = () => {
-        updateVisibility();
-        const custom = preset.value === "CUSTOM";
-        const validDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value);
-        let message = "";
-        if (custom && (!validDate(start.value) || !validDate(end.value))) message = "Choose a valid start and end date.";
-        if (!message && custom && start.value > end.value) message = "Start date must not be after end date.";
-        error?.classList.toggle("hidden", !message);
-        if (error) DOM.text(error, message);
-        if (!message) onChange({ preset: preset.value, startDate: custom ? start.value : "", endDate: custom ? end.value : "" });
-      };
-      preset.addEventListener("change", () => { updateVisibility(); if (preset.value !== "CUSTOM" || (start.value && end.value)) submit(); });
-      start.addEventListener("change", submit);
-      end.addEventListener("change", submit);
-      updateVisibility();
+      const custom = preset.value === "CUSTOM";
+      DOM.$("dashboard-start-wrap")?.classList.toggle("hidden", !custom);
+      DOM.$("dashboard-end-wrap")?.classList.toggle("hidden", !custom);
+      error?.classList.toggle("hidden", !message);
+      if (error) DOM.text(error, message);
     }
 
     function emptyChart(id, emptyId, isEmpty, message) {
@@ -117,6 +102,6 @@
       if (!breakdownEmpty) breakdownChart = new Chart(DOM.$("chart-distribution"), { type: "doughnut", data: { labels: breakdown.labels, datasets: [{ data: breakdown.values, backgroundColor: ["#ef4444", "#f59e0b", "#3b82f6", "#10b981", "#8b5cf6", "#64748b"] }] }, options: { responsive: true, plugins: { tooltip: { callbacks: { label: (context) => `${context.label}: ${Format.currency(context.raw)}` } } } } });
     }
 
-    return Object.freeze({ render, renderError, renderRangeError, destroyCharts, bindRangeControls });
+    return Object.freeze({ render, renderLoading, renderError, renderRangeError, renderRangeControls, destroyCharts });
   })();
 </script>

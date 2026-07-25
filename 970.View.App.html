@@ -19,7 +19,13 @@
 
       dashboard: null,
 
+      dashboardLoading: false,
+
+      dashboardError: "",
+
       dashboardRange: { preset: "", startDate: "", endDate: "" },
+
+      dashboardRangeControls: { preset: "", startDate: "", endDate: "" },
 
       settings: [],
 
@@ -270,7 +276,11 @@
         return;
       }
 
-      if (state.page === "dashboard") DashboardPresenter.destroyCharts();
+      if (state.page === "dashboard") {
+        dashboardRequest += 1;
+        state.dashboardLoading = false;
+        DashboardPresenter.destroyCharts();
+      }
 
       if (state.page === "settings") settingsRequest += 1;
 
@@ -681,52 +691,107 @@
     // Dashboard
     //===========================================================================
 
-    async function loadDashboard() {
-      DashboardPresenter.bindRangeControls(state.dashboardRange, setDashboardRange);
-      const request = ++dashboardRequest;
-
-      Render.mount(
-        "dashboard-kpi",
-
-        Components.loading({
-          message: "Loading dashboard...",
-        }),
-      );
-
-      let res;
-
-      try {
-        res = await Api.Dashboard.get(Utils.deepClone(state.dashboardRange));
-      } catch (error) {
-        if (request !== dashboardRequest || state.page !== "dashboard") return;
-
-        Toast.error(readableLoadError(error, "Dashboard failed."));
-        DashboardPresenter.renderError();
-        return;
-      }
-
-      if (request !== dashboardRequest || state.page !== "dashboard") return;
-
-      if (!res || !res.success) {
-        Toast.error(res?.message || "Dashboard failed.");
-        DashboardPresenter.renderRangeError(res);
-
-        return;
-      }
-
-      state.dashboard = Utils.deepClone(res.data);
-
-      state.dashboardRange = {
-        preset: res.data.range.preset,
-        startDate: res.data.range.startDate,
-        endDate: res.data.range.endDate,
+    function dashboardRangeFromControls() {
+      const preset = DOM.$("dashboard-preset")?.value || "CURRENT_MONTH";
+      return {
+        preset,
+        startDate: DOM.$("dashboard-start")?.value || "",
+        endDate: DOM.$("dashboard-end")?.value || "",
       };
-
-      DashboardPresenter.render(state.dashboard);
     }
 
-    function setDashboardRange(range) {
-      state.dashboardRange = Utils.deepClone(range);
+    function dashboardRangeMessage(range) {
+      if (range.preset !== "CUSTOM") return "";
+      const validDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+      if (!validDate(range.startDate) || !validDate(range.endDate)) {
+        return "Choose a valid start and end date.";
+      }
+      return range.startDate > range.endDate
+        ? "Start date must not be after end date."
+        : "";
+    }
+
+    function isDashboardRangeFailure(response) {
+      return Array.isArray(response?.errors) && response.errors.some((item) =>
+        ["INVALID_PRESET", "INVALID_DATE", "START_AFTER_END", "RANGE_TOO_LARGE"].includes(item?.code));
+    }
+
+    function normalizeDashboardData(data) {
+      if (!data || typeof data !== "object" || !data.range || typeof data.range !== "object" ||
+          !data.summary || typeof data.summary !== "object") {
+        throw new Error("Dashboard returned an invalid response.");
+      }
+      const series = (value) => ({
+        ...(value && typeof value === "object" ? value : {}),
+        labels: Array.isArray(value?.labels) ? value.labels : [],
+        values: Array.isArray(value?.values) ? value.values : [],
+      });
+      return {
+        ...data,
+        availability: data.availability && typeof data.availability === "object" ? data.availability : {},
+        recentActivities: Array.isArray(data.recentActivities) ? data.recentActivities : [],
+        purchasingTrend: series(data.purchasingTrend),
+        expenseBreakdown: series(data.expenseBreakdown),
+      };
+    }
+
+    async function loadDashboard() {
+      const request = ++dashboardRequest;
+      state.dashboardLoading = true;
+      state.dashboardError = "";
+      DashboardPresenter.renderRangeControls(state.dashboardRangeControls);
+      DashboardPresenter.renderLoading();
+
+      try {
+        const response = await Api.Dashboard.get(Utils.deepClone(state.dashboardRange));
+        if (request !== dashboardRequest || state.page !== "dashboard") return;
+
+        if (!response?.success) {
+          const message = response?.message || "Dashboard failed.";
+          state.dashboardError = message;
+          if (isDashboardRangeFailure(response)) {
+            DashboardPresenter.renderRangeError(message);
+          } else {
+            Toast.error(message);
+            DashboardPresenter.renderError(message);
+          }
+          return;
+        }
+
+        const dashboard = normalizeDashboardData(response.data);
+        state.dashboard = Utils.deepClone(dashboard);
+        state.dashboardRange = {
+          preset: dashboard.range.preset,
+          startDate: dashboard.range.startDate,
+          endDate: dashboard.range.endDate,
+        };
+        if (!state.dashboardRangeControls.preset) {
+          state.dashboardRangeControls.preset = dashboard.range.preset;
+        }
+        DashboardPresenter.render(state.dashboard);
+      } catch (error) {
+        if (request !== dashboardRequest || state.page !== "dashboard") return;
+        const message = readableLoadError(error, "Dashboard failed.");
+        state.dashboardError = message;
+        Toast.error(message);
+        DashboardPresenter.renderError(message);
+      } finally {
+        if (request === dashboardRequest) state.dashboardLoading = false;
+      }
+    }
+
+    function changeDashboardRange() {
+      if (state.page !== "dashboard") return;
+      const range = dashboardRangeFromControls();
+      const message = dashboardRangeMessage(range);
+      state.dashboardRangeControls = Utils.deepClone(range);
+      DashboardPresenter.renderRangeControls(range, message);
+      if (message) return;
+      state.dashboardRange = {
+        preset: range.preset,
+        startDate: range.preset === "CUSTOM" ? range.startDate : "",
+        endDate: range.preset === "CUSTOM" ? range.endDate : "",
+      };
       loadDashboard();
     }
 
@@ -1756,6 +1821,7 @@
       refresh,
       currentPage,
       search,
+      changeDashboardRange,
       setPickupMode,
       restorePickup,
       refreshPickups,

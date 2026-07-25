@@ -185,6 +185,8 @@
 
       bindTopbar();
 
+      bindDashboard();
+
       bindGlobal();
 
       bindMasterData();
@@ -206,6 +208,20 @@
 
         handleActionClick,
       );
+    }
+
+    //===========================================================================
+    // Purchasing intent delegation
+    //===========================================================================
+
+    function bindDashboard() {
+      document.addEventListener("change", handleDashboardChange);
+    }
+
+    function handleDashboardChange(event) {
+      if (["dashboard-preset", "dashboard-start", "dashboard-end"].includes(event.target?.id)) {
+        return App.changeDashboardRange();
+      }
     }
 
     //===========================================================================

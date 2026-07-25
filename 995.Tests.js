@@ -542,6 +542,23 @@ function runDashboardFocusedTests() {
   ]);
 }
 
+const DASHBOARD_FRONTEND_ARCHITECTURE_TESTS = [
+  testDashboardViewDeclarativeContract,
+  testDashboardEventDelegationContract,
+  testDashboardAppOrchestrationContract,
+  testDashboardApiTransportContract,
+  testDashboardPresenterRenderOnlyContract,
+  testDashboardChartLifecycleContract,
+  testDashboardFrontendRegistrationContract,
+];
+
+function runDashboardFrontendArchitectureTests() {
+  runTestSuite(
+    "Dashboard frontend architecture tests",
+    DASHBOARD_FRONTEND_ARCHITECTURE_TESTS,
+  );
+}
+
 /** Sprint 6.3.0: the only function the user must execute manually. */
 function runDashboardSupportedMetricsAcceptance() {
   if (activeTestRegistry) throw new Error("An aggregate test run is already active.");
