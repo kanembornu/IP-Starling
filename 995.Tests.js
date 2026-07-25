@@ -88,6 +88,7 @@ function runMasterDataRegressionTests() {
     testProductRestoreSourceContracts,
     testPartnerDeletedListAndRestoreGuards,
     testPartnerService,
+    testMasterDataPresenterArchitectureContracts,
     testCanonicalPaginationSourceContracts,
     testCanonicalPaginationCalculations,
   ]);

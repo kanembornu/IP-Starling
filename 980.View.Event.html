@@ -91,53 +91,38 @@
     }
 
     //===========================================================================
-    // Product Buttons
-    //===========================================================================
-
-    document.addEventListener(
-      "click",
-
-      (event) => {
-        const edit = event.target.closest(".btn-edit");
-
-        if (edit) {
-          App.editProduct(edit.dataset.id);
-
-          return;
-        }
-
-        const del = event.target.closest(".btn-delete");
-
-        if (del) {
-          App.deleteProduct(del.dataset.id);
-
-          return;
-        }
-      },
-    );
-
-    //===========================================================================
     // CRUD
     //===========================================================================
 
-    function bindCrud() {
-      document.addEventListener(
-        "click",
+    function bindMasterData() {
+      document.addEventListener("click", handleMasterDataClick);
+      document.addEventListener("change", handleMasterDataChange);
+    }
 
-        (event) => {
-          if (event.target.closest("#btn-product-add")) {
-            App.openCreateProduct();
+    function handleMasterDataClick(event) {
+      const page = App.currentPage();
+      if (page !== "products" && page !== "partners") return;
+      const prefix = page === "products" ? "product" : "partner";
+      const mode = event.target.closest(`[data-${prefix}-mode]`);
+      if (mode) return page === "products" ? App.setProductMode(mode.dataset.productMode) : App.setPartnerMode(mode.dataset.partnerMode);
+      if (event.target.closest(`#btn-${prefix}-add`)) return page === "products" ? App.openCreateProduct() : App.openCreatePartner();
+      if (event.target.closest(`#btn-${prefix}-refresh`)) return page === "products" ? App.refreshProducts() : App.refreshPartners();
+      const pagination = event.target.closest(`[data-pagination-action][data-pagination-module='${page}']`);
+      if (pagination) { if (pagination.disabled || pagination.getAttribute("aria-disabled") === "true") return; return page === "products" ? App.changeProductPage(pagination.dataset.paginationAction) : App.changePartnerPage(pagination.dataset.paginationAction); }
+      const formAction = event.target.closest(`[data-${prefix}-form-action]`);
+      if (formAction) {
+        if (formAction.disabled || formAction.getAttribute("aria-disabled") === "true") return;
+        const action = page === "products" ? formAction.dataset.productFormAction : formAction.dataset.partnerFormAction;
+        if (action === "save") return page === "products" ? App.saveProduct() : App.savePartner();
+        if (action === "cancel") return page === "products" ? App.closeProductModal() : App.closePartnerModal();
+      }
+      if (event.target.closest("#btn-modal-close") && document.querySelector(`[data-${prefix}-form-action]`)) return page === "products" ? App.closeProductModal() : App.closePartnerModal();
+    }
 
-            return;
-          }
-
-          if (event.target.closest("#btn-partner-add")) {
-            App.openCreatePartner();
-
-            return;
-          }
-        },
-      );
+    function handleMasterDataChange(event) {
+      const module = event.target?.dataset?.paginationSize;
+      if (module === "products") return App.changeProductPageSize(event.target.value);
+      if (module === "partners") return App.changePartnerPageSize(event.target.value);
     }
 
     //===========================================================================
@@ -206,7 +191,7 @@
 
       bindGlobal();
 
-      bindCrud();
+      bindMasterData();
 
       bindKeyboard();
 
@@ -404,7 +389,7 @@
     function handleActionClick(event) {
       const button = event.target.closest("[data-action]");
 
-      if (!button) return;
+      if (!button || button.disabled || button.getAttribute("aria-disabled") === "true") return;
 
       const action = button.dataset.action;
 

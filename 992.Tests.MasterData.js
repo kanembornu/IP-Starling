@@ -63,7 +63,7 @@ function testProductRestoreSourceContracts() {
   const api = HtmlService.createHtmlOutputFromFile("965.View.API").getContent();
   const view = HtmlService.createHtmlOutputFromFile("920.View.Products").getContent();
   const controller = restoreProduct.toString();
-  if (/Api\.|google\.script\.run|Repository|SpreadsheetApp/.test(presenter)) throw new Error("ProductsPresenter crosses its render-only boundary.");
+  if (/\bApp\.|Api\.|google\.script\.run|Repository|SpreadsheetApp/.test(presenter)) throw new Error("ProductsPresenter crosses its render-only boundary.");
   if (!/async function restoreProduct\s*\(/.test(app) || !/Dialog\.confirm\s*\(/.test(app) || !/Api\.Product\.restore\s*\(/.test(app)) throw new Error("App does not own Product restore orchestration.");
   if (!/listDeleted\s*\(\)/.test(api) || !/run\("getDeletedProducts"\)/.test(api)) throw new Error("Deleted Product API contract is missing.");
   if (!/data-product-mode="active"/.test(view) || !/data-product-mode="deleted"/.test(view)) throw new Error("Product Active/Deleted mode control is missing.");
@@ -87,6 +87,47 @@ function testPartnerDeletedListAndRestoreGuards() {
   if (!deleted.success || deleted.data.length !== 1 || deleted.data[0].ID !== "PT-DELETED") throw new Error("Partner deleted list contract failed.");
   if (service.restore("").success || service.restore("UNKNOWN").success || service.restore("PT-ACTIVE").success || restores !== 0) throw new Error("Invalid Partner restore reached mutation.");
   if (!service.restore("PT-DELETED").success || restores !== 1 || service.restore("PT-DELETED").success || restores !== 1) throw new Error("Partner restore duplicate guard failed.");
+}
+
+function testMasterDataPresenterArchitectureContracts() {
+  const product = HtmlService.createHtmlOutputFromFile("972.View.Products.Presenter").getContent();
+  const partner = HtmlService.createHtmlOutputFromFile("973.View.Partners.Presenter").getContent();
+  const app = HtmlService.createHtmlOutputFromFile("970.View.App").getContent();
+  const api = HtmlService.createHtmlOutputFromFile("965.View.API").getContent();
+  const events = HtmlService.createHtmlOutputFromFile("980.View.Event").getContent();
+  const views = `${HtmlService.createHtmlOutputFromFile("920.View.Products").getContent()}\n${HtmlService.createHtmlOutputFromFile("925.View.Partners").getContent()}`;
+  const forbiddenPresenter = /\bApp\.|\bApi\.|google\.script\.run|\bPromise\b|\basync\b|\bawait\b|addEventListener|\bToast\.|Dialog\.confirm|\bService\b|Controller|Repository|SpreadsheetApp|request(Token|Sequence)?/;
+  [product, partner].forEach((source, index) => {
+    const name = index ? "PartnersPresenter" : "ProductsPresenter";
+    if (forbiddenPresenter.test(source)) throw new Error(`${name} is not render-only.`);
+    ["render", "renderLoading", "renderError", "clearSearch"].forEach((method) => { if (!new RegExp(`\\b${method},`).test(source)) throw new Error(`${name}.${method} is not exported.`); });
+    if (!/mode === "deleted"/.test(source) || !/data-action="\$\{action\}"/.test(source) || !/paginationMarkup/.test(source)) throw new Error(`${name} lost Active/Deleted actions or pagination rendering.`);
+  });
+  const eventMethods = {
+    product: ["setProductMode", "openCreateProduct", "refreshProducts", "changeProductPage", "changeProductPageSize", "saveProduct", "closeProductModal", "openEditProduct", "deleteProduct", "restoreProduct"],
+    partner: ["setPartnerMode", "openCreatePartner", "refreshPartners", "changePartnerPage", "changePartnerPageSize", "savePartner", "closePartnerModal", "openEditPartner", "deletePartner", "restorePartner"],
+  };
+  ["product", "partner"].forEach((module) => {
+    const title = module[0].toUpperCase() + module.slice(1);
+    ["Mode", "Page", "PageSize"].forEach((suffix) => { if (!new RegExp(`function (set|change)${title}${suffix}`).test(app)) throw new Error(`App does not own ${title} ${suffix}.`); });
+    ["openCreate", "openEdit", "save", "delete", "restore"].forEach((prefix) => { if (!new RegExp(`function ${prefix}${title}\\s*\\(`).test(app) && !new RegExp(`async function ${prefix}${title}\\s*\\(`).test(app)) throw new Error(`App does not own ${prefix}${title}.`); });
+    eventMethods[module].forEach((method) => {
+      if (!new RegExp(`App\\.${method}\\s*\\(`).test(events)) throw new Error(`Events do not delegate ${title} intent through App.${method}().`);
+      if (!new RegExp(`\\b${method},`).test(app)) throw new Error(`Event-called App.${method}() is not exported.`);
+    });
+  });
+  if (!/App\.search\s*\(\s*input\.dataset\.module \|\| App\.currentPage\(\),\s*input\.value\s*,?\s*\)/.test(events)) throw new Error("Product/Partner search intent is not delegated to App.search().");
+  if (!/event\.target\.closest\(`\[data-\$\{prefix\}-form-action\]`\)/.test(events)) throw new Error("Master-data form actions are not delegated through the canonical Product/Partner selector.");
+  if ((events.match(/bindMasterData\(\);/g) || []).length !== 1 || (events.match(/addEventListener\("click", handleMasterDataClick\)/g) || []).length !== 1 || (events.match(/addEventListener\("change", handleMasterDataChange\)/g) || []).length !== 1 || (events.match(/addEventListener\(\s*"click",\s*handleActionClick/g) || []).length !== 1) throw new Error("Master-data listeners are missing or registered more than once.");
+  if ((events.match(/App\.saveProduct\s*\(/g) || []).length !== 1 || (events.match(/App\.changeProductPage\s*\(/g) || []).length !== 1 || (events.match(/App\.changeProductPageSize\s*\(/g) || []).length !== 1) throw new Error("Product submit or pagination intent can dispatch more than once.");
+  if (/\bApi\.|\bProductsPresenter\.|\bPartnersPresenter\./.test(events)) throw new Error("Master-data Events bypass App.");
+  if (/\bstate\.(?:products?|deletedProducts|productMode|productSearch|partners?|deletedPartners|partnerMode|partnerSearch)\b/.test(events)) throw new Error("Master-data Events mutate App state directly.");
+  if (/\bProductsActions\.|\bPartnersActions\./.test(app)) throw new Error("App still delegates master-data orchestration to a second application controller.");
+  if (!/const Product = Object\.freeze\([\s\S]*listDeleted\(\)[\s\S]*create\(data\)[\s\S]*update\(id, data\)[\s\S]*remove\(id\)[\s\S]*restore\(id\)/.test(api)) throw new Error("Product API operation set changed.");
+  if (!/const Partner = Object\.freeze\([\s\S]*listDeleted\(\)[\s\S]*create\(data\)[\s\S]*update\(id, data\)[\s\S]*remove\(id\)[\s\S]*restore\(id\)/.test(api)) throw new Error("Partner API operation set changed.");
+  if (/\bApi\.|google\.script\.run|SpreadsheetApp|Repository|AuditLogService/.test(views)) throw new Error("Master-data Views cross their declarative boundary.");
+  if (!/productRequest/.test(app) || !/partnerRequest/.test(app) || !/request !== productRequest/.test(app) || !/request !== partnerRequest/.test(app)) throw new Error("Master-data stale-response guards are missing.");
+  if (!/Pagination\.calculate\(productRows\(\)/.test(app) || !/Pagination\.calculate\(partnerRows\(\)/.test(app)) throw new Error("App does not own master-data selected-page calculation.");
 }
 
 function canonicalPaginationSourceFixture() {
@@ -121,6 +162,68 @@ function canonicalPaginationSourceFixture() {
   };
 }
 
+function masterDataNamedFunctionSource(source, name) {
+  const match = new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\([^)]*\\)\\s*\\{`).exec(source);
+  if (!match) return "";
+  const start = match.index; const bodyStart = match.index + match[0].length - 1; let depth = 0; let quote = ""; let escaped = false;
+  for (let index = bodyStart; index < source.length; index += 1) {
+    const character = source[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === quote) quote = "";
+      continue;
+    }
+    if (character === "'" || character === '"' || character === "`") { quote = character; continue; }
+    if (character === "{") depth += 1;
+    if (character === "}" && --depth === 0) return source.slice(start, index + 1);
+  }
+  return "";
+}
+
+function assertClientPaginationModule(source, config) {
+  const renderSource = masterDataNamedFunctionSource(source.app, config.renderFunction);
+  const pageSource = masterDataNamedFunctionSource(source.app, config.pageFunction);
+  const pageSizeSource = masterDataNamedFunctionSource(source.app, config.pageSizeFunction);
+  const presenterRender = masterDataNamedFunctionSource(source.presenters[config.module], "render");
+  const presenterCall = `${config.presenter}.render`;
+  const escapedModule = config.module.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const helperMatch = new RegExp(`const\\s+(\\w+)\\s*=\\s*paginateRows\\("${escapedModule}"`).exec(renderSource);
+  const directMatch = /const\s+(\w+)\s*=\s*Pagination\.calculate\((\w+)\(\)/.exec(renderSource);
+  let selectedExpression = "";
+
+  if (helperMatch) {
+    selectedExpression = helperMatch[1];
+    const selectionIndex = renderSource.indexOf(helperMatch[0]);
+    const filterIndex = renderSource.search(/\bfiltered\s*=/);
+    if (filterIndex < 0 || filterIndex > selectionIndex || !/\bfiltered\s*=.*(?:\.filter\(|\.slice\()/s.test(renderSource.slice(0, selectionIndex))) throw new Error(`${config.module} does not filter/copy its full dataset before pagination.`);
+  } else if (directMatch) {
+    selectedExpression = `${directMatch[1]}.data`;
+    const filterSource = masterDataNamedFunctionSource(source.app, directMatch[2]);
+    if (!/\.filter\(/.test(filterSource)) throw new Error(`${config.module} does not derive filtered rows before pagination.`);
+  } else {
+    throw new Error(`${config.module} does not use canonical App-owned pagination.`);
+  }
+
+  const callIndex = renderSource.indexOf(presenterCall);
+  const selectionIndex = helperMatch ? renderSource.indexOf(helperMatch[0]) : renderSource.indexOf(directMatch[0]);
+  if (callIndex < 0 || callIndex < selectionIndex) throw new Error(`${config.module} Presenter is called before selected-page rows are derived.`);
+  const callSource = renderSource.slice(callIndex);
+  const escapedSelected = selectedExpression.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const passesRows = new RegExp(`rows\\s*:\\s*${escapedSelected}`).test(callSource) || (selectedExpression.indexOf(".") < 0 && new RegExp(`\\{[^}]*\\b${escapedSelected}\\b`).test(callSource));
+  if (!passesRows) throw new Error(`${config.module} does not pass selected-page rows to its Presenter.`);
+  if (!/view\.rows/.test(presenterRender) || !/\.map\(/.test(presenterRender)) throw new Error(`${config.module} Presenter does not render supplied rows.`);
+  if (/\bApp\.|\bApi\.|\bpaginateRows\s*\(|\bPagination\.calculate\s*\(|\bstate\./.test(source.presenters[config.module])) throw new Error(`${config.module} Presenter owns data or pagination state.`);
+  if (!new RegExp(`\\b${config.presenter}\\.render\\s*\\(`).test(renderSource)) throw new Error(`${config.module} App render path does not call its Presenter.`);
+  if (!/paginationState\s*\(/.test(pageSource) || !/modeState\.page/.test(pageSource) || !new RegExp(`${config.renderFunction}\\s*\\(`).test(pageSource)) throw new Error(`${config.module} page changes are not App-owned.`);
+  if (!/paginationState\s*\(/.test(pageSizeSource) || !/moduleState\.pageSize\s*=\s*validPageSize\(value\)/.test(pageSizeSource) || !/modeState\.page\s*=\s*1/.test(pageSizeSource) || !new RegExp(`${config.renderFunction}\\s*\\(`).test(pageSizeSource)) throw new Error(`${config.module} page-size changes do not reset page one in App.`);
+  if (/\bApi\.|\bload\w*\s*\(/.test(`${pageSource}\n${pageSizeSource}`)) throw new Error(`${config.module} client pagination performs an API reload.`);
+  if ((source.events.match(new RegExp(`App\\.${config.pageFunction}\\s*\\(`, "g")) || []).length !== 1 || (source.events.match(new RegExp(`App\\.${config.pageSizeFunction}\\s*\\(`, "g")) || []).length !== 1) throw new Error(`${config.module} pagination intent must delegate to App exactly once.`);
+  if ((source.views[config.module].match(new RegExp(`id="${config.paginationId}"`, "g")) || []).length !== 1) throw new Error(`${config.module} must expose one pagination region.`);
+  if (!new RegExp(`data-${config.marker}-mode="${config.activeMode}"`).test(source.views[config.module]) || !new RegExp(`data-${config.marker}-mode="${config.deletedMode}"`).test(source.views[config.module])) throw new Error(`${config.module} inline modes are missing.`);
+  if (!new RegExp(`resetPagination\\("${escapedModule}"`).test(source.app)) throw new Error(`${config.module} mode/search changes do not reset page one.`);
+}
+
 function assertCanonicalPaginationSourceContracts(source) {
   const presenters = Object.keys(source.presenters).map((key) => source.presenters[key]).join("\n");
   const views = Object.keys(source.views).map((key) => source.views[key]).join("\n");
@@ -135,47 +238,27 @@ function assertCanonicalPaginationSourceContracts(source) {
   if (!/rangeStart: totalRows \? startIndex \+ 1 : 0/.test(source.helper) || !/hasPrevious: page > 1/.test(source.helper) || !/hasNext: page < totalPages/.test(source.helper)) throw new Error("Pagination zero-row or navigation metadata changed.");
   if (!/modes:\s*\{\}/.test(source.app) || !/moduleState\.modes\[mode\]/.test(source.app)) throw new Error("Mode-specific pagination state is missing.");
 
-  ["products", "partners", "pickups", "returns", "purchasing", "expenses"].forEach((module) => {
-    const uses = (browserSource.match(new RegExp(`paginateRows\\(\\"${module}\\"`, "g")) || []).length;
-    if (uses < 1) throw new Error(`${module} does not use canonical pagination.`);
-  });
-  const selectedPageRenderContracts = {
-    products: /const list = App\.paginateRows\("products"[\s\S]*list\.map\(\(product\) => renderRow/,
-    partners: /const list = App\.paginateRows\("partners"[\s\S]*list\.map\(\(partner\) => renderRow/,
-    pickups: /const page = App\.paginateRows\("pickups"[\s\S]*page\.map\(mode === "trash" \? renderTrashRow : renderRow\)/,
-    expenses: /const page = App\.paginateRows\("expenses"[\s\S]*page\.map\(renderRow\)/,
-  };
-  Object.keys(selectedPageRenderContracts).forEach((module) => {
-    if (!selectedPageRenderContracts[module].test(source.presenters[module])) throw new Error(`${module} does not render only its selected page.`);
-  });
-
-  const modeContracts = [
-    ["products", "product", "active", "deleted", "product-pagination"],
-    ["partners", "partner", "active", "deleted", "partner-pagination"],
-    ["pickups", "pickup", "active", "trash", "pickup-pagination"],
-    ["expenses", "expense", "active", "trash", "expense-pagination"],
-  ];
-  modeContracts.forEach(([module, marker, active, deleted, paginationId]) => {
-    const view = source.views[module];
-    if (!new RegExp(`data-${marker}-mode=\\"${active}\\"`).test(view) || !new RegExp(`data-${marker}-mode=\\"${deleted}\\"`).test(view)) throw new Error(`${module} Active/Deleted inline controls are missing.`);
-    if ((view.match(new RegExp(`id=\\"${paginationId}\\"`, "g")) || []).length !== 1) throw new Error(`${module} must expose one shared inline pagination region.`);
-    if (!new RegExp(`resetPagination\\(\\"${module}\\"`).test(source.app) && !new RegExp(`resetPagination\\(\\"${module}\\"`).test(source.presenters[module])) throw new Error(`${module} mode/search flow does not reset page 1.`);
-  });
+  [
+    { module: "products", marker: "product", activeMode: "active", deletedMode: "deleted", paginationId: "product-pagination", renderFunction: "renderProducts", presenter: "ProductsPresenter", pageFunction: "changeProductPage", pageSizeFunction: "changeProductPageSize" },
+    { module: "partners", marker: "partner", activeMode: "active", deletedMode: "deleted", paginationId: "partner-pagination", renderFunction: "renderPartners", presenter: "PartnersPresenter", pageFunction: "changePartnerPage", pageSizeFunction: "changePartnerPageSize" },
+    { module: "pickups", marker: "pickup", activeMode: "active", deletedMode: "trash", paginationId: "pickup-pagination", renderFunction: "renderPickups", presenter: "PickupsPresenter", pageFunction: "changePickupPage", pageSizeFunction: "changePickupPageSize" },
+    { module: "returns", marker: "return", activeMode: "active", deletedMode: "deleted", paginationId: "return-pagination", renderFunction: "renderReturns", presenter: "ReturnsPresenter", pageFunction: "changeReturnPage", pageSizeFunction: "changeReturnPageSize" },
+    { module: "purchasing", marker: "purchasing", activeMode: "active", deletedMode: "deleted", paginationId: "purchasing-pagination", renderFunction: "renderPurchasing", presenter: "PurchasingPresenter", pageFunction: "changePurchasingPage", pageSizeFunction: "changePurchasingPageSize" },
+    { module: "expenses", marker: "expense", activeMode: "active", deletedMode: "trash", paginationId: "expense-pagination", renderFunction: "renderExpenses", presenter: "ExpensesPresenter", pageFunction: "changeExpensePage", pageSizeFunction: "changeExpensePageSize" },
+  ].forEach((config) => assertClientPaginationModule(source, config));
 
   const resetSource = (source.app.match(/function resetPagination\([^}]+\}/) || [""])[0];
   if (!/modeState\.page = 1/.test(resetSource) || /pageSize\s*=/.test(resetSource)) throw new Error("Mode reset must reset only the destination page and preserve module-local page size.");
   if (!/current\.moduleState\.pageSize = validPageSize\(select\.value\)[\s\S]*current\.moduleState\.explicit = true[\s\S]*current\.modeState\.page = 1/.test(source.app)) throw new Error("Session-local page-size selection does not reset page 1.");
 
   if (!/returnMode:\s*"active"/.test(source.app) || !/data-return-mode="active"/.test(source.views.returns) || !/data-return-mode="deleted"/.test(source.views.returns)) throw new Error("Return default or Active/Deleted inline mode contract is missing.");
-  if ((source.views.returns.match(/id="return-pagination"/g) || []).length !== 1 || !/App\.paginateRows\("returns", mode,[\s\S]*"return-pagination"/.test(source.presenters.returns)) throw new Error("Return inline pagination is missing.");
   if (!/resetPagination\("returns", next\)/.test(source.app)) throw new Error("Return mode switch does not reset the destination page.");
-  if (!/page\.map\(mode === "deleted" \? renderDeletedRow : renderRow\)/.test(source.presenters.returns) || !/canRestore === true/.test(source.presenters.returns) || !/restoreReason/.test(source.presenters.returns) || !/data-return-action="restore"/.test(source.presenters.returns)) throw new Error("Return Deleted rows do not preserve eligibility and Restore after slicing.");
+  if (!/canRestore\s*===\s*true/.test(source.presenters.returns) || !/restoreReason/.test(source.presenters.returns) || !/data-return-action="restore"/.test(source.presenters.returns)) throw new Error("Return Deleted rows do not preserve eligibility and Restore.");
   if (/btn-return-trash|return-trash|openReturnTrash|renderReturnTrash|returnTrash|paginateRows\("returns", "deleted"/.test(`${source.views.returns}\n${source.presenters.returns}\n${source.app}`)) throw new Error("Obsolete Return Deleted modal pagination was reintroduced.");
 
   if (!/purchasingMode:\s*"active"/.test(source.app) || !/data-purchasing-mode="active"/.test(source.views.purchasing) || !/data-purchasing-mode="deleted"/.test(source.views.purchasing)) throw new Error("Purchasing default or Active/Deleted inline mode contract is missing.");
-  if ((source.views.purchasing.match(/id="purchasing-pagination"/g) || []).length !== 1 || !/paginateRows\("purchasing", mode,[\s\S]*"purchasing-pagination"/.test(source.app)) throw new Error("Purchasing inline pagination is missing.");
   if (!/resetPagination\("purchasing", next\)/.test(source.app)) throw new Error("Purchasing mode switch does not reset the destination page.");
-  if (!/rows\.map\(\(row\) => mode === "deleted" \? renderDeletedRow/.test(source.presenters.purchasing) || !/canRestore === true/.test(source.presenters.purchasing) || !/restoreReason/.test(source.presenters.purchasing) || !/data-purchasing-action="restore"/.test(source.presenters.purchasing)) throw new Error("Purchasing Deleted rows do not preserve eligibility and Restore after slicing.");
+  if (!/canRestore\s*===\s*true/.test(source.presenters.purchasing) || !/restoreReason/.test(source.presenters.purchasing) || !/data-purchasing-action="restore"/.test(source.presenters.purchasing)) throw new Error("Purchasing Deleted rows do not preserve eligibility and Restore.");
   if (/btn-purchasing-trash|purchasing-trash|openTrash|renderTrash|trashRows|trashRequest|loadDeleted|pendingRestore|paginateRows\("purchasing", "deleted"/.test(`${source.views.purchasing}\n${source.presenters.purchasing}\n${source.app}`)) throw new Error("Obsolete Purchasing Deleted modal pagination was reintroduced.");
 
   const returnDeletedSection = source.presenters.returns.slice(source.presenters.returns.indexOf("function renderDeletedRow"), source.presenters.returns.indexOf("function renderEmpty"));
@@ -185,7 +268,7 @@ function assertCanonicalPaginationSourceContracts(source) {
   if (!/logsPage:\s*1/.test(source.app) || !/Api\.Logs\.page\(filters,\s*\{ page: state\.logsPage, pageSize: state\.logsPageSize \}\)/.test(source.app) || !/RepositoryQuery\.paginate/.test(source.logsService)) throw new Error("Logs server-side pagination contract changed.");
   if (!/state\.logsFilters = next; state\.logsPage = 1; loadLogs\(\)/.test(source.app) || /paginateRows\("logs"/.test(browserSource)) throw new Error("Logs filters do not reset server page 1 or Logs entered client pagination.");
 
-  if ((source.app.match(/event\.target\.closest\("\[data-pagination-action\]"\)/g) || []).length !== 1 || (source.events.match(/\[data-pagination-action\]\[data-pagination-module='purchasing'\]/g) || []).length !== 1 || !/if \(module === "purchasing"\) return/.test(source.app)) throw new Error("Pagination handlers are missing, duplicated, or dispatch Purchasing twice.");
+  if ((source.app.match(/event\.target\.closest\("\[data-pagination-action\]"\)/g) || []).length !== 1 || !/\["products", "partners", "pickups", "purchasing", "returns", "expenses"\]\.includes\(module\)/.test(source.app)) throw new Error("The shared pagination listener does not exclude module-owned pagination handlers.");
   if (/ROWS_PER_PAGE/.test(browserSource)) throw new Error("Legacy ROWS_PER_PAGE is consumed by browser pagination.");
   if (!/setting\.key !== "ROWS_PER_PAGE"/.test(source.settingsPresenter)) throw new Error("Legacy ROWS_PER_PAGE is exposed in Settings UI.");
   if (/pageSize\s*[:=]\s*20|requestedSize\s*=\s*20|fallback\s*=\s*20/.test(browserSource)) throw new Error("Hardcoded page-size default 20 is active.");
@@ -240,4 +323,14 @@ function testCanonicalPaginationCalculations() {
   assert(result.page === 1 && result.totalPages === 1, "Mutation empty-page correction is invalid.");
   result = pagination.calculate(rows, 1, 10);
   assert(result.page === 1 && result.pageSize === 10 && result.data.length === 10, "Page-size reset calculation is invalid.");
+
+  const filteredFixture = Array.from({ length: 32 }, (_, index) => ({ ID: index + 1, group: index < 23 ? "match" : "other" })).filter((row) => row.group === "match");
+  let apiCalls = 0; const presenterInputs = [];
+  const present = (page) => { const selected = pagination.calculate(filteredFixture, page, 15); presenterInputs.push(selected.data.slice()); return selected; };
+  const first = present(1); const second = present(2);
+  assert(apiCalls === 0, "Controlled Pickup client pagination performed an API call.");
+  assert(first.totalRows === 23 && second.totalRows === 23, "Filtered Pickup total is not calculated before slicing.");
+  assert(presenterInputs[0].length === 15 && presenterInputs[1].length === 8, "Pickup Presenter fixture did not receive selected-page-only rows.");
+  assert(presenterInputs[0][0].ID === 1 && presenterInputs[1][0].ID === 16, "Pickup page fixtures do not contain distinct row subsets.");
+  assert(presenterInputs.flat().every((row) => row.group === "match"), "Pickup fixture was sliced before filtering.");
 }

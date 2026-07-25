@@ -41,6 +41,20 @@
 
       productMode: "active",
 
+      productSearch: "",
+
+      productLoading: false,
+
+      productError: "",
+
+      productSubmitting: false,
+
+      productConfirming: false,
+
+      productFormKind: null,
+
+      productFormId: null,
+
       productRestoreBusyId: null,
 
       productRestoreConfirming: false,
@@ -50,6 +64,20 @@
       deletedPartners: [],
 
       partnerMode: "active",
+
+      partnerSearch: "",
+
+      partnerLoading: false,
+
+      partnerError: "",
+
+      partnerSubmitting: false,
+
+      partnerConfirming: false,
+
+      partnerFormKind: null,
+
+      partnerFormId: null,
 
       partnerRestoreBusyId: null,
 
@@ -220,10 +248,6 @@
       bindSettingsActions();
 
       bindLogsActions();
-
-      bindProductViewActions();
-
-      bindPartnerViewActions();
 
       bindPaginationActions();
 
@@ -509,8 +533,8 @@
     }
     function resetPagination(module, mode) { paginationState(module, mode).modeState.page = 1; }
     function bindPaginationActions() {
-      document.addEventListener("click", (event) => { const button = event.target.closest("[data-pagination-action]"); if (!button || button.disabled) return; const module = button.dataset.paginationModule; if (module === "pickups" || module === "purchasing" || module === "returns" || module === "expenses") return; const mode = button.dataset.paginationMode || "active"; const current = paginationState(module, mode); current.modeState.page += button.dataset.paginationAction === "previous" ? -1 : 1; paginationRenderers[`${module}:${mode}`]?.(); });
-      document.addEventListener("change", (event) => { const select = event.target.closest("[data-pagination-size]"); if (!select) return; const module = select.dataset.paginationSize; if (module === "pickups" || module === "purchasing" || module === "returns" || module === "expenses") return; const mode = select.dataset.paginationMode || "active"; const current = paginationState(module, mode); current.moduleState.pageSize = validPageSize(select.value); current.moduleState.explicit = true; current.modeState.page = 1; paginationRenderers[`${module}:${mode}`]?.(); });
+      document.addEventListener("click", (event) => { const button = event.target.closest("[data-pagination-action]"); if (!button || button.disabled) return; const module = button.dataset.paginationModule; if (["products", "partners", "pickups", "purchasing", "returns", "expenses"].includes(module)) return; const mode = button.dataset.paginationMode || "active"; const current = paginationState(module, mode); current.modeState.page += button.dataset.paginationAction === "previous" ? -1 : 1; paginationRenderers[`${module}:${mode}`]?.(); });
+      document.addEventListener("change", (event) => { const select = event.target.closest("[data-pagination-size]"); if (!select) return; const module = select.dataset.paginationSize; if (["products", "partners", "pickups", "purchasing", "returns", "expenses"].includes(module)) return; const mode = select.dataset.paginationMode || "active"; const current = paginationState(module, mode); current.moduleState.pageSize = validPageSize(select.value); current.moduleState.explicit = true; current.modeState.page = 1; paginationRenderers[`${module}:${mode}`]?.(); });
     }
 
     function applyDefaultPageSize(value, rerenderCurrent = false) {
@@ -748,6 +772,7 @@
     async function loadProducts() {
       const mode = state.productMode;
       const request = ++productRequest;
+      state.productLoading = true; state.productError = "";
       ProductsPresenter.renderLoading(mode);
       try {
         const products = mode === "deleted"
@@ -758,9 +783,11 @@
           : await loadProductsCache(true);
         if (request !== productRequest || state.page !== "products" || mode !== state.productMode) return;
         if (mode === "deleted") state.deletedProducts = Utils.deepClone(products);
-        ProductsPresenter.render(products, mode, state.productRestoreBusyId);
+        state.productLoading = false;
+        renderProducts();
       } catch (error) {
         if (request !== productRequest || state.page !== "products" || mode !== state.productMode) return;
+        state.productLoading = false; state.productError = readableLoadError(error, mode === "deleted" ? "Load deleted products failed." : "Load products failed.");
         if (!error?.appNotified) Toast.error(readableLoadError(error, mode === "deleted" ? "Load deleted products failed." : "Load products failed."));
         ProductsPresenter.renderError(mode);
         return;
@@ -771,18 +798,50 @@
       const next = mode === "deleted" ? "deleted" : "active";
       if (state.productMode === next) return Promise.resolve();
       state.productMode = next;
+      state.productSearch = "";
       resetPagination("products", next);
       ProductsPresenter.clearSearch();
       return loadProducts();
     }
 
-    function bindProductViewActions() {
-      document.addEventListener("click", (event) => {
-        if (state.page !== "products") return;
-        const mode = event.target.closest("[data-product-mode]");
-        if (mode) { setProductMode(mode.dataset.productMode); return; }
-        if (event.target.closest("#btn-product-refresh")) { ProductsPresenter.clearSearch(); loadProducts(); }
-      });
+    function productRows() {
+      const source = state.productMode === "deleted" ? state.deletedProducts : state.products;
+      const query = state.productSearch.trim().toLowerCase();
+      return query ? source.filter((product) => ["ID", "Nama", "Kategori", "Satuan"].some((field) => String(product[field] || "").toLowerCase().includes(query))) : source;
+    }
+
+    function renderProducts() {
+      paginationRenderers[`products:${state.productMode}`] = renderProducts;
+      const current = paginationState("products", state.productMode);
+      const pagination = Pagination.calculate(productRows(), current.modeState.page, current.moduleState.pageSize);
+      Object.assign(current.modeState, { page: pagination.page, totalRows: pagination.totalRows, totalPages: pagination.totalPages });
+      ProductsPresenter.render({ rows: pagination.data, mode: state.productMode, restoreBusyId: state.productRestoreBusyId, pagination });
+    }
+
+    function searchProducts(keyword = "") {
+      state.productSearch = String(keyword || "").trim().toLowerCase();
+      resetPagination("products", state.productMode);
+      renderProducts();
+    }
+
+    function refreshProducts() {
+      state.productSearch = "";
+      ProductsPresenter.clearSearch();
+      return loadProducts();
+    }
+
+    function changeProductPage(direction) {
+      const current = paginationState("products", state.productMode);
+      current.modeState.page += direction === "previous" ? -1 : 1;
+      renderProducts();
+    }
+
+    function changeProductPageSize(value) {
+      const current = paginationState("products", state.productMode);
+      current.moduleState.pageSize = validPageSize(value);
+      current.moduleState.explicit = true;
+      current.modeState.page = 1;
+      renderProducts();
     }
 
     async function restoreProduct(id) {
@@ -801,7 +860,7 @@
             if (state.productRestoreBusyId || restoreAttempted || state.page !== "products" || state.productMode !== "deleted") return false;
             restoreAttempted = true;
             state.productRestoreBusyId = productId;
-            ProductsPresenter.render(state.deletedProducts, "deleted", productId);
+            renderProducts();
             const request = productRequest;
             try {
               const response = await Api.Product.restore(productId);
@@ -810,7 +869,7 @@
               if (!response?.success) { Toast.error(response?.message || "Product could not be restored."); return true; }
               restored = true; Toast.success(response.message || "Product restored.");
               state.deletedProducts = state.deletedProducts.filter((item) => String(item.ID) !== productId);
-              ProductsPresenter.render(state.deletedProducts, "deleted", null);
+              renderProducts();
               productsLoaded = false;
               state.pickupProducts = null;
               return true;
@@ -825,7 +884,7 @@
         });
       } finally {
         state.productRestoreConfirming = false;
-        if (state.page === "products" && state.productMode === "deleted") ProductsPresenter.render(state.deletedProducts, "deleted", state.productRestoreBusyId);
+        if (state.page === "products" && state.productMode === "deleted") renderProducts();
       }
       return restored;
     }
@@ -835,24 +894,56 @@
     //===========================================================================
 
     function openCreateProduct() {
-      ProductsActions.openCreate();
+      if (state.productSubmitting) return false;
+      state.productFormKind = "create"; state.productFormId = null; CrudState.create();
+      Modal.open({ title: "Add Product", width: "md", body: ProductsForm.template(), footer: ProductsPresenter.renderFormFooter(false) });
+      return true;
     }
 
     async function openEditProduct(id) {
-      return ProductsActions.openEdit(id);
+      const cleanId = String(id || "").trim();
+      if (!cleanId || state.productSubmitting) return false;
+      const request = ++productRequest;
+      state.productFormKind = "edit"; state.productFormId = cleanId; CrudState.update(cleanId);
+      try {
+        const response = await Api.Product.get(cleanId);
+        if (request !== productRequest || state.page !== "products") return false;
+        if (!response?.success) { Toast.error(response?.message || "Product could not be loaded."); return false; }
+        Modal.open({ title: "Edit Product", width: "md", body: ProductsForm.template(), footer: ProductsPresenter.renderFormFooter(false) });
+        ProductsForm.fill(response.data); return true;
+      } catch (error) { if (request === productRequest && state.page === "products") Toast.error(readableLoadError(error, "Product could not be loaded.")); return false; }
     }
 
     async function saveProduct() {
-      const result = await ProductsActions.save();
-      state.pickupProducts = null;
-      return result;
+      if (state.productSubmitting || !state.productFormKind) return false;
+      const product = ProductsForm.read(); const validation = ProductsValidator.validate(product);
+      if (!validation.valid) { Toast.warning(validation.errors.join("\n")); return false; }
+      const kind = state.productFormKind; const id = state.productFormId; state.productSubmitting = true;
+      Modal.footer(ProductsPresenter.renderFormFooter(true));
+      try {
+        const response = kind === "create" ? await Api.Product.create(product) : await Api.Product.update(id, product);
+        if (!response?.success) { Toast.error(response?.message || "Product could not be saved."); return false; }
+        ProductsForm.reset(); CrudState.reset(); state.productFormKind = null; state.productFormId = null; Modal.close();
+        productsLoaded = false; state.pickupProducts = null; await loadProducts();
+        Toast.success(kind === "create" ? "Product berhasil dibuat." : "Product berhasil diperbarui."); return true;
+      } catch (error) { Toast.error(readableLoadError(error, "Product could not be saved.")); return false; }
+      finally { state.productSubmitting = false; if (state.productFormKind) Modal.footer(ProductsPresenter.renderFormFooter(false)); }
     }
 
     async function deleteProduct(id) {
-      const result = await ProductsActions.remove(id);
-      state.pickupProducts = null;
-      return result;
+      const cleanId = String(id || "").trim(); if (!cleanId || state.productSubmitting || state.productConfirming) return false;
+      state.productConfirming = true;
+      try {
+        const confirmed = await Dialog.confirm({ title: "Delete Product", message: "Are you sure you want to delete this product?" });
+        if (!confirmed || state.page !== "products") return false;
+        state.productSubmitting = true;
+        try { const response = await Api.Product.remove(cleanId); if (!response?.success) { Toast.error(response?.message || "Product could not be deleted."); return false; } productsLoaded = false; state.pickupProducts = null; await loadProducts(); Toast.success("Product berhasil dihapus."); return true; }
+        catch (error) { Toast.error(readableLoadError(error, "Product could not be deleted.")); return false; }
+        finally { state.productSubmitting = false; }
+      } finally { state.productConfirming = false; }
     }
+
+    function closeProductModal() { if (state.productSubmitting) return false; productRequest += 1; state.productFormKind = null; state.productFormId = null; CrudState.reset(); Modal.close(); return true; }
 
     //===========================================================================
     // Partners
@@ -860,6 +951,7 @@
 
     async function loadPartners() {
       const mode = state.partnerMode; const request = ++partnerRequest;
+      state.partnerLoading = true; state.partnerError = "";
       PartnersPresenter.renderLoading(mode);
       try {
         const partners = mode === "deleted"
@@ -867,23 +959,24 @@
           : await loadPartnersCache(true);
         if (request !== partnerRequest || state.page !== "partners" || mode !== state.partnerMode) return;
         if (mode === "deleted") state.deletedPartners = Utils.deepClone(partners);
-        PartnersPresenter.render(partners, mode, state.partnerRestoreBusyId);
+        state.partnerLoading = false;
+        renderPartners();
       } catch (error) {
         if (request !== partnerRequest || state.page !== "partners" || mode !== state.partnerMode) return;
+        state.partnerLoading = false; state.partnerError = readableLoadError(error, mode === "deleted" ? "Load deleted partners failed." : "Load partners failed.");
         if (!error?.appNotified) Toast.error(readableLoadError(error, mode === "deleted" ? "Load deleted partners failed." : "Load partners failed."));
         PartnersPresenter.renderError(mode);
         return;
       }
     }
 
-    function setPartnerMode(mode) { const next = mode === "deleted" ? "deleted" : "active"; if (next === state.partnerMode) return Promise.resolve(); state.partnerMode = next; resetPagination("partners", next); PartnersPresenter.clearSearch(); return loadPartners(); }
-    function bindPartnerViewActions() {
-      document.addEventListener("click", (event) => {
-        if (state.page !== "partners") return;
-        const mode = event.target.closest("[data-partner-mode]"); if (mode) { setPartnerMode(mode.dataset.partnerMode); return; }
-        if (event.target.closest("#btn-partner-refresh")) { PartnersPresenter.clearSearch(); loadPartners(); }
-      });
-    }
+    function setPartnerMode(mode) { const next = mode === "deleted" ? "deleted" : "active"; if (next === state.partnerMode) return Promise.resolve(); state.partnerMode = next; state.partnerSearch = ""; resetPagination("partners", next); PartnersPresenter.clearSearch(); return loadPartners(); }
+    function partnerRows() { const source = state.partnerMode === "deleted" ? state.deletedPartners : state.partners; const query = state.partnerSearch.trim().toLowerCase(); return query ? source.filter((partner) => ["ID", "Nama", "Jenis", "Telepon", "Alamat"].some((field) => String(partner[field] || "").toLowerCase().includes(query))) : source; }
+    function renderPartners() { paginationRenderers[`partners:${state.partnerMode}`] = renderPartners; const current = paginationState("partners", state.partnerMode); const pagination = Pagination.calculate(partnerRows(), current.modeState.page, current.moduleState.pageSize); Object.assign(current.modeState, { page: pagination.page, totalRows: pagination.totalRows, totalPages: pagination.totalPages }); PartnersPresenter.render({ rows: pagination.data, mode: state.partnerMode, restoreBusyId: state.partnerRestoreBusyId, pagination }); }
+    function searchPartners(keyword = "") { state.partnerSearch = String(keyword || "").trim().toLowerCase(); resetPagination("partners", state.partnerMode); renderPartners(); }
+    function refreshPartners() { state.partnerSearch = ""; PartnersPresenter.clearSearch(); return loadPartners(); }
+    function changePartnerPage(direction) { const current = paginationState("partners", state.partnerMode); current.modeState.page += direction === "previous" ? -1 : 1; renderPartners(); }
+    function changePartnerPageSize(value) { const current = paginationState("partners", state.partnerMode); current.moduleState.pageSize = validPageSize(value); current.moduleState.explicit = true; current.modeState.page = 1; renderPartners(); }
     async function restorePartner(id) {
       const cleanId = String(id || "").trim();
       if (!cleanId || state.page !== "partners" || state.partnerMode !== "deleted" || state.partnerRestoreBusyId || state.partnerRestoreConfirming) return false;
@@ -892,7 +985,7 @@
       try {
         await Dialog.confirm({ title: "Restore Partner", confirmText: "Restore", loadingText: "Restoring...", message: `Restore Partner <strong>${Utils.escapeHTML(row.Nama || cleanId)}</strong>?`, onConfirm: async () => {
           if (attempted || state.partnerRestoreBusyId || state.page !== "partners" || state.partnerMode !== "deleted") return false;
-          attempted = true; state.partnerRestoreBusyId = cleanId; PartnersPresenter.render(state.deletedPartners, "deleted", cleanId); const request = partnerRequest;
+          attempted = true; state.partnerRestoreBusyId = cleanId; renderPartners(); const request = partnerRequest;
           try {
             const response = await Api.Partner.restore(cleanId); console.info("Partner restore response", response);
             if (request !== partnerRequest || state.page !== "partners" || state.partnerMode !== "deleted") return true;
@@ -901,7 +994,7 @@
           } catch (error) { console.error("Partner restore failed", error); if (request === partnerRequest && state.page === "partners" && state.partnerMode === "deleted") Toast.error(readableLoadError(error, "Mitra tidak dapat dipulihkan.")); return true; }
           finally { state.partnerRestoreBusyId = null; }
         } });
-      } finally { state.partnerRestoreConfirming = false; if (state.page === "partners" && state.partnerMode === "deleted") PartnersPresenter.render(state.deletedPartners, "deleted", state.partnerRestoreBusyId); }
+      } finally { state.partnerRestoreConfirming = false; if (state.page === "partners" && state.partnerMode === "deleted") renderPartners(); }
       return restored;
     }
 
@@ -909,21 +1002,30 @@
     // Partner CRUD
     //===========================================================================
     function openCreatePartner() {
-      PartnersActions.openCreate();
+      if (state.partnerSubmitting) return false; state.partnerFormKind = "create"; state.partnerFormId = null; CrudState.create();
+      Modal.open({ title: "Add Partner", width: "md", body: PartnersForm.template(), footer: PartnersPresenter.renderFormFooter(false) }); return true;
     }
     function openEditPartner(id) {
-      return PartnersActions.openEdit(id);
+      const cleanId = String(id || "").trim(); if (!cleanId || state.partnerSubmitting) return false; const request = ++partnerRequest;
+      state.partnerFormKind = "edit"; state.partnerFormId = cleanId; CrudState.update(cleanId);
+      return Api.Partner.get(cleanId).then((response) => { if (request !== partnerRequest || state.page !== "partners") return false; if (!response?.success) { Toast.error(response?.message || "Partner could not be loaded."); return false; } Modal.open({ title: "Edit Partner", width: "md", body: PartnersForm.template(), footer: PartnersPresenter.renderFormFooter(false) }); PartnersForm.fill(response.data); return true; }).catch((error) => { if (request === partnerRequest && state.page === "partners") Toast.error(readableLoadError(error, "Partner could not be loaded.")); return false; });
     }
     async function savePartner() {
-      const result = await PartnersActions.save();
-      state.pickupPartners = null;
-      return result;
+      if (state.partnerSubmitting || !state.partnerFormKind) return false; const partner = PartnersForm.read(); const validation = PartnersValidator.validate(partner); if (!validation.valid) { Toast.warning(validation.errors.join("\n")); return false; }
+      const kind = state.partnerFormKind; const id = state.partnerFormId; state.partnerSubmitting = true; Modal.footer(PartnersPresenter.renderFormFooter(true));
+      try { const response = kind === "create" ? await Api.Partner.create(partner) : await Api.Partner.update(id, partner); if (!response?.success) { Toast.error(response?.message || "Partner could not be saved."); return false; } PartnersForm.reset(); CrudState.reset(); state.partnerFormKind = null; state.partnerFormId = null; Modal.close(); partnersLoaded = false; state.pickupPartners = null; await loadPartners(); Toast.success(kind === "create" ? "Partner berhasil dibuat." : "Partner berhasil diperbarui."); return true; }
+      catch (error) { Toast.error(readableLoadError(error, "Partner could not be saved.")); return false; }
+      finally { state.partnerSubmitting = false; if (state.partnerFormKind) Modal.footer(PartnersPresenter.renderFormFooter(false)); }
     }
     async function deletePartner(id) {
-      const result = await PartnersActions.remove(id);
-      state.pickupPartners = null;
-      return result;
+      const cleanId = String(id || "").trim(); if (!cleanId || state.partnerSubmitting || state.partnerConfirming) return false; state.partnerConfirming = true;
+      try { const confirmed = await Dialog.confirm({ title: "Delete Partner", message: "Are you sure you want to delete this partner?" }); if (!confirmed || state.page !== "partners") return false; state.partnerSubmitting = true;
+        try { const response = await Api.Partner.remove(cleanId); if (!response?.success) { Toast.error(response?.message || "Partner could not be deleted."); return false; } partnersLoaded = false; state.pickupPartners = null; await loadPartners(); Toast.success("Partner berhasil dihapus."); return true; }
+        catch (error) { Toast.error(readableLoadError(error, "Partner could not be deleted.")); return false; }
+        finally { state.partnerSubmitting = false; }
+      } finally { state.partnerConfirming = false; }
     }
+    function closePartnerModal() { if (state.partnerSubmitting) return false; partnerRequest += 1; state.partnerFormKind = null; state.partnerFormId = null; CrudState.reset(); Modal.close(); return true; }
 
     //===========================================================================
     // Pickups
@@ -1695,64 +1797,6 @@
       }
     }
 
-    function searchProducts(keyword = "") {
-      resetPagination("products", state.productMode);
-      const value = String(keyword || "")
-        .trim()
-
-        .toLowerCase();
-
-      if (!value) {
-        ProductsPresenter.render(state.productMode === "deleted" ? state.deletedProducts : state.products, state.productMode, state.productRestoreBusyId);
-
-        return;
-      }
-
-      const fields = ["ID", "Nama", "Kategori", "Satuan"];
-
-      const source = state.productMode === "deleted" ? state.deletedProducts : state.products;
-      const result = source.filter((product) => {
-        return fields.some((field) => {
-          return String(product[field] || "")
-            .toLowerCase()
-
-            .includes(value);
-        });
-      });
-
-      ProductsPresenter.render(result, state.productMode, state.productRestoreBusyId);
-    }
-
-    //===========================================================================
-    // Partner Search
-    //===========================================================================
-
-    function searchPartners(keyword = "") {
-      resetPagination("partners", state.partnerMode);
-      const value = String(keyword || "")
-        .trim()
-        .toLowerCase();
-
-      if (!value) {
-        PartnersPresenter.render(state.partnerMode === "deleted" ? state.deletedPartners : state.partners, state.partnerMode, state.partnerRestoreBusyId);
-
-        return;
-      }
-
-      const fields = ["ID", "Nama", "Jenis", "Telepon", "Alamat"];
-
-      const source = state.partnerMode === "deleted" ? state.deletedPartners : state.partners;
-      const result = source.filter((partner) => {
-        return fields.some((field) => {
-          return String(partner[field] || "")
-            .toLowerCase()
-            .includes(value);
-        });
-      });
-
-      PartnersPresenter.render(result, state.partnerMode, state.partnerRestoreBusyId);
-    }
-
     //===========================================================================
     // Public API
     //===========================================================================
@@ -1836,18 +1880,28 @@
       restorePurchasing,
 
       loadProducts,
+      setProductMode,
+      refreshProducts,
+      changeProductPage,
+      changeProductPageSize,
       openCreateProduct,
       openEditProduct,
       saveProduct,
       deleteProduct,
       restoreProduct,
+      closeProductModal,
 
       loadPartners,
+      setPartnerMode,
+      refreshPartners,
+      changePartnerPage,
+      changePartnerPageSize,
       openCreatePartner,
       openEditPartner,
       savePartner,
       deletePartner,
       restorePartner,
+      closePartnerModal,
     });
   })();
 
