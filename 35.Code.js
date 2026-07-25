@@ -57,7 +57,7 @@ function resolvePage(e) {
 
     case "returns":
 
-    case "purchases":
+    case "purchasing":
 
     case "expenses":
 

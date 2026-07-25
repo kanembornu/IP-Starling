@@ -12,6 +12,7 @@
 
 function PickupService(options) {
   const serviceOptions = options || {};
+  const auditMutation = serviceOptions.auditMutation || (Object.keys(serviceOptions).length ? () => {} : BaseService.auditMutation);
   const DETAIL_MUTATION_BLOCKED =
     "Detail pickup tidak dapat diubah karena sudah memiliki riwayat retur.";
   const DELETE_BLOCKED =
@@ -483,6 +484,8 @@ function PickupService(options) {
 
     detailForeignKey: PICKUP_DETAIL_FIELDS.PICKUP_ID,
 
+    auditMutation,
+
     hooks: {
       beforeCreate(document) {
         return validateDocument(document);
@@ -562,7 +565,11 @@ function PickupService(options) {
       return Response.error("Gagal memperbarui header transaksi.");
     }
 
-    return transaction.findById(id);
+    const updated = transaction.findById(id);
+    if (updated.success) {
+      auditMutation(PICKUP_HEADER_SCHEMA, "UPDATE", id, current.data.header, updated.data.header);
+    }
+    return updated;
   }
 
   function remove(id) {

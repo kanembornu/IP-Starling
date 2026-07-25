@@ -388,6 +388,7 @@ const TransactionService = (() => {
 
       try {
         if (writer.insertMany(detailSchema, details)) {
+          auditMutation(headerSchema, "CREATE", headerId, null, header);
           return Response.success({
             header,
 
@@ -537,6 +538,8 @@ const TransactionService = (() => {
         );
       }
 
+      auditMutation(headerSchema, "UPDATE", id, existingHeader, updatedHeader);
+
       return Response.success({
         header: updatedHeader,
 
@@ -603,8 +606,12 @@ const TransactionService = (() => {
         );
       }
 
+      const deletedHeader = findByIdIncludingDeleted(headerSchema, id);
+
+      auditMutation(headerSchema, "DELETE", id, header, deletedHeader);
+
       return Response.success({
-        header: findByIdIncludingDeleted(headerSchema, id),
+        header: deletedHeader,
 
         details: findIncludingDeleted(detailSchema, {
           [detailForeignKey]: id,

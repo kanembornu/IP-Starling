@@ -12,6 +12,7 @@
 
 function ReturnService(options = {}) {
   const RETURN_MUTATION_LOCK_TIMEOUT_MS = 10000;
+  const auditMutation = options.auditMutation || (Object.keys(options).length ? () => {} : BaseService.auditMutation);
   const PRODUCT_NOT_FOUND = "Produk tidak ditemukan";
   const PRODUCT_DETAIL_NOT_FOUND =
     "Produk tidak tersedia karena detail Pickup tidak ditemukan";
@@ -373,8 +374,11 @@ function ReturnService(options = {}) {
 
     RepositoryCache.clear(RETURN_SCHEMA);
 
+    const saved = RepositoryReader.findById(RETURN_SCHEMA, id);
+    auditMutation(RETURN_SCHEMA, "CREATE", id, null, saved);
+
     return Response.success(
-      RepositoryReader.findById(RETURN_SCHEMA, id),
+      saved,
       `${RETURN_SCHEMA.NAME} berhasil dibuat.`,
     );
   }

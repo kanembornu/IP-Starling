@@ -286,17 +286,31 @@
 
       if (state.page === "logs") logsRequest += 1;
 
-      if (state.page === "products") productRequest += 1;
+      if (state.page === "products") {
+        productRequest += 1;
+        state.productFormKind = null;
+        state.productFormId = null;
+        state.productRestoreBusyId = null;
+        CrudState.reset();
+      }
 
-      if (state.page === "partners") partnerRequest += 1;
+      if (state.page === "partners") {
+        partnerRequest += 1;
+        state.partnerFormKind = null;
+        state.partnerFormId = null;
+        state.partnerRestoreBusyId = null;
+        CrudState.reset();
+      }
 
-      if (state.page === "pickups") { pickupRequest += 1; pickupDetailRequest += 1; state.pickupForm = null; state.pickupFormKind = null; state.pickupSubmitting = false; }
+      if (state.page === "pickups") { pickupRequest += 1; pickupDetailRequest += 1; state.pickupForm = null; state.pickupFormKind = null; state.pickupSubmitting = false; state.pickupBusyId = null; state.pickupRestoreBusyId = null; }
 
-      if (state.page === "purchasing") purchasingRequest += 1;
+      if (state.page === "purchasing") { purchasingRequest += 1; state.purchasingForm = null; state.purchasingFormKind = null; state.purchasingBusyId = null; state.purchasingRestoreBusyId = null; }
 
-      if (state.page === "returns") { returnRequest += 1; state.returnForm = null; state.returnFormKind = null; }
+      if (state.page === "returns") { returnRequest += 1; state.returnForm = null; state.returnFormKind = null; state.returnBusyId = null; state.returnRestoreBusyId = null; }
 
-      if (state.page === "expenses") { expenseRequest += 1; state.expenseForm = null; state.expenseFormKind = null; state.expenseSubmitting = false; }
+      if (state.page === "expenses") { expenseRequest += 1; state.expenseForm = null; state.expenseFormKind = null; state.expenseSubmitting = false; state.expenseBusyId = null; }
+
+      Modal.close();
 
       state.page = page;
 
@@ -1062,6 +1076,7 @@
     //===========================================================================
 
     function pickupSource() { return state.pickupMode === "trash" ? state.deletedPickups : state.pickups; }
+    function invalidateReturnDependencies() { state.returnPickups = null; state.returnPickupDetails = {}; }
     function pickupMatch(row,query) { if(!query)return true;return [row?.ID,row?.PickupNo,row?.PartnerID,row?.partnerName,row?.Tanggal,PickupsPresenter.formatPickupDate(row?.Tanggal),row?.Status,row?.Notes,...(Array.isArray(row?.details)?row.details.flatMap((d)=>[d.ProductID,d.productName,d.Qty]):[])].some((value)=>String(value??"").toLowerCase().includes(query)); }
     function renderPickups() {
       const mode=state.pickupMode,query=String(state.pickupSearch||"").trim().toLowerCase(),source=pickupSource(),filtered=source.filter((row)=>pickupMatch(row,query));
@@ -1114,8 +1129,7 @@
         state.deletedPickups = records;
       } else {
         state.pickups = records;
-        state.returnPickups = null;
-        state.returnPickupDetails = {};
+        invalidateReturnDependencies();
       }
 
       renderPickups();
@@ -1147,7 +1161,7 @@
             const response = await Api.Pickup.restore(cleanId); console.info("Pickup restore response", response);
             if (request !== pickupRequest || state.page !== "pickups" || state.pickupMode !== "trash") return true;
             if (!response?.success) { Toast.error(response?.message || "Pickup tidak dapat dipulihkan."); return true; }
-            restored = true; Toast.success(response.message || "Pickup berhasil dipulihkan."); state.deletedPickups = state.deletedPickups.filter((item) => String(item.ID) !== cleanId); return true;
+            restored = true; invalidateReturnDependencies(); Toast.success(response.message || "Pickup berhasil dipulihkan."); state.deletedPickups = state.deletedPickups.filter((item) => String(item.ID) !== cleanId); return true;
           } catch (error) { console.error("Pickup restore failed", error); if (request === pickupRequest && state.page === "pickups" && state.pickupMode === "trash") Toast.error(readableLoadError(error, "Pickup tidak dapat dipulihkan.")); return true; }
           finally { state.pickupRestoreBusyId = null; }
         } });
@@ -1187,7 +1201,7 @@
     function removePickupDetail(localId){if(!state.pickupForm||state.pickupSubmitting||state.pickupForm.details.length===1)return;state.pickupForm.details=state.pickupForm.details.filter((d)=>d.localId!==String(localId));Modal.body(PickupsPresenter.renderForm(pickupFormView()));}
     function validatePickupForm(){const form=state.pickupForm||{},header={Tanggal:String(form.header?.Tanggal||"").trim(),PartnerID:String(form.header?.PartnerID||"").trim(),Notes:String(form.header?.Notes||"").trim()};if(!header.Tanggal)return {message:"Tanggal is required."};if(!header.PartnerID)return {message:"Partner is required."};if(!form.details?.length)return {message:"At least one item is required."};const seen=new Set(),details=[];for(const row of form.details){const product=String(row.ProductID||"").trim(),qty=Number(row.Qty);if(!product)return {message:"Each item needs a Product."};if(!Number.isFinite(qty))return {message:"Each Qty must be numeric."};if(qty<=0)return {message:"Each Qty must be greater than zero."};if(seen.has(product))return {message:"Duplicate Products are not allowed."};seen.add(product);details.push({ProductID:product,Qty:qty,Notes:String(row.Notes||"").trim()});}return {document:{header,details}};}
     async function submitPickupForm(){if(state.pickupSubmitting||!state.pickupForm)return;const validation=validatePickupForm();if(!validation.document)return Toast.warning(validation.message);state.pickupSubmitting=true;pickupRequest++;Modal.footer(PickupsPresenter.renderFormFooter(state.pickupFormKind,true));const editing=state.pickupFormKind==="edit",id=state.pickupForm.id;try{const response=editing?await Api.Pickup.update(id,validation.document):await Api.Pickup.create(validation.document);if(!response?.success)throw new Error(response?.message||(editing?"Pickup could not be updated.":"Pickup could not be created."));Toast.success(response.message||(editing?"Pickup updated.":"Pickup created."));closePickupModal();await loadPickups();}catch(error){Toast.error(readableLoadError(error,editing?"Pickup could not be updated.":"Pickup could not be created."));}finally{state.pickupSubmitting=false;if(state.pickupForm)Modal.footer(PickupsPresenter.renderFormFooter(state.pickupFormKind,false));}}
-    async function deletePickup(id){const clean=String(id||"").trim(),row=state.pickups.find((item)=>String(item.ID)===clean);if(!clean||!row||state.pickupBusyId)return false;state.pickupBusyId=clean;try{const confirmed=await Dialog.confirm({title:"Delete Pickup",message:`Delete Pickup <strong>${Utils.escapeHTML(row.PickupNo||clean)}</strong>?`});if(!confirmed)return false;pickupRequest++;const response=await Api.Pickup.remove(clean);if(!response?.success)throw new Error(response?.message||"Pickup could not be deleted.");Toast.success(response.message||"Pickup deleted.");state.pickups=state.pickups.filter((item)=>String(item.ID)!==clean);renderPickups();return true;}catch(error){Toast.error(readableLoadError(error,"Pickup could not be deleted."));return false;}finally{state.pickupBusyId=null;}}
+    async function deletePickup(id){const clean=String(id||"").trim(),row=state.pickups.find((item)=>String(item.ID)===clean);if(!clean||!row||state.pickupBusyId)return false;state.pickupBusyId=clean;try{const confirmed=await Dialog.confirm({title:"Delete Pickup",message:`Delete Pickup <strong>${Utils.escapeHTML(row.PickupNo||clean)}</strong>?`});if(!confirmed)return false;pickupRequest++;const response=await Api.Pickup.remove(clean);if(!response?.success)throw new Error(response?.message||"Pickup could not be deleted.");invalidateReturnDependencies();Toast.success(response.message||"Pickup deleted.");state.pickups=state.pickups.filter((item)=>String(item.ID)!==clean);renderPickups();return true;}catch(error){Toast.error(readableLoadError(error,"Pickup could not be deleted."));return false;}finally{state.pickupBusyId=null;}}
     function closePickupModal(){pickupDetailRequest++;state.pickupForm=null;state.pickupFormKind=null;state.pickupSubmitting=false;Modal.close();}
 
     //===========================================================================

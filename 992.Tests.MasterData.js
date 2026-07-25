@@ -427,9 +427,9 @@ function testFrontendArchitectureDuplicateAndDeadCodeContracts() {
   if (!/const Events = \(\(\) => \{\s*let initialized = false;/.test(source.events) || !/function init\(\) \{\s*if \(initialized\) return;\s*initialized = true;/.test(source.events)) throw new Error("Event initialization is not idempotent.");
   if (!/const App = \(\(\) => \{\s*let initialized = false;/.test(source.app) || !/async function init\(\) \{\s*if \(initialized\) return;\s*initialized = true;/.test(source.app)) throw new Error("App initialization is not idempotent.");
   if ((source.app.match(/window\.addEventListener\(\s*"load",\s*App\.init/g) || []).length !== 1 || (source.app.match(/Events\.init\(\);/g) || []).length !== 1) throw new Error("Application bootstrap is missing or duplicated.");
-  if ((source.app.match(/DashboardPresenter\.bindRangeControls\s*\(/g) || []).length !== 1) throw new Error("Dashboard range controls are initialized more than once per load.");
+  if ((source.app.match(/DashboardPresenter\.bindRangeControls\s*\(/g) || []).length !== 0) throw new Error("Dashboard Presenter must not bind range controls.");
 
-  ["bindSidebar", "bindTopbar", "bindGlobal", "bindMasterData", "bindKeyboard", "bindWindow", "bindPurchasing", "bindPickups", "bindReturns", "bindExpenses"].forEach((name) => {
+  ["bindSidebar", "bindTopbar", "bindDashboard", "bindGlobal", "bindMasterData", "bindKeyboard", "bindWindow", "bindPurchasing", "bindPickups", "bindReturns", "bindExpenses"].forEach((name) => {
     if ((source.events.match(new RegExp(`\\b${name}\\(\\);`, "g")) || []).length !== 1) throw new Error(`${name} is initialized more than once.`);
   });
   if (/function reload\s*\(|\breload,/.test(source.events)) throw new Error("Obsolete Events.reload compatibility wrapper remains.");

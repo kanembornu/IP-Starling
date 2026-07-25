@@ -101,6 +101,50 @@ function runFrontendArchitectureHardeningTests() {
   ]);
 }
 
+const RELEASE_FRONTEND_INTEGRATION_TESTS = Object.freeze([
+  testReleaseRouteInitializationOnce,
+  testReleaseEventBindingOnce,
+  testReleaseNavigationInvalidatesStaleResponses,
+  testReleaseStateIsolationBetweenModules,
+  testReleaseEveryEventCalledAppMethodExists,
+  testReleaseEveryAppCalledApiMethodExists,
+  testReleaseEveryAppCalledPresenterMethodExists,
+  testReleasePaginationSelectedPageOnly,
+  testReleasePaginationMakesNoApiRequest,
+  testReleaseDefaultPageSizeCanonical,
+  testReleaseStaleErrorsIgnored,
+  testReleaseSettingsConfigNotRedundantlyFetched,
+  testReleaseChartLifecycleSafe,
+  testReleaseTestRegistrationExactlyOnce,
+]);
+
+const RELEASE_BACKEND_CONTRACT_TESTS = Object.freeze([
+  testReleaseApiCalledControllerEndpointsExist,
+  testReleaseApiControllerArgumentCompatibility,
+  testReleaseApiControllerResponseEnvelopeCompatibility,
+  testReleaseDependencyEligibilityContracts,
+  testReleaseDeletedDependenciesExcluded,
+  testReleaseRestoredDependenciesBecomeEligible,
+]);
+
+const RELEASE_MUTATION_INTEGRITY_TESTS = Object.freeze([
+  testReleaseOneMutationPathPerAction,
+  testReleaseOneRefreshPerSuccessfulMutation,
+  testReleaseOneAuditEventPerMutationContract,
+]);
+
+function runReleaseFrontendIntegrationTests() {
+  runTestSuite("Release frontend integration tests", RELEASE_FRONTEND_INTEGRATION_TESTS, { reportTiming: true });
+}
+
+function runReleaseBackendContractTests() {
+  runTestSuite("Release backend contract tests", RELEASE_BACKEND_CONTRACT_TESTS, { reportTiming: true });
+}
+
+function runReleaseMutationIntegrityTests() {
+  runTestSuite("Release mutation integrity tests", RELEASE_MUTATION_INTEGRITY_TESTS, { reportTiming: true });
+}
+
 function runTransactionReadTests() {
   runTestSuite("Transaction read tests", [
     testTransactionServicePublicApi,
