@@ -101,6 +101,14 @@ function runFrontendArchitectureHardeningTests() {
   ]);
 }
 
+function runApplicationHealthCheckTests() {
+  runTestSuite("Application health check tests", APPLICATION_HEALTH_TESTS, { reportTiming: true });
+}
+
+function runReturnPickupIdMaintenanceTests() {
+  runTestSuite("Return PickupID maintenance tests", RETURN_PICKUP_ID_MAINTENANCE_TESTS, { reportTiming: true });
+}
+
 const RELEASE_FRONTEND_INTEGRATION_TESTS = Object.freeze([
   testReleaseRouteInitializationOnce,
   testReleaseEventBindingOnce,
