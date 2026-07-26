@@ -14,9 +14,9 @@
 const APP_CONFIG = Object.freeze({
   NAME: "IP-Starling",
 
-  VERSION: "0.1.0",
+  VERSION: "1.0.0-rc.1",
 
-  BUILD: "Foundation",
+  BUILD: "Release Candidate 1",
 
   AUTHOR: "Linzi",
 

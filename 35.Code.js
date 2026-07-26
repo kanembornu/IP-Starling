@@ -18,6 +18,8 @@ function doGet(e) {
 
     template.appVersion = APP_CONFIG.VERSION;
 
+    template.appBuild = APP_CONFIG.BUILD;
+
     template.page = page;
 
     return template

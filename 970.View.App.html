@@ -17,6 +17,12 @@
     const state = {
       page: window.APP?.initialPage || "dashboard",
 
+      metadata: {
+        name: window.APP?.name || "",
+        version: window.APP?.version || "",
+        build: window.APP?.build || "",
+      },
+
       dashboard: null,
 
       dashboardLoading: false,
@@ -253,6 +259,17 @@
     // Initialize
     //===========================================================================
 
+    function renderSidebar(page) {
+      Render.sidebar(page);
+
+      const versionElement = DOM.$("appVersion");
+      const version = typeof state.metadata.version === "string"
+        ? state.metadata.version.trim()
+        : "";
+
+      if (versionElement) versionElement.textContent = version ? `v${version}` : "v—";
+    }
+
     async function init() {
       if (initialized) return;
       initialized = true;
@@ -261,7 +278,7 @@
 
       Modal.init();
 
-      Render.sidebar(state.page);
+      renderSidebar(state.page);
 
       Render.topbar(state.page);
 
@@ -327,7 +344,7 @@
 
       state.page = page;
 
-      Render.sidebar(page);
+      renderSidebar(page);
 
       Render.topbar(page);
 
