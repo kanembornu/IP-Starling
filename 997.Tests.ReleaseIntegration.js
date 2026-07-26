@@ -280,11 +280,26 @@ function testReleaseOneAuditEventPerMutationContract() {
   releaseAssert(!/auditMutation|AuditLogService/.test(releaseControllerSource()), "Controller duplicates Service audit ownership.");
 }
 
+function testReleaseCreateIdempotencyContract() {
+  const source = releaseIntegrationSources();
+  const app = source.app;
+  const api = source.api;
+  const controller = releaseControllerSource();
+  releaseAssert(/function createRequestKey\(\)/.test(app) && /crypto\.randomUUID/.test(app), "App does not own collision-resistant request-key generation.");
+  releaseAssert(/pickupCreateRequestKey/.test(app) && /returnCreateRequestKey/.test(app), "Create request keys are not retained in App state.");
+  releaseAssert(/IdempotencyKey:state\.pickupCreateRequestKey/.test(app) && /IdempotencyKey:state\.returnCreateRequestKey/.test(app), "Create payloads do not carry retained request keys.");
+  releaseAssert(/run\("createPickup", data\)/.test(api) && /run\("createReturn", data\)/.test(api), "API does not pass create payloads unchanged.");
+  releaseAssert(/PickupService\(\)\.create\(data\)/.test(controller) && /ReturnService\(\)\.create\(data\)/.test(controller), "Controller does not pass create payloads unchanged.");
+  releaseAssert((controller.match(/IdempotencyKey wajib diisi/g) || []).length === 2, "Canonical create Controllers do not require request identity.");
+  releaseAssert(/IdempotencyService\.execute/.test(PickupService.toString()) && /IdempotencyService\.execute/.test(ReturnService.toString()), "Create Services do not consume durable idempotency reservations.");
+  releaseAssert(SHEET_NAMES.IDEMPOTENCY_REQUESTS === "IdempotencyRequests" && IDEMPOTENCY_SCHEMA.TABLE === SHEET_NAMES.IDEMPOTENCY_REQUESTS, "Dedicated idempotency store is not canonical.");
+}
+
 function testReleaseTestRegistrationExactlyOnce() {
   const registries = [RELEASE_FRONTEND_INTEGRATION_TESTS, RELEASE_BACKEND_CONTRACT_TESTS, RELEASE_MUTATION_INTEGRITY_TESTS];
   const tests = registries.reduce((all, registry) => all.concat(registry), []);
   const names = tests.map((test) => test.name);
-  releaseAssert(tests.length === 23, `Expected 23 release integration tests; found ${tests.length}.`);
+  releaseAssert(tests.length === 24, `Expected 24 release integration tests; found ${tests.length}.`);
   releaseAssert(new Set(names).size === names.length, "A release integration test is registered more than once.");
   [runReleaseFrontendIntegrationTests, runReleaseBackendContractTests, runReleaseMutationIntegrityTests].forEach((runner) => {
     const source = runner.toString();

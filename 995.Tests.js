@@ -131,6 +131,7 @@ const RELEASE_MUTATION_INTEGRITY_TESTS = Object.freeze([
   testReleaseOneMutationPathPerAction,
   testReleaseOneRefreshPerSuccessfulMutation,
   testReleaseOneAuditEventPerMutationContract,
+  testReleaseCreateIdempotencyContract,
 ]);
 
 function runReleaseFrontendIntegrationTests() {
@@ -143,6 +144,85 @@ function runReleaseBackendContractTests() {
 
 function runReleaseMutationIntegrityTests() {
   runTestSuite("Release mutation integrity tests", RELEASE_MUTATION_INTEGRITY_TESTS, { reportTiming: true });
+}
+
+const IDEMPOTENCY_CONTRACT_TESTS = Object.freeze([
+  testIdempotencyKeyGeneratorFormatAndOwnership,
+  testIdempotencyCanonicalPayloadNormalizationContracts,
+  testIdempotencyStableHashForEquivalentObjects,
+  testIdempotencyDifferentHashForSemanticChange,
+  testIdempotencyCommittedReplaySkipsMutation,
+  testIdempotencyPayloadConflictIsWriteFree,
+  testIdempotencyFailureReleasesAndRetries,
+  testIdempotencyConcurrentLikeSameKeyCreatesOnce,
+  testIdempotencySeparateKeysAllowIdenticalPayloads,
+  testIdempotencyPendingAndRetentionPolicy,
+]);
+
+function runIdempotencyContractTests() {
+  runTestSuite("Idempotency contract tests", IDEMPOTENCY_CONTRACT_TESTS, { reportTiming: true });
+}
+
+const TRANSACTION_SERVICE_CONTRACT_TESTS = Object.freeze([
+  testTransactionContractSuccessExecutesEachStepOnce,
+  testTransactionContractFailureStopsForwardActions,
+  testTransactionContractRollbackIsReverseOrder,
+  testTransactionContractAttemptsAllRollbacks,
+  testTransactionContractRollbackFailureLogging,
+  testTransactionContractOriginalFailureRemainsPrimary,
+  testTransactionContractContextIsRequestLocal,
+  testTransactionContractLockReleasesAfterSuccess,
+  testTransactionContractLockReleasesAfterFailure,
+  testTransactionContractCompletionAuditOnce,
+  testTransactionContractRollbackInvalidatesCaches,
+]);
+
+const PICKUP_ATOMICITY_TESTS = Object.freeze([
+  testPickupAtomicCreateSuccess,
+  testPickupAtomicCreateAfterHeaderFailure,
+  testPickupAtomicCreateDetailFailure,
+  testPickupAtomicUpdateRollback,
+  testPickupAtomicDeleteRollback,
+  testPickupAtomicRestoreRollback,
+  testPickupAtomicRetryContract,
+  testPickupAtomicIdempotencyConflict,
+  testPickupAtomicIdempotencyRetryAfterRollback,
+  testPickupAtomicSingleSuccessAudit,
+  testPickupAtomicZeroAuditOnRollback,
+  testAtomicPickupRollbackPreservesReturnEligibility,
+  testAtomicCachesCorrectAfterSuccess,
+]);
+
+const RETURN_ATOMICITY_TESTS = Object.freeze([
+  testReturnAtomicCreateSuccess,
+  testReturnAtomicCreateRollback,
+  testReturnAtomicUpdateRollback,
+  testReturnAtomicDeleteRollback,
+  testReturnAtomicRestoreRollback,
+  testReturnAtomicExactRemainingQty,
+  testReturnAtomicOverLimitWriteFree,
+  testReturnAtomicStaleEligibilityRevalidated,
+  testReturnAtomicConcurrentLikeAllocation,
+  testReturnAtomicSingleSuccessAudit,
+  testReturnAtomicZeroAuditOnRollback,
+  testReturnAtomicIdempotencyReplay,
+  testReturnAtomicIdempotencyConflict,
+  testReturnAtomicIdempotencyRetryAfterRollback,
+  testAtomicReturnRollbackPreservesPickupAvailability,
+  testAtomicCachesCorrectAfterRollback,
+  testAtomicFixturesAndInjectionAreIsolated,
+]);
+
+function runTransactionServiceContractTests() {
+  runTestSuite("TransactionService contract tests", TRANSACTION_SERVICE_CONTRACT_TESTS, { reportTiming: true });
+}
+
+function runPickupAtomicityTests() {
+  runTestSuite("Pickup atomicity tests", PICKUP_ATOMICITY_TESTS, { reportTiming: true });
+}
+
+function runReturnAtomicityTests() {
+  runTestSuite("Return atomicity tests", RETURN_ATOMICITY_TESTS, { reportTiming: true });
 }
 
 function runTransactionReadTests() {

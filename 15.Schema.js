@@ -739,6 +739,49 @@ const SETTINGS_SCHEMA = createSchema({
   },
 });
 
+/** Internal durable create-request reservation store. */
+const IDEMPOTENCY_FIELDS = Object.freeze({
+  KEY: "IdempotencyKey",
+  OPERATION: "Operation",
+  PAYLOAD_HASH: "PayloadHash",
+  STATUS: "Status",
+  RESOURCE_ID: "ResourceID",
+  RESPONSE_PAYLOAD: "ResponsePayload",
+  EXPIRES_AT: "ExpiresAt",
+});
+
+const IDEMPOTENCY_SCHEMA = createSchema({
+  NAME: "IdempotencyRequest",
+  TABLE: SHEET_NAMES.IDEMPOTENCY_REQUESTS,
+  PRIMARY_KEY: IDEMPOTENCY_FIELDS.KEY,
+  DISPLAY_FIELD: IDEMPOTENCY_FIELDS.KEY,
+  ID_PREFIX: ID_PREFIX.IDEMPOTENCY,
+  FIELDS: IDEMPOTENCY_FIELDS,
+  DEFAULT: {
+    [SYSTEM_COLUMNS.IS_DELETED]: false,
+    [SYSTEM_COLUMNS.IS_ACTIVE]: true,
+  },
+  VALIDATION: {
+    [IDEMPOTENCY_FIELDS.KEY]: { required: true },
+    [IDEMPOTENCY_FIELDS.OPERATION]: { required: true },
+    [IDEMPOTENCY_FIELDS.PAYLOAD_HASH]: { required: true },
+    [IDEMPOTENCY_FIELDS.STATUS]: { required: true },
+    [IDEMPOTENCY_FIELDS.RESOURCE_ID]: { required: true },
+  },
+  READONLY: {
+    [IDEMPOTENCY_FIELDS.KEY]: true,
+    [AUDIT_COLUMNS.CREATED_AT]: true,
+    [AUDIT_COLUMNS.CREATED_BY]: true,
+  },
+  SEARCHABLE: [IDEMPOTENCY_FIELDS.KEY, IDEMPOTENCY_FIELDS.OPERATION],
+  UI: {
+    TITLE: "Idempotency Requests",
+    ICON: "shield-check",
+    COLOR: "slate",
+    SEARCH_PLACEHOLDER: "Search request key...",
+  },
+});
+
 /** Canonical append-only operational and audit log. */
 const LOG_FIELDS = Object.freeze({
   ID: "ID", TIMESTAMP: "Timestamp", LEVEL: "Level", CATEGORY: "Category",
@@ -778,6 +821,8 @@ const SCHEMA = Object.freeze({
   EXPENSE: EXPENSE_SCHEMA,
 
   SETTINGS: SETTINGS_SCHEMA,
+
+  IDEMPOTENCY: IDEMPOTENCY_SCHEMA,
 
   LOGS: LOG_SCHEMA,
 });

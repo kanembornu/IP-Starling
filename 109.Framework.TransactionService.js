@@ -31,6 +31,20 @@ const TransactionService = (() => {
       hooks = {},
     } = config;
     const auditMutation = config.auditMutation || (writer === RepositoryWriter ? BaseService.auditMutation : () => {});
+    const getMutationLock = config.getMutationLock || (() => LockService.getScriptLock());
+    const mutationLockTimeoutMs = Number(config.mutationLockTimeoutMs) || 10000;
+    const failureInjector = typeof config.failureInjector === "function"
+      ? config.failureInjector
+      : null;
+    const generateId = typeof config.generateId === "function"
+      ? config.generateId
+      : IDGenerator.generate;
+    const mapRows = typeof config.mapRows === "function"
+      ? config.mapRows
+      : RepositoryBase.mapRows;
+    const clearCache = typeof config.clearCache === "function"
+      ? config.clearCache
+      : (schema) => RepositoryCache.clear(schema);
 
     if (!headerSchema) {
       throw new Error("TransactionService requires headerSchema.");
@@ -60,9 +74,50 @@ const TransactionService = (() => {
       typeof writer.insertMany !== "function" ||
       typeof writer.update !== "function" ||
       typeof writer.softDelete !== "function" ||
-      typeof writer.restore !== "function"
+      typeof writer.restore !== "function" ||
+      typeof writer.replace !== "function" ||
+      typeof writer.rollbackInsert !== "function"
     ) {
       throw new Error("TransactionService requires a compatible writer.");
+    }
+
+    function injectFailure(stage, context) {
+      if (failureInjector) failureInjector(stage, context || {});
+    }
+
+    function logRollbackFailure(operation, stage, id, error) {
+      const context = {
+        operation,
+        stage,
+        id,
+        error: String(error && error.message ? error.message : error),
+      };
+      Logger.log(`[TRANSACTION_ROLLBACK_FAILURE] ${JSON.stringify(context)}`);
+      AppLogger.error("Transaction rollback action failed.", context);
+    }
+
+    function clearMutationCaches() {
+      try { clearCache(headerSchema); } catch (error) {
+        AppLogger.error("Header cache invalidation failed.", { operation: "ROLLBACK", error: String(error.message || error) });
+      }
+      try { clearCache(detailSchema); } catch (error) {
+        AppLogger.error("Detail cache invalidation failed.", { operation: "ROLLBACK", error: String(error.message || error) });
+      }
+    }
+
+    function withMutationLock(operation, callback) {
+      const lock = getMutationLock();
+      const alreadyOwned = typeof lock.hasLock === "function" && lock.hasLock();
+
+      if (!alreadyOwned && !lock.tryLock(mutationLockTimeoutMs)) {
+        return Response.error(`Proses ${headerSchema.NAME} sedang digunakan. Silakan coba lagi.`);
+      }
+
+      try {
+        return callback();
+      } finally {
+        if (!alreadyOwned) lock.releaseLock();
+      }
     }
 
     function isResponse(value) {
@@ -153,10 +208,34 @@ const TransactionService = (() => {
       );
     }
 
+    function rollbackInserted(schema, records, operation) {
+      let restored = true;
+
+      for (let index = records.length - 1; index >= 0; index--) {
+        const id = records[index][schema.PRIMARY_KEY];
+        try {
+          injectFailure("duringRollback", { operation, id, schema: schema.NAME });
+          if (!writer.rollbackInsert(schema, id)) {
+            restored = false;
+            logRollbackFailure(operation, "rollbackInsert", id, new Error("Compensation returned false."));
+          }
+        } catch (error) {
+          restored = false;
+          logRollbackFailure(operation, "rollbackInsert", id, error);
+        }
+      }
+
+      return restored;
+    }
+
     function rollbackHeader(id) {
       try {
-        return writer.softDelete(headerSchema, id);
+        injectFailure("duringRollback", { operation: "CREATE", id, schema: headerSchema.NAME });
+        const restored = writer.rollbackInsert(headerSchema, id);
+        if (!restored) logRollbackFailure("CREATE", "rollbackHeader", id, new Error("Compensation returned false."));
+        return restored;
       } catch (error) {
+        logRollbackFailure("CREATE", "rollbackHeader", id, error);
         return false;
       }
     }
@@ -164,44 +243,38 @@ const TransactionService = (() => {
     function restoreUpdate(header, previousDetails, replacementDetails) {
       let restored = true;
 
-      replacementDetails.forEach((detail) => {
-        try {
-          const detailId = detail[detailSchema.PRIMARY_KEY];
+      if (!rollbackInserted(detailSchema, replacementDetails, "UPDATE")) restored = false;
 
-          if (
-            reader.findById(detailSchema, detailId) &&
-            !writer.softDelete(detailSchema, detailId)
-          ) {
+      for (let index = previousDetails.length - 1; index >= 0; index--) {
+        const detail = previousDetails[index];
+        try {
+          injectFailure("duringRollback", { operation: "UPDATE", id: detail[detailSchema.PRIMARY_KEY], schema: detailSchema.NAME });
+          if (!writer.replace(detailSchema, detail[detailSchema.PRIMARY_KEY], detail)) {
             restored = false;
+            logRollbackFailure("UPDATE", "restorePreviousDetail", detail[detailSchema.PRIMARY_KEY], new Error("Compensation returned false."));
           }
         } catch (error) {
           restored = false;
+          logRollbackFailure("UPDATE", "restorePreviousDetail", detail[detailSchema.PRIMARY_KEY], error);
         }
-      });
-
-      previousDetails.forEach((detail) => {
-        try {
-          if (!writer.restore(detailSchema, detail[detailSchema.PRIMARY_KEY])) {
-            restored = false;
-          }
-        } catch (error) {
-          restored = false;
-        }
-      });
+      }
 
       try {
-        if (!writer.update(headerSchema, header[headerSchema.PRIMARY_KEY], header)) {
+        injectFailure("duringRollback", { operation: "UPDATE", id: header[headerSchema.PRIMARY_KEY], schema: headerSchema.NAME });
+        if (!writer.replace(headerSchema, header[headerSchema.PRIMARY_KEY], header)) {
           restored = false;
+          logRollbackFailure("UPDATE", "restoreHeader", header[headerSchema.PRIMARY_KEY], new Error("Compensation returned false."));
         }
       } catch (error) {
         restored = false;
+        logRollbackFailure("UPDATE", "restoreHeader", header[headerSchema.PRIMARY_KEY], error);
       }
 
       return restored;
     }
 
     function findIncludingDeleted(schema, criteria = {}) {
-      return RepositoryBase.mapRows(schema, reader.raw(schema)).filter((item) => {
+      return mapRows(schema, reader.raw(schema)).filter((item) => {
         return Object.keys(criteria).every((key) => item[key] === criteria[key]);
       });
     }
@@ -217,22 +290,28 @@ const TransactionService = (() => {
     function rollbackRemove(header, details) {
       let restored = true;
 
-      details.forEach((detail) => {
+      for (let index = details.length - 1; index >= 0; index--) {
+        const detail = details[index];
         try {
-          if (!writer.restore(detailSchema, detail[detailSchema.PRIMARY_KEY])) {
+          injectFailure("duringRollback", { operation: "DELETE", id: detail[detailSchema.PRIMARY_KEY], schema: detailSchema.NAME });
+          if (!writer.replace(detailSchema, detail[detailSchema.PRIMARY_KEY], detail)) {
             restored = false;
+            logRollbackFailure("DELETE", "restoreDetail", detail[detailSchema.PRIMARY_KEY], new Error("Compensation returned false."));
           }
         } catch (error) {
           restored = false;
+          logRollbackFailure("DELETE", "restoreDetail", detail[detailSchema.PRIMARY_KEY], error);
         }
-      });
+      }
 
       try {
-        if (!writer.restore(headerSchema, header[headerSchema.PRIMARY_KEY])) {
+        if (!writer.replace(headerSchema, header[headerSchema.PRIMARY_KEY], header)) {
           restored = false;
+          logRollbackFailure("DELETE", "restoreHeader", header[headerSchema.PRIMARY_KEY], new Error("Compensation returned false."));
         }
       } catch (error) {
         restored = false;
+        logRollbackFailure("DELETE", "restoreHeader", header[headerSchema.PRIMARY_KEY], error);
       }
 
       return restored;
@@ -241,22 +320,28 @@ const TransactionService = (() => {
     function rollbackRestore(header, details) {
       let restored = true;
 
-      details.forEach((detail) => {
+      for (let index = details.length - 1; index >= 0; index--) {
+        const detail = details[index];
         try {
-          if (!writer.softDelete(detailSchema, detail[detailSchema.PRIMARY_KEY])) {
+          injectFailure("duringRollback", { operation: "RESTORE", id: detail[detailSchema.PRIMARY_KEY], schema: detailSchema.NAME });
+          if (!writer.replace(detailSchema, detail[detailSchema.PRIMARY_KEY], detail)) {
             restored = false;
+            logRollbackFailure("RESTORE", "deleteDetail", detail[detailSchema.PRIMARY_KEY], new Error("Compensation returned false."));
           }
         } catch (error) {
           restored = false;
+          logRollbackFailure("RESTORE", "deleteDetail", detail[detailSchema.PRIMARY_KEY], error);
         }
-      });
+      }
 
       try {
-        if (!writer.softDelete(headerSchema, header[headerSchema.PRIMARY_KEY])) {
+        if (!writer.replace(headerSchema, header[headerSchema.PRIMARY_KEY], header)) {
           restored = false;
+          logRollbackFailure("RESTORE", "deleteHeader", header[headerSchema.PRIMARY_KEY], new Error("Compensation returned false."));
         }
       } catch (error) {
         restored = false;
+        logRollbackFailure("RESTORE", "deleteHeader", header[headerSchema.PRIMARY_KEY], error);
       }
 
       return restored;
@@ -303,7 +388,7 @@ const TransactionService = (() => {
      * Write Operations
      * ------------------------------------------------------------------------
      */
-    function createItem(document) {
+    function createUnlocked(document) {
       let validation = validateDocument(document);
 
       if (validation) {
@@ -350,7 +435,7 @@ const TransactionService = (() => {
         }
       }
 
-      const headerId = IDGenerator.generate(headerSchema);
+      const headerId = generateId(headerSchema);
 
       const header = buildInsertRecord(
         headerSchema,
@@ -368,7 +453,7 @@ const TransactionService = (() => {
             [detailForeignKey]: headerId,
           }),
 
-          IDGenerator.generate(detailSchema),
+          generateId(detailSchema),
         );
       });
 
@@ -379,38 +464,52 @@ const TransactionService = (() => {
       }
 
       try {
+        injectFailure("beforeHeaderWrite", { operation: "CREATE", id: headerId });
         if (!writer.insert(headerSchema, header)) {
           return Response.error("Gagal menyimpan header transaksi.");
         }
       } catch (error) {
+        AppLogger.error("Transaction forward action failed.", { operation: "CREATE", stage: "beforeHeaderWrite", id: headerId, error: String(error.message || error) });
+        if (findByIdIncludingDeleted(headerSchema, headerId)) {
+          rollbackHeader(headerId);
+          clearMutationCaches();
+        }
         return Response.error("Gagal menyimpan header transaksi.");
       }
 
+      const insertedDetails = [];
       try {
-        if (writer.insertMany(detailSchema, details)) {
-          auditMutation(headerSchema, "CREATE", headerId, null, header);
-          return Response.success({
-            header,
-
-            details,
-          });
+        injectFailure("afterHeaderWrite", { operation: "CREATE", id: headerId });
+        for (let index = 0; index < details.length; index++) {
+          if (index === details.length - 1) {
+            injectFailure("beforeFinalDetailWrite", { operation: "CREATE", id: headerId, index });
+          }
+          if (!writer.insert(detailSchema, details[index])) {
+            throw new Error("Gagal menyimpan detail transaksi.");
+          }
+          insertedDetails.push(details[index]);
+          if (index === 0) {
+            injectFailure("afterFirstDetailWrite", { operation: "CREATE", id: headerId, index });
+          }
         }
+        injectFailure("beforeAudit", { operation: "CREATE", id: headerId });
       } catch (error) {
-        // Rollback dilakukan di bawah menggunakan API writer yang tersedia.
+        Logger.log(`[TRANSACTION_FORWARD_FAILURE] operation=CREATE id=${headerId} error=${String(error.message || error)}`);
+        const detailsRolledBack = rollbackInserted(detailSchema, insertedDetails, "CREATE");
+        const headerRolledBack = rollbackHeader(headerId);
+        clearMutationCaches();
+        if (detailsRolledBack && headerRolledBack) {
+          return Response.error("Gagal menyimpan transaksi. Perubahan transaksi dibatalkan.");
+        }
+        return Response.error("Gagal menyimpan transaksi. Rollback tidak dapat dijamin sepenuhnya; periksa transaksi secara manual.");
       }
 
-      if (rollbackHeader(headerId)) {
-        return Response.error(
-          "Gagal menyimpan detail transaksi. Header transaksi dibatalkan.",
-        );
-      }
+      auditMutation(headerSchema, "CREATE", headerId, null, header);
 
-      return Response.error(
-        "Gagal menyimpan detail transaksi. Header transaksi mungkin perlu dibatalkan secara manual.",
-      );
+      return Response.success({ header, details });
     }
 
-    function update(id, document) {
+    function updateUnlocked(id, document) {
       if (id === null || id === undefined || String(id).trim() === "") {
         return Response.error("ID wajib diisi.");
       }
@@ -494,21 +593,29 @@ const TransactionService = (() => {
             [detailForeignKey]: id,
           }),
 
-          IDGenerator.generate(detailSchema),
+          generateId(detailSchema),
         );
       });
 
       try {
+        injectFailure("beforeHeaderWrite", { operation: "UPDATE", id });
         if (!writer.update(headerSchema, id, headerChanges)) {
           return Response.error("Gagal memperbarui header transaksi.");
         }
       } catch (error) {
+        try {
+          writer.replace(headerSchema, id, existingHeader);
+          clearMutationCaches();
+        } catch (rollbackError) {
+          logRollbackFailure("UPDATE", "restoreHeader", id, rollbackError);
+        }
         return Response.error("Gagal memperbarui header transaksi.");
       }
 
       const deletedDetailIds = [];
 
       try {
+        injectFailure("afterHeaderWrite", { operation: "UPDATE", id });
         for (let index = 0; index < previousDetails.length; index++) {
           const detailId = previousDetails[index][detailSchema.PRIMARY_KEY];
 
@@ -519,20 +626,36 @@ const TransactionService = (() => {
           deletedDetailIds.push(detailId);
         }
 
-        if (!writer.insertMany(detailSchema, replacementDetails)) {
-          throw new Error("Gagal menyimpan detail transaksi.");
+        for (let index = 0; index < replacementDetails.length; index++) {
+          if (index === replacementDetails.length - 1) {
+            injectFailure("beforeFinalDetailWrite", { operation: "UPDATE", id, index });
+          }
+          if (!writer.insert(detailSchema, replacementDetails[index])) {
+            throw new Error("Gagal menyimpan detail transaksi.");
+          }
+          if (index === 0) {
+            injectFailure("afterFirstDetailWrite", { operation: "UPDATE", id, index });
+          }
         }
+        injectFailure("beforeAudit", { operation: "UPDATE", id });
       } catch (error) {
+        Logger.log(`[TRANSACTION_FORWARD_FAILURE] operation=UPDATE id=${id} error=${String(error.message || error)}`);
         const deletedDetails = previousDetails.filter((detail) => {
           return deletedDetailIds.indexOf(detail[detailSchema.PRIMARY_KEY]) !== -1;
         });
 
-        if (restoreUpdate(existingHeader, deletedDetails, replacementDetails)) {
+        const insertedReplacementDetails = replacementDetails.filter((detail) => {
+          return findByIdIncludingDeleted(detailSchema, detail[detailSchema.PRIMARY_KEY]);
+        });
+
+        if (restoreUpdate(existingHeader, deletedDetails, insertedReplacementDetails)) {
+          clearMutationCaches();
           return Response.error(
             "Gagal mengganti detail transaksi. Perubahan transaksi dibatalkan.",
           );
         }
 
+        clearMutationCaches();
         return Response.error(
           "Gagal mengganti detail transaksi. Rollback tidak dapat dijamin sepenuhnya; periksa transaksi secara manual.",
         );
@@ -547,7 +670,7 @@ const TransactionService = (() => {
       });
     }
 
-    function remove(id) {
+    function removeUnlocked(id) {
       if (id === null || id === undefined || String(id).trim() === "") {
         return Response.error("ID wajib diisi.");
       }
@@ -571,16 +694,24 @@ const TransactionService = (() => {
       }
 
       try {
+        injectFailure("beforeHeaderWrite", { operation: "DELETE", id });
         if (!writer.softDelete(headerSchema, id)) {
           return Response.error("Gagal menghapus header transaksi.");
         }
       } catch (error) {
+        try {
+          writer.replace(headerSchema, id, header);
+          clearMutationCaches();
+        } catch (rollbackError) {
+          logRollbackFailure("DELETE", "restoreHeader", id, rollbackError);
+        }
         return Response.error("Gagal menghapus header transaksi.");
       }
 
       const deletedDetails = [];
 
       try {
+        injectFailure("afterHeaderWrite", { operation: "DELETE", id });
         for (let index = 0; index < details.length; index++) {
           const detail = details[index];
 
@@ -594,13 +725,17 @@ const TransactionService = (() => {
 
           deletedDetails.push(detail);
         }
+        injectFailure("beforeAudit", { operation: "DELETE", id });
       } catch (error) {
+        Logger.log(`[TRANSACTION_FORWARD_FAILURE] operation=DELETE id=${id} error=${String(error.message || error)}`);
         if (rollbackRemove(header, deletedDetails)) {
+          clearMutationCaches();
           return Response.error(
             "Gagal menghapus detail transaksi. Perubahan transaksi dibatalkan.",
           );
         }
 
+        clearMutationCaches();
         return Response.error(
           "Gagal menghapus detail transaksi. Rollback tidak dapat dijamin sepenuhnya; periksa transaksi secara manual.",
         );
@@ -619,7 +754,7 @@ const TransactionService = (() => {
       });
     }
 
-    function restore(id) {
+    function restoreUnlocked(id) {
       if (id === null || id === undefined || String(id).trim() === "") {
         return Response.error("ID wajib diisi.");
       }
@@ -645,16 +780,24 @@ const TransactionService = (() => {
       }
 
       try {
+        injectFailure("beforeHeaderWrite", { operation: "RESTORE", id });
         if (!writer.restore(headerSchema, id)) {
           return Response.error("Gagal memulihkan header transaksi.");
         }
       } catch (error) {
+        try {
+          writer.replace(headerSchema, id, header);
+          clearMutationCaches();
+        } catch (rollbackError) {
+          logRollbackFailure("RESTORE", "restoreHeader", id, rollbackError);
+        }
         return Response.error("Gagal memulihkan header transaksi.");
       }
 
       const restoredDetails = [];
 
       try {
+        injectFailure("afterHeaderWrite", { operation: "RESTORE", id });
         for (let index = 0; index < details.length; index++) {
           const detail = details[index];
 
@@ -668,13 +811,17 @@ const TransactionService = (() => {
 
           restoredDetails.push(detail);
         }
+        injectFailure("beforeAudit", { operation: "RESTORE", id });
       } catch (error) {
+        Logger.log(`[TRANSACTION_FORWARD_FAILURE] operation=RESTORE id=${id} error=${String(error.message || error)}`);
         if (rollbackRestore(header, restoredDetails)) {
+          clearMutationCaches();
           return Response.error(
             "Gagal memulihkan detail transaksi. Perubahan transaksi dibatalkan.",
           );
         }
 
+        clearMutationCaches();
         return Response.error(
           "Gagal memulihkan detail transaksi. Rollback tidak dapat dijamin sepenuhnya; periksa transaksi secara manual.",
         );
@@ -691,6 +838,22 @@ const TransactionService = (() => {
       auditMutation(headerSchema, "RESTORE", id, header, restored.header);
 
       return Response.success(restored);
+    }
+
+    function createItem(document) {
+      return withMutationLock("CREATE", () => createUnlocked(document));
+    }
+
+    function update(id, document) {
+      return withMutationLock("UPDATE", () => updateUnlocked(id, document));
+    }
+
+    function remove(id) {
+      return withMutationLock("DELETE", () => removeUnlocked(id));
+    }
+
+    function restore(id) {
+      return withMutationLock("RESTORE", () => restoreUnlocked(id));
     }
 
     return Object.freeze({

@@ -174,6 +174,9 @@ function getPickup(id) {
 }
 
 function createPickup(data) {
+  if (!data || !data.IdempotencyKey) {
+    return _pickupControllerResponse(() => Response.error("IdempotencyKey wajib diisi untuk membuat Pickup."));
+  }
   return _pickupControllerResponse(() => PickupService().create(data));
 }
 
@@ -216,6 +219,9 @@ function getReturn(id) {
 }
 
 function createReturn(data) {
+  if (!data || !data.IdempotencyKey) {
+    return _returnControllerResponse(() => Response.error("IdempotencyKey wajib diisi untuk membuat Return."));
+  }
   return _returnControllerResponse(() => ReturnService().create(data));
 }
 

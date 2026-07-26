@@ -21,6 +21,41 @@ function ReturnService(options = {}) {
     "Mitra tidak tersedia karena Pickup tidak ditemukan";
   const getReturnMutationLock =
     options.getMutationLock || (() => LockService.getScriptLock());
+  const failureInjector = typeof options.failureInjector === "function"
+    ? options.failureInjector
+    : null;
+
+  function injectFailure(stage, context) {
+    if (failureInjector) failureInjector(stage, context || {});
+  }
+
+  function rollbackReturnRow(operation, before, insertedId) {
+    try {
+      injectFailure("duringRollback", { operation, id: insertedId || before[RETURN_SCHEMA.PRIMARY_KEY] });
+      const ok = insertedId
+        ? RepositoryWriter.rollbackInsert(RETURN_SCHEMA, insertedId)
+        : RepositoryWriter.replace(RETURN_SCHEMA, before[RETURN_SCHEMA.PRIMARY_KEY], before);
+      RepositoryCache.clear(RETURN_SCHEMA);
+      if (!ok) {
+        Logger.log(`[RETURN_ROLLBACK_FAILURE] operation=${operation} id=${insertedId || (before && before[RETURN_SCHEMA.PRIMARY_KEY])} error=Compensation returned false.`);
+        AppLogger.error("Return rollback action failed.", {
+          operation,
+          id: insertedId || (before && before[RETURN_SCHEMA.PRIMARY_KEY]),
+          error: "Compensation returned false.",
+        });
+      }
+      return ok;
+    } catch (error) {
+      Logger.log(`[RETURN_ROLLBACK_FAILURE] operation=${operation} id=${insertedId || (before && before[RETURN_SCHEMA.PRIMARY_KEY])} error=${String(error.message || error)}`);
+      AppLogger.error("Return rollback action failed.", {
+        operation,
+        id: insertedId || (before && before[RETURN_SCHEMA.PRIMARY_KEY]),
+        error: String(error.message || error),
+      });
+      RepositoryCache.clear(RETURN_SCHEMA);
+      return false;
+    }
+  }
 
   function physicalRows(schema) {
     if (typeof options.readPhysicalRows === "function") {
@@ -296,6 +331,23 @@ function ReturnService(options = {}) {
     return requestedQty;
   }
 
+  function normalizeReturnIdempotencyPayload(document) {
+    const value = document && document[RETURN_FIELDS.DATE];
+    let date = String(value || "").trim();
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      date = Utilities.formatDate(value, APP_CONFIG.TIMEZONE, "yyyy-MM-dd");
+    } else if (/^\d{4}-\d{2}-\d{2}T/.test(date)) {
+      const parsed = new Date(date);
+      if (!Number.isNaN(parsed.getTime())) date = Utilities.formatDate(parsed, APP_CONFIG.TIMEZONE, "yyyy-MM-dd");
+    }
+    return {
+      [RETURN_FIELDS.PICKUP_DETAIL_ID]: String(document && document[RETURN_FIELDS.PICKUP_DETAIL_ID] || "").trim(),
+      [RETURN_FIELDS.DATE]: date,
+      [RETURN_FIELDS.QTY]: Number(document && document[RETURN_FIELDS.QTY]),
+      [RETURN_FIELDS.NOTE]: String(document && document[RETURN_FIELDS.NOTE] || "").trim(),
+    };
+  }
+
   function withReturnMutationLock(callback) {
     const lock = getReturnMutationLock();
 
@@ -368,13 +420,25 @@ function ReturnService(options = {}) {
       [RETURN_SCHEMA.SYSTEM.IS_ACTIVE]: true,
     });
 
-    if (!RepositoryWriter.insert(RETURN_SCHEMA, object)) {
-      return Response.error("Gagal menyimpan data.");
+    let saved;
+    try {
+      injectFailure("beforeReturnWrite", { operation: "CREATE", id });
+      if (!RepositoryWriter.insert(RETURN_SCHEMA, object)) {
+        return Response.error("Gagal menyimpan data.");
+      }
+      injectFailure("afterReturnWrite", { operation: "CREATE", id });
+      RepositoryCache.clear(RETURN_SCHEMA);
+      saved = RepositoryReader.findById(RETURN_SCHEMA, id);
+      injectFailure("beforeEligibilityFinalization", { operation: "CREATE", id });
+      injectFailure("beforeAudit", { operation: "CREATE", id });
+    } catch (error) {
+      Logger.log(`[RETURN_FORWARD_FAILURE] operation=CREATE id=${id} error=${String(error.message || error)}`);
+      if (rollbackReturnRow("CREATE", null, id)) {
+        return Response.error("Gagal menyimpan Return. Perubahan dibatalkan.");
+      }
+      return Response.error("Gagal menyimpan Return. Rollback tidak dapat dijamin sepenuhnya; periksa data secara manual.");
     }
 
-    RepositoryCache.clear(RETURN_SCHEMA);
-
-    const saved = RepositoryReader.findById(RETURN_SCHEMA, id);
     auditMutation(RETURN_SCHEMA, "CREATE", id, null, saved);
 
     return Response.success(
@@ -460,8 +524,17 @@ function ReturnService(options = {}) {
       return data;
     },
 
+    afterUpdate(data) {
+      injectFailure("beforeAudit", { operation: "UPDATE", id: data && data[RETURN_SCHEMA.PRIMARY_KEY] });
+      return data;
+    },
+
     beforeDelete(id) {
       return activeReturn(id) || Response.error("Return tidak ditemukan.");
+    },
+
+    afterDelete(id) {
+      injectFailure("beforeAudit", { operation: "DELETE", id });
     },
 
     beforeRestore(id) {
@@ -490,6 +563,10 @@ function ReturnService(options = {}) {
       }
 
       return id;
+    },
+
+    afterRestore(id) {
+      injectFailure("beforeAudit", { operation: "RESTORE", id });
     },
   });
 
@@ -566,9 +643,35 @@ function ReturnService(options = {}) {
       return Response.error("Data Return wajib diisi.");
     }
 
-    const id = IDGenerator.generate(RETURN_SCHEMA);
+    return withReturnMutationLock(() => {
+      const key = String(document.IdempotencyKey || "").trim();
+      const businessDocument = Object.assign({}, document);
+      delete businessDocument.IdempotencyKey;
 
-    return withReturnMutationLock(() => createLocked(document, id));
+      if (!key) {
+        const legacy = createLocked(businessDocument, IDGenerator.generate(RETURN_SCHEMA));
+        if (legacy && legacy.meta) legacy.meta.idempotency = "LEGACY_UNPROTECTED";
+        return legacy;
+      }
+
+      const normalized = normalizeReturnIdempotencyPayload(businessDocument);
+      return IdempotencyService.execute({
+        key,
+        operation: "RETURN_CREATE",
+        normalizedPayload: normalized,
+        generateResourceId: () => IDGenerator.generate(RETURN_SCHEMA),
+        execute: (resourceId) => createLocked(businessDocument, resourceId),
+        recover(resourceId) {
+          const row = activeReturn(resourceId);
+          if (!row) return null;
+          const recoveredPayload = normalizeReturnIdempotencyPayload(row);
+          if (IdempotencyService.payloadHash(recoveredPayload) !== IdempotencyService.payloadHash(normalized)) {
+            return Response.error("Resource Return idempotensi tidak sesuai dengan payload tersimpan.");
+          }
+          return Response.success(row, `${RETURN_SCHEMA.NAME} berhasil dibuat.`);
+        },
+      });
+    });
   }
 
   function update(id, document) {
@@ -581,13 +684,22 @@ function ReturnService(options = {}) {
     }
 
     return withReturnMutationLock(() => {
-      return base.update(id, Utils.pick(document, [
-        RETURN_FIELDS.DATE,
+      const before = activeReturn(id);
+      try {
+        return base.update(id, Utils.pick(document, [
+          RETURN_FIELDS.DATE,
 
-        RETURN_FIELDS.QTY,
+          RETURN_FIELDS.QTY,
 
-        RETURN_FIELDS.NOTE,
-      ]));
+          RETURN_FIELDS.NOTE,
+        ]));
+      } catch (error) {
+        Logger.log(`[RETURN_FORWARD_FAILURE] operation=UPDATE id=${id} error=${String(error.message || error)}`);
+        if (before && rollbackReturnRow("UPDATE", before, null)) {
+          return Response.error("Gagal memperbarui Return. Perubahan dibatalkan.");
+        }
+        return Response.error("Gagal memperbarui Return. Rollback tidak dapat dijamin sepenuhnya; periksa data secara manual.");
+      }
     });
   }
 
@@ -596,7 +708,18 @@ function ReturnService(options = {}) {
       return Response.error("ID Return wajib diisi.");
     }
 
-    return base.remove(id);
+    return withReturnMutationLock(() => {
+      const before = activeReturn(id);
+      try {
+        return base.remove(id);
+      } catch (error) {
+        Logger.log(`[RETURN_FORWARD_FAILURE] operation=DELETE id=${id} error=${String(error.message || error)}`);
+        if (before && rollbackReturnRow("DELETE", before, null)) {
+          return Response.error("Gagal menghapus Return. Perubahan dibatalkan.");
+        }
+        return Response.error("Gagal menghapus Return. Rollback tidak dapat dijamin sepenuhnya; periksa data secara manual.");
+      }
+    });
   }
 
   function restore(id) {
@@ -604,7 +727,18 @@ function ReturnService(options = {}) {
       return Response.error("ID Return wajib diisi.");
     }
 
-    return withReturnMutationLock(() => base.restore(id));
+    return withReturnMutationLock(() => {
+      const before = deletedReturn(id);
+      try {
+        return base.restore(id);
+      } catch (error) {
+        Logger.log(`[RETURN_FORWARD_FAILURE] operation=RESTORE id=${id} error=${String(error.message || error)}`);
+        if (before && rollbackReturnRow("RESTORE", before, null)) {
+          return Response.error("Gagal memulihkan Return. Perubahan dibatalkan.");
+        }
+        return Response.error("Gagal memulihkan Return. Rollback tidak dapat dijamin sepenuhnya; periksa data secara manual.");
+      }
+    });
   }
 
   return Object.freeze({

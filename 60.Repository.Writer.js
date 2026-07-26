@@ -151,6 +151,26 @@ const RepositoryWriter = (() => {
   }
 
   /**
+   * Remove a row created by a failed compound mutation.
+   *
+   * This is deliberately ID-scoped and resolves the row immediately before
+   * deletion. Callers must hold the shared mutation lock so a shifted row
+   * number cannot target another record.
+   */
+  function rollbackInsert(schema, id) {
+    const rowNumber = RepositoryBase.findRowIndex(schema, id);
+
+    if (!rowNumber) {
+      return true;
+    }
+
+    RepositoryBase.sheet(schema).deleteRow(rowNumber);
+    RepositoryCache.clear(schema);
+
+    return RepositoryBase.findRowIndex(schema, id) === null;
+  }
+
+  /**
    * --------------------------------------------------------------------------
    * Public API
    * --------------------------------------------------------------------------
@@ -167,5 +187,7 @@ const RepositoryWriter = (() => {
     restore,
 
     replace,
+
+    rollbackInsert,
   });
 })();

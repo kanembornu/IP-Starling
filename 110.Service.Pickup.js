@@ -12,7 +12,10 @@
 
 function PickupService(options) {
   const serviceOptions = options || {};
+  const PICKUP_MUTATION_LOCK_TIMEOUT_MS = 10000;
   const auditMutation = serviceOptions.auditMutation || (Object.keys(serviceOptions).length ? () => {} : BaseService.auditMutation);
+  const getPickupMutationLock = serviceOptions.getMutationLock || (() => LockService.getScriptLock());
+  let reservedCreateHeaderId = null;
   const DETAIL_MUTATION_BLOCKED =
     "Detail pickup tidak dapat diubah karena sudah memiliki riwayat retur.";
   const DELETE_BLOCKED =
@@ -477,6 +480,26 @@ function PickupService(options) {
     return left.every((item, index) => item === right[index]);
   }
 
+  function normalizeIdempotencyPayload(document) {
+    const header = document && document.header ? document.header : {};
+    const details = document && Array.isArray(document.details) ? document.details : [];
+    const normalizedDate = normalizeTanggal(header[PICKUP_HEADER_FIELDS.DATE]);
+    if (normalizedDate && normalizedDate.success === false) return normalizedDate;
+
+    return {
+      header: {
+        [PICKUP_HEADER_FIELDS.DATE]: normalizedDate,
+        [PICKUP_HEADER_FIELDS.PARTNER_ID]: String(header[PICKUP_HEADER_FIELDS.PARTNER_ID] || "").trim(),
+        [PICKUP_HEADER_FIELDS.NOTES]: String(header[PICKUP_HEADER_FIELDS.NOTES] || "").trim(),
+      },
+      details: details.map((detail) => ({
+        [PICKUP_DETAIL_FIELDS.PRODUCT_ID]: String(detail[PICKUP_DETAIL_FIELDS.PRODUCT_ID] || "").trim(),
+        [PICKUP_DETAIL_FIELDS.QTY]: Number(detail[PICKUP_DETAIL_FIELDS.QTY]),
+        [PICKUP_DETAIL_FIELDS.NOTES]: String(detail[PICKUP_DETAIL_FIELDS.NOTES] || "").trim(),
+      })),
+    };
+  }
+
   const transaction = TransactionService.create({
     headerSchema: PICKUP_HEADER_SCHEMA,
 
@@ -485,6 +508,19 @@ function PickupService(options) {
     detailForeignKey: PICKUP_DETAIL_FIELDS.PICKUP_ID,
 
     auditMutation,
+
+    getMutationLock: getPickupMutationLock,
+
+    mutationLockTimeoutMs: PICKUP_MUTATION_LOCK_TIMEOUT_MS,
+
+    failureInjector: serviceOptions.failureInjector,
+
+    generateId(schema) {
+      if (schema === PICKUP_HEADER_SCHEMA && reservedCreateHeaderId) {
+        return reservedCreateHeaderId;
+      }
+      return IDGenerator.generate(schema);
+    },
 
     hooks: {
       beforeCreate(document) {
@@ -527,7 +563,61 @@ function PickupService(options) {
     },
   });
 
-  function update(id, document) {
+  function withPickupMutationLock(callback) {
+    const lock = getPickupMutationLock();
+    const alreadyOwned = typeof lock.hasLock === "function" && lock.hasLock();
+
+    if (!alreadyOwned && !lock.tryLock(PICKUP_MUTATION_LOCK_TIMEOUT_MS)) {
+      return Response.error("Proses Pickup sedang digunakan. Silakan coba lagi.");
+    }
+
+    try {
+      return callback();
+    } finally {
+      if (!alreadyOwned) lock.releaseLock();
+    }
+  }
+
+  function create(document) {
+    return withPickupMutationLock(() => {
+      const shapeValidation = validateDocumentShape(document);
+      if (shapeValidation) return shapeValidation;
+      const key = String(document.IdempotencyKey || "").trim();
+      const businessDocument = { header: document.header, details: document.details };
+
+      if (!key) {
+        const legacy = transaction.create(businessDocument);
+        if (legacy && legacy.meta) legacy.meta.idempotency = "LEGACY_UNPROTECTED";
+        return legacy;
+      }
+
+      const normalized = normalizeIdempotencyPayload(businessDocument);
+      if (normalized && normalized.success === false) return normalized;
+
+      return IdempotencyService.execute({
+        key,
+        operation: "PICKUP_CREATE",
+        normalizedPayload: normalized,
+        generateResourceId: () => IDGenerator.generate(PICKUP_HEADER_SCHEMA),
+        execute(resourceId) {
+          reservedCreateHeaderId = resourceId;
+          try { return transaction.create(businessDocument); }
+          finally { reservedCreateHeaderId = null; }
+        },
+        recover(resourceId) {
+          const found = transaction.findById(resourceId);
+          if (!found.success) return null;
+          const recoveredPayload = normalizeIdempotencyPayload(found.data);
+          if (IdempotencyService.payloadHash(recoveredPayload) !== IdempotencyService.payloadHash(normalized)) {
+            return Response.error("Resource Pickup idempotensi tidak sesuai dengan payload tersimpan.");
+          }
+          return found;
+        },
+      });
+    });
+  }
+
+  function updateUnlocked(id, document) {
     const shapeValidation = validateDocumentShape(document);
     if (shapeValidation) return shapeValidation;
 
@@ -572,7 +662,11 @@ function PickupService(options) {
     return updated;
   }
 
-  function remove(id) {
+  function update(id, document) {
+    return withPickupMutationLock(() => updateUnlocked(id, document));
+  }
+
+  function removeUnlocked(id) {
     const physicalHeader = physicalRows(PICKUP_HEADER_SCHEMA).find((header) => {
       return header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] === id;
     });
@@ -581,7 +675,11 @@ function PickupService(options) {
     return transaction.remove(id);
   }
 
-  function restore(id) {
+  function remove(id) {
+    return withPickupMutationLock(() => removeUnlocked(id));
+  }
+
+  function restoreUnlocked(id) {
     const cleanId = String(id || "").trim();
     if (!cleanId) return Response.error("ID Pickup wajib diisi.");
     const header = physicalRows(PICKUP_HEADER_SCHEMA).find((row) => {
@@ -624,10 +722,14 @@ function PickupService(options) {
     return transaction.restore(cleanId);
   }
 
+  function restore(id) {
+    return withPickupMutationLock(() => restoreUnlocked(id));
+  }
+
   return Object.freeze({
     findAll: transaction.findAll,
     findById: transaction.findById,
-    create: transaction.create,
+    create,
     update,
     remove,
     restore,

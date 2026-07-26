@@ -110,6 +110,8 @@ const SHEET_NAMES = Object.freeze({
 
   SETTINGS: "Settings",
 
+  IDEMPOTENCY_REQUESTS: "IdempotencyRequests",
+
   LOGS: "Logs",
 });
 
@@ -122,6 +124,8 @@ const ID_PREFIX = Object.freeze({
   PRODUCT: "PR",
 
   PARTNER: "PT",
+
+  IDEMPOTENCY: "IK",
 
   PICKUP_HEADER: "PH",
 

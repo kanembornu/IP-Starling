@@ -56,7 +56,11 @@ const IDGenerator = (() => {
   function nextSequence(prefix) {
     const lock = LockService.getScriptLock();
 
-    lock.waitLock(30000);
+    const ownsLock = typeof lock.hasLock === "function" && lock.hasLock();
+
+    if (!ownsLock) {
+      lock.waitLock(30000);
+    }
 
     try {
       const key = counterKey(prefix);
@@ -73,7 +77,9 @@ const IDGenerator = (() => {
 
       return value;
     } finally {
-      lock.releaseLock();
+      if (!ownsLock) {
+        lock.releaseLock();
+      }
     }
   }
 
