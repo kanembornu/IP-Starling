@@ -6,8 +6,15 @@ function applicationMetadataSource(fileName) {
   return HtmlService.createHtmlOutputFromFile(fileName).getContent();
 }
 
+function testApplicationMetadataCanonicalRelease() {
+  applicationMetadataAssert(APP_CONFIG.VERSION === "1.0.0-rc.1", "APP_CONFIG.VERSION is not the canonical release-candidate version.");
+  applicationMetadataAssert(APP_CONFIG.BUILD === "Release Candidate 1", "APP_CONFIG.BUILD is not the canonical release-candidate build.");
+}
+
 function testApplicationMetadataBootstrapResponse() {
-  const html = doGet({ parameter: { page: "dashboard" } }).getContent();
+  const response = doGet({ parameter: { page: "dashboard" } });
+  const html = response.getContent();
+  applicationMetadataAssert(response.getTitle() === APP_CONFIG.NAME, "Browser title does not use APP_CONFIG.NAME.");
   applicationMetadataAssert(html.indexOf(`name: "${APP_CONFIG.NAME}"`) >= 0, "Bootstrap response omitted APP_CONFIG.NAME.");
   applicationMetadataAssert(html.indexOf(`version: "${APP_CONFIG.VERSION}"`) >= 0, "Bootstrap response omitted APP_CONFIG.VERSION.");
   applicationMetadataAssert(html.indexOf(`build: "${APP_CONFIG.BUILD}"`) >= 0, "Bootstrap response omitted APP_CONFIG.BUILD.");
@@ -48,6 +55,7 @@ function testApplicationMetadataNoRawGoogleScriptRunOutsideApi() {
 }
 
 const APPLICATION_METADATA_TESTS = Object.freeze([
+  testApplicationMetadataCanonicalRelease,
   testApplicationMetadataBootstrapResponse,
   testApplicationMetadataSidebarVersionFlow,
   testApplicationMetadataMissingVersionFallback,

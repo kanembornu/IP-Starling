@@ -3,8 +3,8 @@
  * PROJECT          : IP-Starling
  * =============================================================================
  *
- * VERSION          : 0.1.0
- * BUILD            : Foundation
+ * VERSION          : 1.0.0-rc.1
+ * BUILD            : Release Candidate 1
  *
  * PLATFORM         : Google Apps Script
  * DATABASE         : Google Spreadsheet
