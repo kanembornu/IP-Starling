@@ -51,7 +51,7 @@ const ApplicationHealth = (() => {
     "getExpenses", "getExpense", "getDeletedExpenses", "createExpense", "updateExpense", "deleteExpense", "restoreExpense",
   ]);
   const REQUIRED_RUNNERS = Object.freeze([
-    "runApplicationHealthCheckTests", "runApplicationHealthCheckSummary",
+    "runReleaseReadinessTests", "runApplicationHealthCheckTests", "runApplicationHealthCheckSummary",
     "runApplicationHealthFailureDetails", "runIdempotencyContractTests",
     "runTransactionServiceContractTests", "runPickupAtomicityTests",
     "runReturnAtomicityTests", "runReleaseFrontendIntegrationTests",
@@ -628,6 +628,7 @@ const ApplicationHealth = (() => {
       deleteExpense: typeof deleteExpense === "function" ? deleteExpense : null,
       restoreExpense: typeof restoreExpense === "function" ? restoreExpense : null,
       runApplicationHealthCheckTests: typeof runApplicationHealthCheckTests === "function" ? runApplicationHealthCheckTests : null,
+      runReleaseReadinessTests: typeof runReleaseReadinessTests === "function" ? runReleaseReadinessTests : null,
       runApplicationHealthCheckSummary: typeof runApplicationHealthCheckSummary === "function" ? runApplicationHealthCheckSummary : null,
       runApplicationHealthFailureDetails: typeof runApplicationHealthFailureDetails === "function" ? runApplicationHealthFailureDetails : null,
       runIdempotencyContractTests: typeof runIdempotencyContractTests === "function" ? runIdempotencyContractTests : null,

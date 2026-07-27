@@ -105,6 +105,11 @@ function runApplicationHealthCheckTests() {
   runTestSuite("Application health check tests", APPLICATION_HEALTH_TESTS, { reportTiming: true });
 }
 
+function runReleaseReadinessTests() {
+  releaseReadinessHealthReport = null;
+  return runTestSuite("Release readiness tests", RELEASE_READINESS_TESTS, { reportTiming: true });
+}
+
 function runReturnPickupIdMaintenanceTests() {
   runTestSuite("Return PickupID maintenance tests", RETURN_PICKUP_ID_MAINTENANCE_TESTS, { reportTiming: true });
 }
