@@ -274,7 +274,7 @@ const PICKUP_HEADER_FIELDS = Object.freeze({
 const PICKUP_HEADER_SCHEMA = createSchema({
   NAME: "PickupHeader",
 
-  TABLE: "PickupHeaders",
+  TABLE: SHEET_NAMES.PICKUP_HEADERS,
 
   PRIMARY_KEY: PICKUP_HEADER_FIELDS.ID,
 
@@ -354,7 +354,7 @@ const PICKUP_DETAIL_FIELDS = Object.freeze({
 const PICKUP_DETAIL_SCHEMA = createSchema({
   NAME: "PickupDetail",
 
-  TABLE: "PickupDetails",
+  TABLE: SHEET_NAMES.PICKUP_DETAILS,
 
   PRIMARY_KEY: PICKUP_DETAIL_FIELDS.ID,
 
