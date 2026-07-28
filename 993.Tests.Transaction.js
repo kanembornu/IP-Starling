@@ -6449,7 +6449,7 @@ function testReturnUxConsistencySourceContracts() {
   const toolbarStart = view.indexOf("data-return-toolbar");
   const headerActions = /<div[^>]*data-return-header-actions[^>]*>([\s\S]*?)<\/div>/.exec(view)?.[1] || "";
   if (headerStart < 0 || toolbarStart <= headerStart || !/id="btn-return-add"/.test(headerActions) || !/bg-blue-600/.test(headerActions) || !/text-white/.test(headerActions)) throw new Error("Create Return is not the primary header action.");
-  if (!/data-return-mode="active"[^>]*>Active</.test(view) || !/data-return-mode="deleted"[^>]*>Deleted</.test(view) || />Aktif<|>Terhapus</.test(view)) throw new Error("Return Active/Deleted mode selector is invalid.");
+  if (!/data-return-mode="active"[^>]*>[^<]*<i[^>]*fa-circle-check[^>]*><\/i>Active</.test(view) || !/data-return-mode="deleted"[^>]*>[^<]*<i[^>]*fa-trash-can[^>]*><\/i>Deleted</.test(view) || />Aktif<|>Terhapus</.test(view)) throw new Error("Return Active/Deleted mode selector is invalid.");
   if (/btn-return-trash|return-trash|openReturnTrash|renderReturnTrash|returnTrash/.test(ui)) throw new Error("Obsolete Return Deleted modal path remains.");
   if (!/overflow-x-auto/.test(view) || !/sm:flex-row/.test(view)) throw new Error("Return active page is not narrow-screen safe.");
   if (!/min-w-\[20rem\][^"']*whitespace-normal[^"']*break-words/.test(presenter)) throw new Error("Deleted Return reason column is cramped or truncated.");
@@ -6482,7 +6482,7 @@ function testPurchasingUxConsistencySourceContracts() {
   const toolbarStart = view.indexOf("data-purchasing-toolbar");
   const headerActions = /<div[^>]*data-purchasing-header-actions[^>]*>([\s\S]*?)<\/div>/.exec(view)?.[1] || "";
   if (headerStart < 0 || toolbarStart <= headerStart || !/id="btn-purchasing-add"/.test(headerActions) || !/bg-blue-600/.test(headerActions) || !/text-white/.test(headerActions)) throw new Error("Create Purchasing is not the primary header action.");
-  if (!/data-purchasing-mode="active"[^>]*>Active</.test(view) || !/data-purchasing-mode="deleted"[^>]*>Deleted</.test(view) || />Aktif<|>Terhapus</.test(view)) throw new Error("Purchasing Active/Deleted mode selector is invalid.");
+  if (!/data-purchasing-mode="active"[^>]*>[^<]*<i[^>]*fa-circle-check[^>]*><\/i>Active</.test(view) || !/data-purchasing-mode="deleted"[^>]*>[^<]*<i[^>]*fa-trash-can[^>]*><\/i>Deleted</.test(view) || />Aktif<|>Terhapus</.test(view)) throw new Error("Purchasing Active/Deleted mode selector is invalid.");
   if (/btn-purchasing-trash|purchasing-trash|openTrash|renderTrash|trashRows|trashRequest|loadDeleted|pendingRestore/.test(ui)) throw new Error("Obsolete Purchasing Deleted modal path remains.");
   if (!/overflow-x-auto/.test(view) || !/sm:flex-row/.test(view)) throw new Error("Purchasing active page is not narrow-screen safe.");
   if (!/min-w-\[22rem\][^"']*whitespace-normal[^"']*break-words/.test(presenter)) throw new Error("Deleted Purchasing reason column is cramped or truncated.");
