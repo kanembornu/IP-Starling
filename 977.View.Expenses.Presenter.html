@@ -14,7 +14,7 @@
     function renderLoading(view = {}) {
       const mode = normalizeMode(view.mode || view);
       renderModeButtons(mode, view.search);
-      const label = mode === "trash" ? "Deleted Expenses" : "Expenses";
+      const label = mode === "trash" ? "deleted expenses" : "expenses";
       Render.mount("tbl-expenses-body", `<tr><td colspan="7">${Components.loading(`Loading ${label}...`)}</td></tr>`);
       Render.mount("lbl-expense-info", `Loading ${label}...`);
       Render.mount("expense-pagination", "");
@@ -23,8 +23,8 @@
     function renderError(view = {}) {
       const mode = normalizeMode(view.mode || view);
       renderModeButtons(mode, view.search);
-      const subject = mode === "trash" ? "Deleted Expense" : "Expense";
-      Render.mount("tbl-expenses-body", `<tr><td colspan="7"><div class="flex flex-col items-center justify-center py-16 text-center"><i class="fa-solid fa-triangle-exclamation text-5xl text-red-400"></i><h3 class="mt-4 text-lg font-semibold text-red-700">Load failed</h3><p class="mt-2 text-slate-500">${subject} data could not be loaded. Use Refresh to try again.</p></div></td></tr>`);
+      const subject = mode === "trash" ? "Deleted expenses" : "Expenses";
+      Render.mount("tbl-expenses-body", `<tr><td colspan="7">${Components.error(`${subject} could not be loaded. Use Refresh to try again.`)}</td></tr>`);
       Render.mount("lbl-expense-info", "Expense count unavailable");
       Render.mount("expense-pagination", "");
     }
@@ -32,8 +32,8 @@
     function renderEmpty(type, mode) {
       const noMatch = type === "search";
       const message = mode === "trash"
-        ? (noMatch ? "No deleted Expense matches the current search." : "No deleted Expense records.")
-        : (noMatch ? "No Expense matches your search. Clear the search to show all active Expenses." : "No active Expense data exists.");
+        ? (noMatch ? "No deleted expenses match the current search." : "No deleted expenses available.")
+        : (noMatch ? "No expenses match the current search." : "No expenses available.");
       Render.mount("tbl-expenses-body", `<tr><td colspan="7">${Components.empty(message)}</td></tr>`);
     }
 

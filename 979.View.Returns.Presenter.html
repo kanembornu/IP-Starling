@@ -6,11 +6,11 @@
     function render(view = {}) {
       const mode = normalizeMode(view); renderHeader(mode); renderModeButtons(mode);
       const rows = Array.isArray(view.rows) ? view.rows : [];
-      if (!rows.length) return renderEmpty(view.emptyMessage || (mode === "deleted" ? "Belum ada Return terhapus." : "No returns available."), mode);
+      if (!rows.length) return renderEmpty(view.emptyMessage || (mode === "deleted" ? "No deleted returns available." : "No returns available."), mode);
       Render.mount("tbl-returns-body", rows.map((row) => mode === "deleted" ? renderDeletedRow(row, view) : renderActiveRow(row, view)).join(""));
     }
-    function renderLoading(view = {}) { const mode=normalizeMode(view); renderHeader(mode); renderModeButtons(mode); Render.mount("tbl-returns-body", `<tr><td colspan="${columns(mode)}">${Components.loading(mode === "deleted" ? "Loading deleted Returns..." : "Loading Returns...")}</td></tr>`); Render.mount("lbl-return-info", "Loading..."); Render.mount("return-pagination", ""); }
-    function renderError(view = {}) { const mode=normalizeMode(view); renderHeader(mode); renderModeButtons(mode); renderEmpty(view.message || "Returns could not be loaded.", mode); Render.mount("lbl-return-info", "Return count unavailable"); Render.mount("return-pagination", ""); }
+    function renderLoading(view = {}) { const mode=normalizeMode(view), label=mode==="deleted"?"deleted returns":"returns"; renderHeader(mode); renderModeButtons(mode); Render.mount("tbl-returns-body", `<tr><td colspan="${columns(mode)}">${Components.loading(`Loading ${label}...`)}</td></tr>`); Render.mount("lbl-return-info", `Loading ${label}...`); Render.mount("return-pagination", ""); }
+    function renderError(view = {}) { const mode=normalizeMode(view), label=mode==="deleted"?"Deleted returns":"Returns"; renderHeader(mode); renderModeButtons(mode); Render.mount("tbl-returns-body", `<tr><td colspan="${columns(mode)}">${Components.error(view.message || `${label} could not be loaded. Use Refresh to try again.`)}</td></tr>`); Render.mount("lbl-return-info", "Return count unavailable"); Render.mount("return-pagination", ""); }
     function renderEmpty(message, mode) { Render.mount("tbl-returns-body", `<tr><td colspan="${columns(mode)}">${Components.empty(message)}</td></tr>`); }
     function normalizeMode(view) { return (typeof view === "string" ? view : view?.mode) === "deleted" ? "deleted" : "active"; }
     function columns(mode) { return mode === "deleted" ? 10 : 8; }

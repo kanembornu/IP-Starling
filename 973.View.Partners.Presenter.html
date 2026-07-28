@@ -71,8 +71,8 @@
       return `<div class="flex justify-end gap-2"><button type="button" data-partner-form-action="cancel" class="px-4 py-2 border rounded-lg" ${submitting ? "disabled" : ""}>Cancel</button><button type="button" data-partner-form-action="save" class="px-4 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50" ${submitting ? "disabled aria-busy=\"true\"" : ""}>${submitting ? "Saving..." : "Save Partner"}</button></div>`;
     }
 
-    function renderLoading(mode = "active") { renderMode(mode); Render.mount("tbl-partners-body", `<tr><td colspan="7">${Components.loading({ message: mode === "deleted" ? "Loading deleted partners..." : "Loading partners..." })}</td></tr>`); }
-    function renderError(mode = "active", message = "") { renderMode(mode); Render.mount("tbl-partners-body", `<tr><td colspan="7">${Components.empty(message || (mode === "deleted" ? "Deleted partners could not be loaded." : "Partners could not be loaded."))}</td></tr>`); }
+    function renderLoading(mode = "active") { const label = mode === "deleted" ? "deleted partners" : "partners"; renderMode(mode); Render.mount("tbl-partners-body", `<tr><td colspan="7">${Components.loading(`Loading ${label}...`)}</td></tr>`); Render.mount("lbl-partner-info", `Loading ${label}...`); Render.mount("partner-pagination", ""); }
+    function renderError(mode = "active", message = "") { const label = mode === "deleted" ? "Deleted partners" : "Partners"; renderMode(mode); Render.mount("tbl-partners-body", `<tr><td colspan="7">${Components.error(message || `${label} could not be loaded. Use Refresh to try again.`)}</td></tr>`); Render.mount("lbl-partner-info", "Partner count unavailable"); Render.mount("partner-pagination", ""); }
     function renderMode(mode) {
       document.querySelectorAll("[data-partner-mode]").forEach((button) => { const selected = button.dataset.partnerMode === mode; button.classList.toggle("bg-blue-600", selected); button.classList.toggle("text-white", selected); });
       DOM.$("btn-partner-add")?.classList.toggle("hidden", mode === "deleted");
@@ -129,7 +129,7 @@
         `
         <tr>
           <td colspan="7">
-            ${Components.empty(mode === "deleted" ? "No deleted partners." : "No partners available.")}
+            ${Components.empty(mode === "deleted" ? "No deleted partners available." : "No partners available.")}
           </td>
         </tr>
       `,

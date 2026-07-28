@@ -75,12 +75,18 @@
 
     function renderLoading(mode = "active") {
       renderMode(mode);
-      Render.mount("tbl-products-body", `<tr><td colspan="7">${Components.loading({ message: mode === "deleted" ? "Loading deleted products..." : "Loading products..." })}</td></tr>`);
+      const label = mode === "deleted" ? "Deleted products" : "Products";
+      Render.mount("tbl-products-body", `<tr><td colspan="7">${Components.loading(`Loading ${label.toLowerCase()}...`)}</td></tr>`);
+      Render.mount("lbl-product-info", `Loading ${label.toLowerCase()}...`);
+      Render.mount("product-pagination", "");
     }
 
     function renderError(mode = "active") {
       renderMode(mode);
-      Render.mount("tbl-products-body", `<tr><td colspan="7">${Components.empty(mode === "deleted" ? "Deleted products could not be loaded." : "Products could not be loaded.")}</td></tr>`);
+      const label = mode === "deleted" ? "Deleted products" : "Products";
+      Render.mount("tbl-products-body", `<tr><td colspan="7">${Components.error(`${label} could not be loaded. Use Refresh to try again.`)}</td></tr>`);
+      Render.mount("lbl-product-info", "Product count unavailable");
+      Render.mount("product-pagination", "");
     }
 
     function renderMode(mode) {
@@ -146,7 +152,7 @@
         `
         <tr>
           <td colspan="7">
-            ${Components.empty(mode === "deleted" ? "No deleted products." : "No products available.")}
+            ${Components.empty(mode === "deleted" ? "No deleted products available." : "No products available.")}
           </td>
         </tr>
       `,

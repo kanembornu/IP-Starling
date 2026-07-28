@@ -8,21 +8,23 @@
       renderHeader(mode);
       renderModeButtons(mode);
       const rows = Array.isArray(view.rows) ? view.rows : [];
-      if (!rows.length) return renderEmpty(view.emptyMessage || (mode === "deleted" ? "Belum ada Purchasing terhapus." : "No purchasing available."), mode);
+      if (!rows.length) return renderEmpty(view.emptyMessage || (mode === "deleted" ? "No deleted purchasing records available." : "No purchasing records available."), mode);
       Render.mount("tbl-purchasing-body", rows.map((row) => mode === "deleted" ? renderDeletedRow(row, view) : renderRow(row, view)).join(""));
     }
 
     function renderLoading(view = {}) {
       const mode = normalizeMode(view);
       renderHeader(mode); renderModeButtons(mode);
-      Render.mount("tbl-purchasing-body", `<tr><td colspan="${columnCount(mode)}">${Components.loading(mode === "deleted" ? "Loading deleted Purchasing..." : "Loading Purchasing...")}</td></tr>`);
-      Render.mount("lbl-purchasing-info", "Loading..."); Render.mount("purchasing-pagination", "");
+      const label = mode === "deleted" ? "deleted purchasing records" : "purchasing records";
+      Render.mount("tbl-purchasing-body", `<tr><td colspan="${columnCount(mode)}">${Components.loading(`Loading ${label}...`)}</td></tr>`);
+      Render.mount("lbl-purchasing-info", `Loading ${label}...`); Render.mount("purchasing-pagination", "");
     }
 
     function renderError(view = {}) {
       const mode = normalizeMode(view);
       renderHeader(mode); renderModeButtons(mode);
-      renderEmpty(view.message || "Purchasing could not be loaded.", mode);
+      const label = mode === "deleted" ? "Deleted purchasing records" : "Purchasing records";
+      Render.mount("tbl-purchasing-body", `<tr><td colspan="${columnCount(mode)}">${Components.error(view.message || `${label} could not be loaded. Use Refresh to try again.`)}</td></tr>`);
       Render.mount("lbl-purchasing-info", "Purchasing count unavailable"); Render.mount("purchasing-pagination", "");
     }
 
