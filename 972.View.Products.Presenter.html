@@ -70,7 +70,7 @@
     }
 
     function renderFormFooter(submitting = false) {
-      return `<div class="flex justify-end gap-2"><button type="button" data-product-form-action="cancel" class="px-4 py-2 border rounded-lg" ${submitting ? "disabled" : ""}>Cancel</button><button type="button" data-product-form-action="save" class="px-4 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50" ${submitting ? "disabled aria-busy=\"true\"" : ""}>${submitting ? "Saving..." : "Save Product"}</button></div>`;
+      return `<div class="flex justify-end gap-2">${Components.formFooter({ cancelAttribute: 'data-product-form-action="cancel"', saveAttribute: 'data-product-form-action="save"', saveLabel: "Save Product", loadingLabel: "Saving Product...", loading: submitting })}</div>`;
     }
 
     function renderLoading(mode = "active") {

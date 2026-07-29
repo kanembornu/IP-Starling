@@ -68,7 +68,7 @@
     }
 
     function renderFormFooter(submitting = false) {
-      return `<div class="flex justify-end gap-2"><button type="button" data-partner-form-action="cancel" class="px-4 py-2 border rounded-lg" ${submitting ? "disabled" : ""}>Cancel</button><button type="button" data-partner-form-action="save" class="px-4 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50" ${submitting ? "disabled aria-busy=\"true\"" : ""}>${submitting ? "Saving..." : "Save Partner"}</button></div>`;
+      return `<div class="flex justify-end gap-2">${Components.formFooter({ cancelAttribute: 'data-partner-form-action="cancel"', saveAttribute: 'data-partner-form-action="save"', saveLabel: "Save Partner", loadingLabel: "Saving Partner...", loading: submitting })}</div>`;
     }
 
     function renderLoading(mode = "active") { const label = mode === "deleted" ? "deleted partners" : "partners"; renderMode(mode); Render.mount("tbl-partners-body", `<tr><td colspan="7">${Components.loading(`Loading ${label}...`)}</td></tr>`); Render.mount("lbl-partner-info", `Loading ${label}...`); Render.mount("partner-pagination", ""); }

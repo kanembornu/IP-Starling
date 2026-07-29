@@ -7,18 +7,33 @@
       const cards = [["Total Log", summary.total || 0], ["Audit", summary.audit || 0], ["Peringatan", summary.warnings || 0], ["Error", summary.errors || 0]];
       Render.mount("logs-summary", cards.map(([label, value]) => `<div class="rounded-xl border bg-white p-4 shadow-sm"><div class="text-xs uppercase text-slate-500">${escape(label)}</div><div class="mt-1 text-2xl font-bold text-slate-800">${escape(value)}</div></div>`).join(""));
     }
-    function detail(row) {
+    function detailBlocks(row) {
       const blocks = [["Category", row.Category], ["Module", row.Module], ["Action", row.Action], ["Actor", row.Actor], ["Duration", row.DurationMs === "" ? "" : `${row.DurationMs} ms`], ["Before", row.BeforeData], ["After", row.AfterData], ["Context", row.Context], ["Error", [row.ErrorName, row.ErrorMessage, row.ErrorStack].filter(Boolean).join("\n")], ["Correlation ID", row.CorrelationID], ["Source", row.Source]].filter((item) => item[1]);
-      return `<details><summary class="cursor-pointer text-blue-600">View</summary><div class="mt-2 min-w-0 space-y-2">${blocks.map(([label, value]) => `<div><strong>${escape(label)}</strong><pre class="mt-1 max-h-56 overflow-y-auto whitespace-pre-wrap break-all rounded bg-slate-100 p-2 text-xs">${escape(value)}</pre></div>`).join("")}</div></details>`;
+      return blocks;
+    }
+    function detailButton(row) {
+      return `<button type="button" data-logs-detail="${escape(JSON.stringify(row || {}))}" class="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-blue-700 hover:bg-slate-200" aria-label="View log detail">${Components.icon("fa-eye")}<span>View</span></button>`;
+    }
+    function renderDetail(row = {}) {
+      const longFields = ["Before", "After", "Context", "Error"];
+      return `<div class="space-y-5"><div class="grid grid-cols-1 gap-4 sm:grid-cols-2">${detailBlocks(row).map(([label, value]) => longFields.includes(label) ? `<div class="min-w-0 sm:col-span-2"><div class="text-sm font-medium text-slate-700">${escape(label)}</div><pre class="mt-1 max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-700">${escape(value)}</pre></div>` : `<div class="min-w-0"><div class="text-sm text-slate-500">${escape(label)}</div><div class="mt-1 whitespace-pre-wrap break-words text-sm font-medium text-slate-800">${escape(value)}</div></div>`).join("")}</div></div>`;
+    }
+    function openDetail(button) {
+      let row = {};
+      try { row = JSON.parse(button?.dataset?.logsDetail || "{}"); } catch (error) { return false; }
+      Modal.open({ title: "Log Detail", width: "lg", body: renderDetail(row), footer: '<button type="button" data-logs-detail-close class="rounded-lg border border-slate-300 px-5 py-2 hover:bg-slate-100">Close</button>' });
+      document.querySelector("[data-logs-detail-close]")?.addEventListener("click", Modal.close);
+      return true;
     }
     function render(payload = {}) {
       const rows = Array.isArray(payload.data) ? payload.data : [];
       Render.mount("logs-state", rows.length ? "" : '<div class="p-10 text-center text-slate-500">No logs match the active filters.</div>');
-      Render.mount("logs-body", rows.map((row) => `<tr class="border-t hover:bg-slate-50"><td class="px-3 py-3 align-top whitespace-normal break-words text-slate-600">${escape(row.Timestamp)}</td><td class="px-3 py-3 align-top break-words">${escape(row.Level)}</td><td class="hidden px-3 py-3 align-top break-words lg:table-cell">${escape(row.Module)}</td><td class="hidden px-3 py-3 align-top break-words xl:table-cell">${escape(row.Action)}</td><td class="px-3 py-3 align-top break-all">${escape([row.EntityType, row.EntityID].filter(Boolean).join(" · "))}</td><td class="px-3 py-3 align-top break-words">${escape(row.Status)}</td><td class="px-3 py-3 align-top whitespace-normal break-words leading-relaxed">${escape(row.Message)}</td><td class="px-3 py-3 align-top break-words">${detail(row)}</td></tr>`).join(""));
+      Render.mount("logs-body", rows.map((row) => `<tr class="border-t hover:bg-slate-50"><td class="px-3 py-3 align-top whitespace-normal break-words text-slate-600">${escape(row.Timestamp)}</td><td class="px-3 py-3 align-top break-words">${escape(row.Level)}</td><td class="hidden px-3 py-3 align-top break-words lg:table-cell">${escape(row.Module)}</td><td class="hidden px-3 py-3 align-top break-words xl:table-cell">${escape(row.Action)}</td><td class="px-3 py-3 align-top break-all">${escape([row.EntityType, row.EntityID].filter(Boolean).join(" · "))}</td><td class="px-3 py-3 align-top break-words">${escape(row.Status)}</td><td class="px-3 py-3 align-top whitespace-normal break-words leading-relaxed">${escape(row.Message)}</td><td class="px-3 py-3 align-top">${detailButton(row)}</td></tr>`).join(""));
+      document.querySelectorAll("[data-logs-detail]").forEach((button) => button.addEventListener("click", () => openDetail(button)));
       const label = DOM.$("logs-page-label"); if (label) DOM.text(label, `${payload.total || 0} entries · page ${payload.page || 1} of ${payload.totalPages || 0}`);
       document.querySelector('[data-logs-action="previous"]')?.toggleAttribute("disabled", (payload.page || 1) <= 1);
       document.querySelector('[data-logs-action="next"]')?.toggleAttribute("disabled", (payload.page || 1) >= (payload.totalPages || 0));
     }
-    return Object.freeze({ renderLoading, renderError, renderSummary, render });
+    return Object.freeze({ renderLoading, renderError, renderSummary, render, renderDetail, openDetail });
   })();
 </script>

@@ -205,6 +205,23 @@
     `;
     }
 
+    function formFieldError(attribute, field) {
+      return `<p ${attribute}="${Utils.escapeHTML(String(field || ""))}" role="alert" class="mt-1 hidden whitespace-pre-wrap break-words text-sm text-red-600"></p>`;
+    }
+
+    function formFooter({
+      cancelAttribute = "",
+      saveAttribute = "",
+      saveLabel = "Save",
+      loadingLabel = "Saving...",
+      form = "",
+      loading = false,
+      unavailable = false,
+    } = {}) {
+      const disabled = loading || unavailable;
+      return `<button type="button" ${cancelAttribute} ${loading ? 'disabled aria-disabled="true"' : ""} class="rounded-lg border border-slate-300 px-5 py-2 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50">Cancel</button><button type="${form ? "submit" : "button"}" ${form ? `form="${form}"` : ""} ${saveAttribute} ${disabled ? `disabled aria-disabled="true"${loading ? ' aria-busy="true"' : ""}` : ""} class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">${loading ? `${spinner("text-sm")}<span>${loadingLabel}</span>` : `${icon("fa-floppy-disk")}<span>${saveLabel}</span>`}</button>`;
+    }
+
     //===========================================================================
     // Layout
     //===========================================================================
@@ -879,6 +896,10 @@
       button,
 
       iconButton,
+
+      formFieldError,
+
+      formFooter,
 
       // Layout
 

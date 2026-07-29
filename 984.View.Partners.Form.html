@@ -37,6 +37,7 @@
               "
               placeholder="Enter partner name"
             />
+            ${Components.formFieldError("data-partner-form-error", "Nama")}
           </div>
 
           <div>
@@ -65,6 +66,7 @@
               <option value="Distributor">Distributor</option>
               <option value="Other">Other</option>
             </select>
+            ${Components.formFieldError("data-partner-form-error", "Jenis")}
           </div>
 
           <div>
@@ -88,6 +90,7 @@
               "
               placeholder="081234567890"
             />
+            ${Components.formFieldError("data-partner-form-error", "Telepon")}
           </div>
 
           <div>
@@ -207,6 +210,13 @@
       );
     }
 
+    function showFieldError(field, message) {
+      const target = document.querySelector(`[data-partner-form-error="${field}"]`);
+      if (!target) return false;
+      DOM.text(target, message); target.classList.remove("hidden");
+      return true;
+    }
+
     //==========================================================================
     // Public API
     //==========================================================================
@@ -216,6 +226,7 @@
       read,
       fill,
       reset,
+      showFieldError,
     });
   })();
 </script>
