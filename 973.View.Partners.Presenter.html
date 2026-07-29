@@ -65,8 +65,8 @@
 
     function paginationMarkup(config) { return Pagination.controls(config); }
 
-    function renderFormFooter(submitting = false) {
-      return `<div class="flex justify-end gap-2">${Components.formFooter({ cancelAttribute: 'data-partner-form-action="cancel"', saveAttribute: 'data-partner-form-action="save"', saveLabel: "Save Partner", loadingLabel: "Saving Partner...", loading: submitting })}</div>`;
+    function renderFormFooter(kind = "create", submitting = false) {
+      return Components.formFooter({ cancelAttribute: 'data-partner-form-action="cancel"', saveAttribute: 'data-partner-form-action="save"', saveLabel: kind === "create" ? "Create Partner" : "Save Changes", loadingLabel: kind === "create" ? "Creating Partner..." : "Saving Changes...", loading: submitting });
     }
 
     function renderLoading(mode = "active") { const label = mode === "deleted" ? "deleted partners" : "partners"; renderMode(mode); Render.mount("tbl-partners-body", `<tr><td colspan="7">${Components.loading(`Loading ${label}...`)}</td></tr>`); Render.mount("lbl-partner-info", `Loading ${label}...`); Render.mount("partner-pagination", ""); }

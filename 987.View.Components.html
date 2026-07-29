@@ -232,6 +232,24 @@
       return `<p ${attribute}="${Utils.escapeHTML(String(field || ""))}" role="alert" class="mt-1 hidden whitespace-pre-wrap break-words text-sm text-red-600"></p>`;
     }
 
+    function formValidationSummary(attribute) {
+      return `<div ${attribute} role="alert" tabindex="-1" class="hidden rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>`;
+    }
+
+    function showFormValidationSummary(attribute, message) {
+      let target = document.querySelector(`[${attribute}]`);
+      if (!target) {
+        const body = DOM.$("modal-body");
+        if (!body) return false;
+        target = document.createElement("div");
+        target.setAttribute(attribute, ""); target.setAttribute("role", "alert"); target.setAttribute("tabindex", "-1");
+        target.className = "mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700";
+        body.prepend(target);
+      }
+      DOM.text(target, message); target.classList.remove("hidden");
+      return true;
+    }
+
     function formFooter({
       cancelAttribute = "",
       saveAttribute = "",
@@ -242,7 +260,7 @@
       unavailable = false,
     } = {}) {
       const disabled = loading || unavailable;
-      return `<button type="button" ${cancelAttribute} ${loading ? 'disabled aria-disabled="true"' : ""} class="rounded-lg border border-slate-300 px-5 py-2 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50">Cancel</button><button type="${form ? "submit" : "button"}" ${form ? `form="${form}"` : ""} ${saveAttribute} ${disabled ? `disabled aria-disabled="true"${loading ? ' aria-busy="true"' : ""}` : ""} class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">${loading ? `${spinner("text-sm")}<span>${loadingLabel}</span>` : `${icon("fa-floppy-disk")}<span>${saveLabel}</span>`}</button>`;
+      return `<button type="button" ${cancelAttribute} ${loading ? 'disabled aria-disabled="true"' : ""} class="w-full rounded-lg border border-slate-300 px-5 py-2 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">Cancel</button><button type="${form ? "submit" : "button"}" ${form ? `form="${form}"` : ""} ${saveAttribute} ${disabled ? `disabled aria-disabled="true"${loading ? ' aria-busy="true"' : ""}` : ""} class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">${loading ? `${spinner("text-sm")}<span>${loadingLabel}</span>` : `${icon("fa-floppy-disk")}<span>${saveLabel}</span>`}</button>`;
     }
 
     //===========================================================================
@@ -925,6 +943,10 @@
       tableActions,
 
       formFieldError,
+
+      formValidationSummary,
+
+      showFormValidationSummary,
 
       formFooter,
 

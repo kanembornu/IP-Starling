@@ -1,26 +1,29 @@
 <template id="modal-template">
   <div
     id="modal-overlay"
-    class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-50"
+    class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-50 p-2 sm:p-4"
   >
     <div
       id="modal-window"
-      class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden"
+      class="flex max-h-[calc(100dvh-1rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)]"
     >
       <!-- =========================================================== -->
       <!-- Header -->
       <!-- =========================================================== -->
 
       <div
-        class="flex items-center justify-between px-6 py-4 border-b border-slate-200"
+        class="flex shrink-0 items-center justify-between gap-4 border-b border-slate-200 px-4 py-3 sm:px-6 sm:py-4"
       >
-        <h2 id="modal-title" class="text-lg font-semibold text-slate-800">
+        <h2 id="modal-title" class="min-w-0 truncate text-lg font-semibold text-slate-800">
           Modal Title
         </h2>
 
         <button
           id="btn-modal-close"
-          class="w-9 h-9 rounded-lg hover:bg-slate-100"
+          type="button"
+          aria-label="Close modal"
+          title="Close"
+          class="h-9 w-9 shrink-0 rounded-lg hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <i class="fa-solid fa-xmark"></i>
         </button>
@@ -30,7 +33,7 @@
       <!-- Body -->
       <!-- =========================================================== -->
 
-      <div id="modal-body" class="p-6 max-h-[70vh] overflow-auto"></div>
+      <div id="modal-body" class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6"></div>
 
       <!-- =========================================================== -->
       <!-- Footer -->
@@ -38,7 +41,7 @@
 
       <div
         id="modal-footer"
-        class="flex justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50"
+        class="flex shrink-0 flex-col justify-end gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:px-6 sm:py-4"
       >
         <button
           id="btn-modal-cancel"

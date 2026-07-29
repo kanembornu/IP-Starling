@@ -84,6 +84,9 @@
 
         content,
       );
+
+      const closeButton = DOM.$("btn-modal-close");
+      if (closeButton) closeButton.disabled = Boolean(footerElement()?.querySelector('[aria-busy="true"]'));
     }
 
     //===========================================================================
@@ -106,9 +109,7 @@
 
       const closeButton = DOM.$("btn-modal-close");
 
-      if (closeButton) {
-        closeButton.onclick = close;
-      }
+      if (closeButton) closeButton.onclick = () => { if (!closeButton.disabled) close(); };
 
       title(options.title || "");
 

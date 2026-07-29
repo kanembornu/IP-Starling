@@ -67,8 +67,8 @@
 
     function paginationMarkup(config) { return Pagination.controls(config); }
 
-    function renderFormFooter(submitting = false) {
-      return `<div class="flex justify-end gap-2">${Components.formFooter({ cancelAttribute: 'data-product-form-action="cancel"', saveAttribute: 'data-product-form-action="save"', saveLabel: "Save Product", loadingLabel: "Saving Product...", loading: submitting })}</div>`;
+    function renderFormFooter(kind = "create", submitting = false) {
+      return Components.formFooter({ cancelAttribute: 'data-product-form-action="cancel"', saveAttribute: 'data-product-form-action="save"', saveLabel: kind === "create" ? "Create Product" : "Save Changes", loadingLabel: kind === "create" ? "Creating Product..." : "Saving Changes...", loading: submitting });
     }
 
     function renderLoading(mode = "active") {
