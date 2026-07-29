@@ -561,8 +561,8 @@
       const current = paginationState(module, mode); const meta = Pagination.calculate(rows, current.modeState.page, current.moduleState.pageSize);
       Object.assign(current.modeState, { page: meta.page, totalRows: meta.totalRows, totalPages: meta.totalPages });
       if (typeof rerender === "function") paginationRenderers[`${module}:${mode}`] = rerender;
-      if (infoId) Render.mount(infoId, `Menampilkan ${meta.rangeStart}–${meta.rangeEnd} dari ${meta.totalRows} ${Utils.escapeHTML(label || "data")}`);
-      if (containerId) Render.mount(containerId, `<div class="flex flex-wrap items-center justify-end gap-2 text-sm"><label class="flex items-center gap-2">Baris per halaman <select data-pagination-size="${module}" data-pagination-mode="${mode}" class="rounded-lg border border-slate-300 px-2 py-1"><option value="10" ${meta.pageSize === 10 ? "selected" : ""}>10</option><option value="15" ${meta.pageSize === 15 ? "selected" : ""}>15</option><option value="25" ${meta.pageSize === 25 ? "selected" : ""}>25</option><option value="50" ${meta.pageSize === 50 ? "selected" : ""}>50</option><option value="100" ${meta.pageSize === 100 ? "selected" : ""}>100</option></select></label><span class="px-2 text-slate-500">Halaman ${meta.page} dari ${meta.totalPages}</span><button type="button" data-pagination-action="previous" data-pagination-module="${module}" data-pagination-mode="${mode}" ${meta.hasPrevious ? "" : "disabled"} class="rounded-lg border px-3 py-1 disabled:cursor-not-allowed disabled:opacity-50">Sebelumnya</button><button type="button" data-pagination-action="next" data-pagination-module="${module}" data-pagination-mode="${mode}" ${meta.hasNext ? "" : "disabled"} class="rounded-lg border px-3 py-1 disabled:cursor-not-allowed disabled:opacity-50">Berikutnya</button></div>`);
+      if (infoId) Render.mount(infoId, Pagination.summary(meta, Utils.escapeHTML(label || "data")));
+      if (containerId) Render.mount(containerId, Pagination.controls(Object.assign({ module, mode }, meta)));
       return meta.data;
     }
     function resetPagination(module, mode) { paginationState(module, mode).modeState.page = 1; }

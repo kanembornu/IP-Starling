@@ -15,6 +15,28 @@
       const endIndex = Math.min(startIndex + size, totalRows);
       return Object.freeze({ data: source.slice(startIndex, endIndex), page, pageSize: size, totalRows, totalPages, startIndex, endIndex, rangeStart: totalRows ? startIndex + 1 : 0, rangeEnd: totalRows ? endIndex : 0, hasPrevious: page > 1, hasNext: page < totalPages });
     }
-    return Object.freeze({ OPTIONS, pageSize, calculate });
+    function summary(meta = {}, label = "data") {
+      const totalRows = Math.max(0, Number(meta.totalRows) || 0);
+      const rangeStart = totalRows ? Math.max(1, Number(meta.rangeStart) || 1) : 0;
+      const rangeEnd = totalRows ? Math.max(rangeStart, Number(meta.rangeEnd) || totalRows) : 0;
+      return `Menampilkan ${rangeStart}–${rangeEnd} dari ${totalRows} ${label}`;
+    }
+    function controls(config = {}) {
+      const totalRows = Math.max(0, Number(config.totalRows) || 0);
+      if (!totalRows) return "";
+      const module = String(config.module || "");
+      const mode = String(config.mode || "active");
+      const page = Math.max(1, Number(config.page) || 1);
+      const totalPages = Math.max(1, Number(config.totalPages) || 1);
+      const size = pageSize(config.pageSize);
+      const previousDisabled = config.hasPrevious ? "" : "disabled";
+      const nextDisabled = config.hasNext ? "" : "disabled";
+      const sizeAttribute = config.sizeId ? `id="${config.sizeId}"` : `data-pagination-size="${module}" data-pagination-mode="${mode}"`;
+      const previousAttribute = config.actionName ? `data-${config.actionName}-action="previous"` : `data-pagination-action="previous" data-pagination-module="${module}" data-pagination-mode="${mode}"`;
+      const nextAttribute = config.actionName ? `data-${config.actionName}-action="next"` : `data-pagination-action="next" data-pagination-module="${module}" data-pagination-mode="${mode}"`;
+      const options = OPTIONS.map((option) => `<option value="${option}" ${size === option ? "selected" : ""}>${option}</option>`).join("");
+      return `<div class="flex w-full flex-col gap-3 text-sm sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end"><label class="flex items-center justify-between gap-2 whitespace-nowrap sm:justify-start">Baris per halaman <select ${sizeAttribute} class="rounded-lg border border-slate-300 px-2 py-1">${options}</select></label><span class="text-center text-slate-500 sm:px-2" aria-live="polite">Halaman ${page} dari ${totalPages}</span><div class="grid grid-cols-2 gap-2 sm:flex"><button type="button" ${previousAttribute} ${previousDisabled} class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 px-3 py-1 disabled:cursor-not-allowed disabled:opacity-50">${Components.icon("fa-chevron-left")}<span>Sebelumnya</span></button><button type="button" ${nextAttribute} ${nextDisabled} class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 px-3 py-1 disabled:cursor-not-allowed disabled:opacity-50"><span>Berikutnya</span>${Components.icon("fa-chevron-right")}</button></div></div>`;
+    }
+    return Object.freeze({ OPTIONS, pageSize, calculate, summary, controls });
   })();
 </script>

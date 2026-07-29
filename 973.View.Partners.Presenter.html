@@ -59,13 +59,11 @@
       const rangeStart = Number(meta.rangeStart) || 0;
       const rangeEnd = Number(meta.rangeEnd) || 0;
       const label = mode === "deleted" ? "mitra terhapus" : "mitra";
-      Render.mount("lbl-partner-info", `Menampilkan ${rangeStart}–${rangeEnd} dari ${totalRows} ${label}`);
-      Render.mount("partner-pagination", paginationMarkup("partners", mode, page, pageSize, totalPages, Boolean(meta.hasPrevious), Boolean(meta.hasNext)));
+      Render.mount("lbl-partner-info", Pagination.summary({ totalRows, rangeStart, rangeEnd }, label));
+      Render.mount("partner-pagination", paginationMarkup({ module: "partners", mode, page, pageSize, totalRows, totalPages, hasPrevious: Boolean(meta.hasPrevious), hasNext: Boolean(meta.hasNext) }));
     }
 
-    function paginationMarkup(module, mode, page, pageSize, totalPages, hasPrevious, hasNext) {
-      return `<div class="flex flex-wrap items-center justify-end gap-2 text-sm"><label class="flex items-center gap-2">Baris per halaman <select data-pagination-size="${module}" data-pagination-mode="${mode}" class="rounded-lg border border-slate-300 px-2 py-1">${[10, 15, 25, 50, 100].map((size) => `<option value="${size}" ${pageSize === size ? "selected" : ""}>${size}</option>`).join("")}</select></label><span class="px-2 text-slate-500">Halaman ${page} dari ${totalPages}</span><button type="button" data-pagination-action="previous" data-pagination-module="${module}" data-pagination-mode="${mode}" ${hasPrevious ? "" : "disabled"} class="rounded-lg border px-3 py-1 disabled:cursor-not-allowed disabled:opacity-50">Sebelumnya</button><button type="button" data-pagination-action="next" data-pagination-module="${module}" data-pagination-mode="${mode}" ${hasNext ? "" : "disabled"} class="rounded-lg border px-3 py-1 disabled:cursor-not-allowed disabled:opacity-50">Berikutnya</button></div>`;
-    }
+    function paginationMarkup(config) { return Pagination.controls(config); }
 
     function renderFormFooter(submitting = false) {
       return `<div class="flex justify-end gap-2">${Components.formFooter({ cancelAttribute: 'data-partner-form-action="cancel"', saveAttribute: 'data-partner-form-action="save"', saveLabel: "Save Partner", loadingLabel: "Saving Partner...", loading: submitting })}</div>`;
