@@ -928,7 +928,7 @@
       let restoreAttempted = false;
       try {
         await Dialog.confirm({
-          title: "Restore Product", confirmText: "Restore", loadingText: "Restoring...",
+          title: "Restore Product", intent: "restore", confirmText: "Restore", loadingText: "Restoring...",
           message: `Restore Product <strong>${Utils.escapeHTML(product.Nama || productId)}</strong>?`,
           onConfirm: async () => {
             if (state.productRestoreBusyId || restoreAttempted || state.page !== "products" || state.productMode !== "deleted") return false;
@@ -1006,14 +1006,17 @@
 
     async function deleteProduct(id) {
       const cleanId = String(id || "").trim(); if (!cleanId || state.productSubmitting || state.productConfirming) return false;
+      const row = state.products.find((item) => String(item?.ID) === cleanId); if (!row) { Toast.error("This Product is no longer available for deletion."); return false; }
       state.productConfirming = true;
       try {
-        const confirmed = await Dialog.confirm({ title: "Delete Product", message: "Are you sure you want to delete this product?" });
-        if (!confirmed || state.page !== "products") return false;
-        state.productSubmitting = true;
-        try { const response = await Api.Product.remove(cleanId); if (!response?.success) { Toast.error(response?.message || "Product could not be deleted."); return false; } productsLoaded = false; state.pickupProducts = null; await loadProducts(); Toast.success("Product berhasil dihapus."); return true; }
-        catch (error) { Toast.error(readableLoadError(error, "Product could not be deleted.")); return false; }
-        finally { state.productSubmitting = false; }
+        let succeeded = false;
+        await Dialog.confirm({ title: "Delete Product", intent: "delete", confirmText: "Delete", loadingText: "Deleting...", message: `Delete Product <strong>${Utils.escapeHTML(row.Nama || cleanId)}</strong>?`, onConfirm: async () => {
+          if (state.productSubmitting || state.page !== "products") return false; state.productSubmitting = true;
+          try { const response = await Api.Product.remove(cleanId); if (!response?.success) { Toast.error(response?.message || "Product could not be deleted."); return false; } succeeded = true; productsLoaded = false; state.pickupProducts = null; Toast.success(response.message || "Product deleted."); return true; }
+          catch (error) { Toast.error(readableLoadError(error, "Product could not be deleted. Please try again.")); return false; }
+          finally { state.productSubmitting = false; }
+        } });
+        if (succeeded && state.page === "products") await loadProducts(); return succeeded;
       } finally { state.productConfirming = false; }
     }
 
@@ -1057,7 +1060,7 @@
       const row = state.deletedPartners.find((item) => String(item.ID) === cleanId); if (!row) { Toast.error("Mitra terhapus tidak lagi tersedia."); return false; }
       state.partnerRestoreConfirming = true; let restored = false; let attempted = false;
       try {
-        await Dialog.confirm({ title: "Restore Partner", confirmText: "Restore", loadingText: "Restoring...", message: `Restore Partner <strong>${Utils.escapeHTML(row.Nama || cleanId)}</strong>?`, onConfirm: async () => {
+        await Dialog.confirm({ title: "Restore Partner", intent: "restore", confirmText: "Restore", loadingText: "Restoring...", message: `Restore Partner <strong>${Utils.escapeHTML(row.Nama || cleanId)}</strong>?`, onConfirm: async () => {
           if (attempted || state.partnerRestoreBusyId || state.page !== "partners" || state.partnerMode !== "deleted") return false;
           attempted = true; state.partnerRestoreBusyId = cleanId; renderPartners(); const request = partnerRequest;
           try {
@@ -1092,11 +1095,14 @@
       finally { state.partnerSubmitting = false; if (state.partnerFormKind) Modal.footer(PartnersPresenter.renderFormFooter(false)); }
     }
     async function deletePartner(id) {
-      const cleanId = String(id || "").trim(); if (!cleanId || state.partnerSubmitting || state.partnerConfirming) return false; state.partnerConfirming = true;
-      try { const confirmed = await Dialog.confirm({ title: "Delete Partner", message: "Are you sure you want to delete this partner?" }); if (!confirmed || state.page !== "partners") return false; state.partnerSubmitting = true;
-        try { const response = await Api.Partner.remove(cleanId); if (!response?.success) { Toast.error(response?.message || "Partner could not be deleted."); return false; } partnersLoaded = false; state.pickupPartners = null; await loadPartners(); Toast.success("Partner berhasil dihapus."); return true; }
-        catch (error) { Toast.error(readableLoadError(error, "Partner could not be deleted.")); return false; }
-        finally { state.partnerSubmitting = false; }
+      const cleanId = String(id || "").trim(); if (!cleanId || state.partnerSubmitting || state.partnerConfirming) return false;
+      const row = state.partners.find((item) => String(item?.ID) === cleanId); if (!row) { Toast.error("This Partner is no longer available for deletion."); return false; } state.partnerConfirming = true;
+      try { let succeeded = false; await Dialog.confirm({ title: "Delete Partner", intent: "delete", confirmText: "Delete", loadingText: "Deleting...", message: `Delete Partner <strong>${Utils.escapeHTML(row.Nama || cleanId)}</strong>?`, onConfirm: async () => {
+          if (state.partnerSubmitting || state.page !== "partners") return false; state.partnerSubmitting = true;
+          try { const response = await Api.Partner.remove(cleanId); if (!response?.success) { Toast.error(response?.message || "Partner could not be deleted."); return false; } succeeded = true; partnersLoaded = false; state.pickupPartners = null; Toast.success(response.message || "Partner deleted."); return true; }
+          catch (error) { Toast.error(readableLoadError(error, "Partner could not be deleted. Please try again.")); return false; }
+          finally { state.partnerSubmitting = false; }
+        } }); if (succeeded && state.page === "partners") await loadPartners(); return succeeded;
       } finally { state.partnerConfirming = false; }
     }
     function closePartnerModal() { if (state.partnerSubmitting) return false; partnerRequest += 1; state.partnerFormKind = null; state.partnerFormId = null; CrudState.reset(); Modal.close(); return true; }
@@ -1111,7 +1117,7 @@
     function renderPickups() {
       const mode=state.pickupMode,query=String(state.pickupSearch||"").trim().toLowerCase(),source=pickupSource(),filtered=source.filter((row)=>pickupMatch(row,query));
       const rows=paginateRows("pickups",mode,filtered,"pickup-pagination","lbl-pickup-info",mode==="trash"?"Pickup terhapus":"Pickup",renderPickups);
-      PickupsPresenter.render({mode,rows,search:state.pickupSearch,busyId:state.pickupRestoreBusyId,emptyKind:source.length&&query?"search":"database"});
+      PickupsPresenter.render({mode,rows,search:state.pickupSearch,busyId:state.pickupRestoreBusyId||state.pickupBusyId,emptyKind:source.length&&query?"search":"database"});
     }
 
     async function loadPickups() {
@@ -1184,7 +1190,7 @@
       const row = state.deletedPickups.find((item) => String(item.ID) === cleanId); if (!row) { Toast.error("Pickup terhapus tidak lagi tersedia."); return false; }
       state.pickupRestoreConfirming = true; let restored = false; let attempted = false;
       try {
-        await Dialog.confirm({ title: "Restore Pickup", confirmText: "Restore", loadingText: "Restoring...", message: `Restore Pickup <strong>${Utils.escapeHTML(row.PickupNo || cleanId)}</strong>?`, onConfirm: async () => {
+        await Dialog.confirm({ title: "Restore Pickup", intent: "restore", confirmText: "Restore", loadingText: "Restoring...", message: `Restore Pickup <strong>${Utils.escapeHTML(row.PickupNo || cleanId)}</strong>?`, onConfirm: async () => {
           if (attempted || state.pickupRestoreBusyId || state.page !== "pickups" || state.pickupMode !== "trash") return false;
           attempted = true; state.pickupRestoreBusyId = cleanId; renderPickups(); const request = ++pickupRequest;
           try {
@@ -1231,7 +1237,7 @@
     function removePickupDetail(localId){if(!state.pickupForm||state.pickupSubmitting||state.pickupForm.details.length===1)return;state.pickupForm.details=state.pickupForm.details.filter((d)=>d.localId!==String(localId));Modal.body(PickupsPresenter.renderForm(pickupFormView()));}
     function validatePickupForm(){const form=state.pickupForm||{},header={Tanggal:String(form.header?.Tanggal||"").trim(),PartnerID:String(form.header?.PartnerID||"").trim(),Notes:String(form.header?.Notes||"").trim()};if(!header.Tanggal)return {field:"Tanggal",message:"Tanggal is required."};if(!header.PartnerID)return {field:"PartnerID",message:"Partner is required."};if(!form.details?.length)return {field:"details",message:"At least one item is required."};const seen=new Set(),details=[];for(const row of form.details){const product=String(row.ProductID||"").trim(),qty=Number(row.Qty);if(!product)return {field:"details",message:"Each item needs a Product."};if(!Number.isFinite(qty))return {field:"details",message:"Each Qty must be numeric."};if(qty<=0)return {field:"details",message:"Each Qty must be greater than zero."};if(seen.has(product))return {field:"details",message:"Duplicate Products are not allowed."};seen.add(product);details.push({ProductID:product,Qty:qty,Notes:String(row.Notes||"").trim()});}return {document:{header,details}};}
     async function submitPickupForm(){if(state.pickupSubmitting||!state.pickupForm)return;const validation=validatePickupForm();if(!validation.document){if(!PickupsPresenter.showFieldError(validation.field,validation.message))Toast.warning(validation.message);return false;}state.pickupSubmitting=true;pickupRequest++;Modal.footer(PickupsPresenter.renderFormFooter(state.pickupFormKind,true));const editing=state.pickupFormKind==="edit",id=state.pickupForm.id;try{const createDocument=editing?validation.document:Object.assign({},validation.document,{IdempotencyKey:state.pickupCreateRequestKey});const response=editing?await Api.Pickup.update(id,validation.document):await Api.Pickup.create(createDocument);if(!response?.success)throw new Error(response?.message||(editing?"Pickup could not be updated.":"Pickup could not be created."));Toast.success(response.meta?.idempotentReplay?"Pickup request was already completed.":response.message||(editing?"Pickup updated.":"Pickup created."));closePickupModal();await loadPickups();}catch(error){Toast.error(readableLoadError(error,editing?"Pickup could not be updated.":"Pickup could not be created."));}finally{state.pickupSubmitting=false;if(state.pickupForm)Modal.footer(PickupsPresenter.renderFormFooter(state.pickupFormKind,false));}}
-    async function deletePickup(id){const clean=String(id||"").trim(),row=state.pickups.find((item)=>String(item.ID)===clean);if(!clean||!row||state.pickupBusyId)return false;state.pickupBusyId=clean;try{const confirmed=await Dialog.confirm({title:"Delete Pickup",message:`Delete Pickup <strong>${Utils.escapeHTML(row.PickupNo||clean)}</strong>?`});if(!confirmed)return false;pickupRequest++;const response=await Api.Pickup.remove(clean);if(!response?.success)throw new Error(response?.message||"Pickup could not be deleted.");invalidateReturnDependencies();Toast.success(response.message||"Pickup deleted.");state.pickups=state.pickups.filter((item)=>String(item.ID)!==clean);renderPickups();return true;}catch(error){Toast.error(readableLoadError(error,"Pickup could not be deleted."));return false;}finally{state.pickupBusyId=null;}}
+    async function deletePickup(id){const clean=String(id||"").trim(),row=state.pickups.find((item)=>String(item.ID)===clean);if(!clean||!row||state.pickupBusyId)return false;let succeeded=false,attempted=false;try{await Dialog.confirm({title:"Delete Pickup",intent:"delete",confirmText:"Delete",loadingText:"Deleting...",message:`Delete Pickup <strong>${Utils.escapeHTML(row.PickupNo||clean)}</strong>?`,onConfirm:async()=>{if(attempted||state.pickupBusyId||state.page!=="pickups"||state.pickupMode!=="active")return false;attempted=true;state.pickupBusyId=clean;renderPickups();try{pickupRequest++;const response=await Api.Pickup.remove(clean);if(!response?.success){Toast.error(response?.message||"Pickup could not be deleted.");return false;}succeeded=true;invalidateReturnDependencies();Toast.success(response.message||"Pickup deleted.");state.pickups=state.pickups.filter((item)=>String(item.ID)!==clean);renderPickups();return true;}catch(error){Toast.error(readableLoadError(error,"Pickup could not be deleted. Please try again."));return false;}finally{state.pickupBusyId=null;}}});return succeeded;}finally{state.pickupBusyId=null;if(state.page==="pickups"&&state.pickupMode==="active")renderPickups();}}
     function closePickupModal(){pickupDetailRequest++;state.pickupForm=null;state.pickupFormKind=null;state.pickupCreateRequestKey=null;state.pickupSubmitting=false;Modal.close();}
 
     //===========================================================================
@@ -1302,6 +1308,7 @@
       try {
         confirmed = await Dialog.confirm({
           title: "Restore Return",
+          intent: "restore",
           confirmText: "Restore",
           loadingText: "Restoring...",
           message: `Restore Return <strong>${Utils.escapeHTML(returnId)}</strong>?`,
@@ -1376,7 +1383,7 @@
     function validateReturnForm() { const form=state.returnForm||{}, qty=Number(form.Qty); if(!String(form.Tanggal||"").trim())return {field:"Tanggal",message:"Tanggal is required."};if(state.returnFormKind==="create"&&!String(form.PickupID||"").trim())return {field:"PickupID",message:"Pickup is required."};if(state.returnFormKind==="create"&&!String(form.PickupDetailID||"").trim())return {field:"PickupDetailID",message:"Pickup Detail is required."};if(!Number.isFinite(qty))return {field:"Qty",message:"Qty must be numeric."};if(qty<=0)return {field:"Qty",message:"Qty must be greater than zero."};return {document:{Tanggal:String(form.Tanggal).trim(),Qty:qty,Keterangan:String(form.Keterangan||"").trim(),...(state.returnFormKind==="create"?{PickupDetailID:String(form.PickupDetailID).trim()}:{})}}; }
     async function submitReturnForm(kind) { if(kind!==state.returnFormKind||!state.returnForm||state.returnSubmitting)return false;const validation=validateReturnForm();if(validation.message){if(!ReturnsPresenter.showFieldError(kind,validation.field,validation.message))Toast.warning(validation.message);return false;}state.returnSubmitting=true;Modal.footer(ReturnsPresenter.renderFormFooter(kind,{loading:true}));try{const createDocument=kind==="create"?Object.assign({},validation.document,{IdempotencyKey:state.returnCreateRequestKey}):validation.document;const response=kind==="create"?await Api.Return.create(createDocument):await Api.Return.update(state.returnForm.id,validation.document);if(!response?.success){Toast.error(response?.message||`Return could not be ${kind==="create"?"created":"updated"}.`);return false;}Toast.success(response.meta?.idempotentReplay?"Return request was already completed.":response.message||`Return ${kind==="create"?"created":"updated"}.`);state.returnSubmitting=false;closeReturnModal();await loadReturns();return true;}catch(error){Toast.error(readableLoadError(error,`Return could not be ${kind==="create"?"created":"updated"}. Please try again.`));return false;}finally{state.returnSubmitting=false;} }
     function closeReturnModal(){if(state.returnSubmitting)return;returnRequest+=1;state.returnForm=null;state.returnFormKind=null;state.returnCreateRequestKey=null;Modal.close();}
-    async function deleteReturn(id) { const row=returnRow(id);if(!row||state.returnSubmitting||state.returnBusyId){Toast.error("This Return is no longer available for deletion.");return false;}let succeeded=false;await Dialog.confirm({title:"Deactivate Return",confirmText:"Delete / Deactivate",loadingText:"Deactivating...",message:ReturnsPresenter.renderDeleteMessage(row),onConfirm:async()=>{if(state.returnSubmitting)return false;state.returnSubmitting=true;try{const response=await Api.Return.remove(String(row.ID));if(!response?.success){Toast.error(response?.message||"Return could not be deactivated.");return false;}succeeded=true;Toast.success(response.message||"Return deactivated.");return true;}catch(error){Toast.error(readableLoadError(error,"Return could not be deactivated. Please try again."));return false;}finally{state.returnSubmitting=false;}}});if(succeeded)await loadReturns();return succeeded;}
+    async function deleteReturn(id) { const row=returnRow(id);if(!row||state.returnSubmitting||state.returnBusyId){Toast.error("This Return is no longer available for deletion.");return false;}let succeeded=false;await Dialog.confirm({title:"Delete Return",intent:"delete",confirmText:"Delete",loadingText:"Deleting...",message:ReturnsPresenter.renderDeleteMessage(row),onConfirm:async()=>{if(state.returnSubmitting)return false;state.returnSubmitting=true;state.returnBusyId=String(row.ID);renderReturns();try{const response=await Api.Return.remove(String(row.ID));if(!response?.success){Toast.error(response?.message||"Return could not be deleted.");return false;}succeeded=true;Toast.success(response.message||"Return deleted.");return true;}catch(error){Toast.error(readableLoadError(error,"Return could not be deleted. Please try again."));return false;}finally{state.returnSubmitting=false;state.returnBusyId=null;}}});if(succeeded)await loadReturns();else if(state.page==="returns"&&state.returnMode==="active")renderReturns();return succeeded;}
 
     //===========================================================================
     // Purchasing
@@ -1557,7 +1564,7 @@
     async function deletePurchasing(id) {
       const row = state.purchasing.find((item) => String(item?.ID || "") === String(id || "")); if (!row || state.purchasingBusyId) return purchasingError("This Purchasing record is no longer available for deletion.");
       purchasingRequest += 1; state.purchasingBusyId = String(row.ID);
-      try { const confirmed = await Dialog.confirm({ title: "Delete Purchasing", confirmText: "Delete Purchasing", loadingText: "Deleting...", message: PurchasingPresenter.renderDeleteMessage(row, { supplierNames: purchasingNames(state.partners), productNames: purchasingNames(state.products) }), onConfirm: async () => { const response = await Api.Purchasing.remove(row.ID); if (!response?.success) { Toast.error(response?.message || "Purchasing could not be deleted."); return false; } Toast.success(response.message || "Purchasing deleted."); return true; } }); if (confirmed && state.page === "purchasing") await loadPurchasing(); return Boolean(confirmed); }
+      try { const confirmed = await Dialog.confirm({ title: "Delete Purchasing", intent: "delete", confirmText: "Delete", loadingText: "Deleting...", message: PurchasingPresenter.renderDeleteMessage(row, { supplierNames: purchasingNames(state.partners), productNames: purchasingNames(state.products) }), onConfirm: async () => { const response = await Api.Purchasing.remove(row.ID); if (!response?.success) { Toast.error(response?.message || "Purchasing could not be deleted."); return false; } Toast.success(response.message || "Purchasing deleted."); return true; } }); if (confirmed && state.page === "purchasing") await loadPurchasing(); return Boolean(confirmed); }
       catch (error) { Toast.error(readableLoadError(error, "Purchasing could not be deleted. Please try again.")); return false; }
       finally { state.purchasingBusyId = null; }
     }
@@ -1577,6 +1584,7 @@
       try {
         const confirmed = await Dialog.confirm({
           title: "Restore Purchasing",
+          intent: "restore",
           confirmText: "Restore",
           loadingText: "Restoring...",
           message: `Restore Purchasing <strong>${Utils.escapeHTML(purchasingId)}</strong>?`,
@@ -1795,7 +1803,7 @@
       const cleanId = String(id || "").trim(); if (!cleanId || state.page !== "expenses" || state.expenseMode !== "active" || state.expenseBusyId || state.expenseConfirming) return false;
       const row = state.expenses.find((item) => String(item?.ID) === cleanId); if (!row) { Toast.error("This Expense is no longer available."); return false; }
       state.expenseConfirming = true; let succeeded = false; let attempted = false;
-      try { await Dialog.confirm({ title: "Delete Expense", confirmText: "Delete", loadingText: "Deleting...", message: ExpensesPresenter.renderDeleteMessage(row), onConfirm: async () => {
+      try { await Dialog.confirm({ title: "Delete Expense", intent: "delete", confirmText: "Delete", loadingText: "Deleting...", message: ExpensesPresenter.renderDeleteMessage(row), onConfirm: async () => {
         if (attempted || state.expenseBusyId || state.page !== "expenses" || state.expenseMode !== "active") return false;
         attempted = true; state.expenseBusyId = cleanId; renderExpenses();
         try { const response = await Api.Expense.remove(cleanId); if (!response?.success) { Toast.error(response?.message || "Expense could not be deleted."); return true; } succeeded = true; Toast.success(response.message || "Expense deleted."); state.expenses = state.expenses.filter((item) => String(item.ID) !== cleanId); renderExpenses(); return true; }
@@ -1809,7 +1817,7 @@
       const cleanId = String(id || "").trim(); if (!cleanId || state.page !== "expenses" || state.expenseMode !== "trash" || state.expenseBusyId || state.expenseConfirming) return false;
       const row = state.deletedExpenses.find((item) => String(item?.ID) === cleanId); if (!row) { Toast.error("This deleted Expense is no longer available."); return false; }
       state.expenseConfirming = true; let succeeded = false; let attempted = false;
-      try { await Dialog.confirm({ title: "Restore Expense", confirmText: "Restore", loadingText: "Restoring...", message: ExpensesPresenter.renderRestoreMessage(row), onConfirm: async () => {
+      try { await Dialog.confirm({ title: "Restore Expense", intent: "restore", confirmText: "Restore", loadingText: "Restoring...", message: ExpensesPresenter.renderRestoreMessage(row), onConfirm: async () => {
         if (attempted || state.expenseBusyId || state.page !== "expenses" || state.expenseMode !== "trash") return false;
         attempted = true; state.expenseBusyId = cleanId; renderExpenses();
         try { const response = await Api.Expense.restore(cleanId); if (!response?.success) { Toast.error(response?.message || "Expense could not be restored."); return true; } succeeded = true; Toast.success(response.message || "Expense restored."); state.deletedExpenses = state.deletedExpenses.filter((item) => String(item.ID) !== cleanId); renderExpenses(); return true; }

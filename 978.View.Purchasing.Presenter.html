@@ -55,7 +55,7 @@
       const disabled = busyId ? "disabled aria-disabled=\"true\"" : "";
       return `<button type="button" data-purchasing-action="edit" data-purchasing-id="${escape(id)}" ${disabled} title="Edit" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg transition bg-blue-50 hover:bg-blue-100 text-blue-700">${Components.icon("fa-pen")} <span>Edit</span></button>
         <button type="button" data-purchasing-action="view" data-purchasing-id="${escape(id)}" ${disabled} title="View" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg transition bg-slate-100 hover:bg-slate-200 text-slate-700">${Components.icon("fa-eye")} <span>View</span></button>
-        <button type="button" data-purchasing-action="delete" data-purchasing-id="${escape(id)}" ${disabled} title="Delete" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg transition bg-red-50 hover:bg-red-100 text-red-700">${Components.icon("fa-trash")} <span>Delete</span></button>`;
+        <button type="button" data-purchasing-action="delete" data-purchasing-id="${escape(id)}" ${disabled} title="Delete" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg transition bg-red-50 hover:bg-red-100 text-red-700">${Components.icon("fa-trash-can")} <span>${String(busyId) === String(id) ? "Deleting..." : "Delete"}</span></button>`;
     }
     function renderDeletedRow(row, view) {
       const id = safeValue(row?.[FIELD.ID]); const busy = Boolean(view.busyId); const allowed = row?.canRestore === true && !busy;
