@@ -167,7 +167,47 @@ function DashboardService(dependencies = {}) {
       const step = range.granularity === "weekly" ? 7 : 1;
       while (current <= range.endOrdinal) { labels.push(dateFromOrdinal(current)); current += step; }
     }
-    return { count: qualifying.length, total, labels, values: labels.map((key) => grouped[key] || 0) };
+    const units = qualifying.reduce((sum, row) => sum + finiteNonNegative(row.Qty, `Purchasing ${row.ID || "(unknown)"} Qty`), 0);
+    return { count: qualifying.length, units, total, labels, values: labels.map((key) => grouped[key] || 0) };
+  }
+
+  function monthlyPurchasingAggregate(source, range) {
+    const qualifying = source.filter((row) => inRange(row, range));
+    const grouped = {};
+    qualifying.forEach((row) => {
+      const id = row.ID || "(unknown)";
+      const total = finiteNonNegative(row.Total, `Purchasing ${id} Total`);
+      const key = businessDate(row.Tanggal).slice(0, 7);
+      grouped[key] = (grouped[key] || 0) + total;
+    });
+    const labels = [];
+    let year = dateParts(range.startDate).year;
+    let month = dateParts(range.startDate).month;
+    const endKey = range.endDate.slice(0, 7);
+    while (true) {
+      const key = `${year}-${String(month).padStart(2, "0")}`;
+      labels.push(key);
+      if (key === endKey) break;
+      month += 1;
+      if (month === 13) { month = 1; year += 1; }
+    }
+    return { labels, values: labels.map((key) => grouped[key] || 0), total: qualifying.reduce((sum, row) => sum + Number(row.Total), 0), granularity: "monthly" };
+  }
+
+  function productPerformance(source, productsSource, range) {
+    const names = {};
+    productsSource.forEach((row) => { names[String(row.ID || "")] = String(row.Nama || row.ID || "Unknown Product"); });
+    const grouped = {};
+    source.filter((row) => inRange(row, range)).forEach((row) => {
+      const id = String(row.ProductID || "").trim();
+      if (!id) throw new Error(`Purchasing ${row.ID || "(unknown)"} has a blank ProductID.`);
+      if (!grouped[id]) grouped[id] = { id, label: names[id] || id, quantity: 0, value: 0 };
+      grouped[id].quantity += finiteNonNegative(row.Qty, `Purchasing ${row.ID || "(unknown)"} Qty`);
+      grouped[id].value += finiteNonNegative(row.Total, `Purchasing ${row.ID || "(unknown)"} Total`);
+    });
+    const rows = Object.keys(grouped).map((id) => grouped[id])
+      .sort((a, b) => b.value - a.value || b.quantity - a.quantity || a.label.localeCompare(b.label));
+    return { rows, labels: rows.map((row) => row.label), values: rows.map((row) => row.value), quantities: rows.map((row) => row.quantity) };
   }
 
   function timestamp(value) {
@@ -176,13 +216,16 @@ function DashboardService(dependencies = {}) {
     return Number.isFinite(date.getTime()) ? date : null;
   }
 
-  function recentActivities(sources) {
+  function recentActivities(sources, range) {
     const result = [];
     sources.forEach(({ module, source }) => source.forEach((row) => {
       const created = timestamp(row.CreatedAt);
       const updated = timestamp(row.UpdatedAt);
       const event = updated && (!created || updated.getTime() >= created.getTime()) ? updated : created;
       if (!event) return;
+      const eventDate = Utilities.formatDate(event, timezone, "yyyy-MM-dd");
+      const eventOrdinal = ordinal(eventDate);
+      if (eventOrdinal < range.startOrdinal || eventOrdinal > range.endOrdinal) return;
       result.push({ module, id: String(row.ID || ""), label: String(row.Nama || row.Keterangan || row.ID || module),
         eventTime: Utilities.formatDate(event, timezone, "yyyy-MM-dd'T'HH:mm:ssXXX"),
         eventTimeDisplay: Utilities.formatDate(event, timezone, "dd/MM/yyyy HH:mm"),
@@ -200,6 +243,8 @@ function DashboardService(dependencies = {}) {
         returns: rows(returns), purchases: rows(purchases), expenses: rows(expenses) };
       const expense = expenseAggregate(source.expenses, range);
       const purchasing = purchasingAggregate(source.purchases, range);
+      const monthlyPurchasing = monthlyPurchasingAggregate(source.purchases, range);
+      const productsByPurchasing = productPerformance(source.purchases, source.products, range);
       const unavailable = { available: false, reason: "CANONICAL_SALES_SOURCE_MISSING" };
       return Response.success({
         range: { preset: range.preset, startDate: range.startDate, endDate: range.endDate,
@@ -207,15 +252,24 @@ function DashboardService(dependencies = {}) {
         summary: { products: source.products.length, partners: source.partners.length,
           pickups: source.pickups.length, returns: source.returns.length,
           purchasingCount: purchasing.count, expenseCount: expense.count,
-          purchasingValue: purchasing.total, expenseValue: expense.total },
+          purchasingValue: purchasing.total, expenseValue: expense.total,
+          purchasedUnits: purchasing.units, transactionCount: purchasing.count + expense.count,
+          revenue: null, profit: null },
+        financial: { revenue: null, expense: expense.total, profit: null,
+          revenueReason: "CANONICAL_SALES_SOURCE_MISSING", profitReason: "CANONICAL_SALES_SOURCE_MISSING" },
         expenseBreakdown: { labels: expense.labels, values: expense.values, total: expense.total },
         purchasingTrend: { labels: purchasing.labels, values: purchasing.values,
           total: purchasing.total, granularity: range.granularity },
+        monthlyPurchasingTrend: monthlyPurchasing,
+        productPerformance: productsByPurchasing,
+        leaders: { bestSeller: null, topRevenueProduct: null,
+          topPurchasedProduct: productsByPurchasing.rows[0] || null,
+          salesReason: "CANONICAL_SALES_SOURCE_MISSING" },
         recentActivities: recentActivities([
           { module: "Expense", source: source.expenses }, { module: "Partner", source: source.partners },
           { module: "Pickup", source: source.pickups }, { module: "Product", source: source.products },
           { module: "Purchasing", source: source.purchases }, { module: "Return", source: source.returns },
-        ]),
+        ], range),
         availability: { revenue: unavailable, profit: unavailable, unitsSold: unavailable,
           activeSalesDays: unavailable, bestSeller: unavailable, topRevenueProduct: unavailable,
           hotColdSplit: unavailable, revenueTrend: unavailable },

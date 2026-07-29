@@ -1,15 +1,15 @@
 <template id="sidebar-template">
-  <div class="flex flex-col h-full">
+  <div class="sidebar-inner flex h-full flex-col">
     <!-- Logo -->
-    <div class="h-16 flex items-center gap-3 px-6 border-b border-slate-200">
+    <div class="sidebar-brand flex items-center gap-3 px-4">
       <div
-        class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center"
+        class="brand-mark flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-white"
       >
         <i class="fa-solid fa-mug-hot text-lg"></i>
       </div>
 
-      <div>
-        <h1 class="font-bold text-slate-800">IP-Starling</h1>
+      <div class="min-w-0">
+        <h1 class="truncate text-lg font-bold text-slate-800">IP-Starling</h1>
 
         <p class="text-xs text-slate-500">Inventory & Purchasing</p>
       </div>
@@ -17,9 +17,9 @@
 
     <!-- Menu -->
 
-    <nav class="flex-1 overflow-auto py-4">
+    <nav class="sidebar-nav flex-1 overflow-auto px-3 py-4" aria-label="Primary navigation">
       <button
-        class="menu-item w-full flex items-center gap-3 px-6 py-3 text-slate-600 hover:bg-slate-100"
+        class="menu-item flex w-full items-center gap-3 rounded-xl px-3 py-3 text-slate-600 hover:bg-slate-100"
         data-page="dashboard"
       >
         <i class="fa-solid fa-chart-line w-5"></i>
@@ -28,7 +28,7 @@
       </button>
 
       <button
-        class="menu-item w-full flex items-center gap-3 px-6 py-3 text-slate-600 hover:bg-slate-100"
+        class="menu-item flex w-full items-center gap-3 rounded-xl px-3 py-3 text-slate-600 hover:bg-slate-100"
         data-page="products"
       >
         <i class="fa-solid fa-box w-5"></i>
@@ -37,7 +37,7 @@
       </button>
 
       <button
-        class="menu-item w-full flex items-center gap-3 px-6 py-3 text-slate-600 hover:bg-slate-100"
+        class="menu-item flex w-full items-center gap-3 rounded-xl px-3 py-3 text-slate-600 hover:bg-slate-100"
         data-page="partners"
       >
         <i class="fa-solid fa-users w-5"></i>
@@ -46,7 +46,7 @@
       </button>
 
       <button
-        class="menu-item w-full flex items-center gap-3 px-6 py-3 text-slate-600 hover:bg-slate-100"
+        class="menu-item flex w-full items-center gap-3 rounded-xl px-3 py-3 text-slate-600 hover:bg-slate-100"
         data-page="pickups"
       >
         <i class="fa-solid fa-truck w-5"></i>
@@ -55,7 +55,7 @@
       </button>
 
       <button
-        class="menu-item w-full flex items-center gap-3 px-6 py-3 text-slate-600 hover:bg-slate-100"
+        class="menu-item flex w-full items-center gap-3 rounded-xl px-3 py-3 text-slate-600 hover:bg-slate-100"
         data-page="returns"
       >
         <i class="fa-solid fa-rotate-left w-5"></i>
@@ -64,7 +64,7 @@
       </button>
 
       <button
-        class="menu-item w-full flex items-center gap-3 px-6 py-3 text-slate-600 hover:bg-slate-100"
+        class="menu-item flex w-full items-center gap-3 rounded-xl px-3 py-3 text-slate-600 hover:bg-slate-100"
         data-page="purchasing"
       >
         <i class="fa-solid fa-cart-shopping w-5"></i>
@@ -73,7 +73,7 @@
       </button>
 
       <button
-        class="menu-item w-full flex items-center gap-3 px-6 py-3 text-slate-600 hover:bg-slate-100"
+        class="menu-item flex w-full items-center gap-3 rounded-xl px-3 py-3 text-slate-600 hover:bg-slate-100"
         data-page="expenses"
       >
         <i class="fa-solid fa-wallet w-5"></i>
@@ -82,7 +82,7 @@
       </button>
 
       <button
-        class="menu-item w-full flex items-center gap-3 px-6 py-3 text-slate-600 hover:bg-slate-100"
+        class="menu-item flex w-full items-center gap-3 rounded-xl px-3 py-3 text-slate-600 hover:bg-slate-100"
         data-page="settings"
       >
         <i class="fa-solid fa-gear w-5"></i>
@@ -91,7 +91,7 @@
       </button>
 
       <button
-        class="menu-item w-full flex items-center gap-3 px-6 py-3 text-slate-600 hover:bg-slate-100"
+        class="menu-item flex w-full items-center gap-3 rounded-xl px-3 py-3 text-slate-600 hover:bg-slate-100"
         data-page="logs"
       >
         <i class="fa-solid fa-clipboard-list w-5"></i>
@@ -101,10 +101,17 @@
 
     <!-- Footer -->
 
-    <div class="border-t border-slate-200 p-5">
-      <div class="text-xs text-slate-500">Version</div>
-
-      <div id="appVersion" class="font-semibold text-slate-700">v—</div>
+    <div class="sidebar-footer border-t border-slate-200 px-5 py-5">
+      <div class="flex items-center gap-3">
+        <div class="sidebar-avatar flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
+          <i class="fa-solid fa-user"></i>
+        </div>
+        <div class="min-w-0 flex-1">
+          <div id="current-user" class="truncate text-sm font-semibold text-slate-800">Administrator</div>
+          <div class="truncate text-xs text-slate-500">System User · <span id="appVersion">v—</span></div>
+        </div>
+        <i class="fa-solid fa-chevron-down text-xs text-slate-500" aria-hidden="true"></i>
+      </div>
     </div>
   </div>
 </template>

@@ -280,8 +280,6 @@
 
       renderSidebar(state.page);
 
-      Render.topbar(state.page);
-
       Render.page(state.page);
 
       Events.init();
@@ -345,8 +343,6 @@
       state.page = page;
 
       renderSidebar(page);
-
-      Render.topbar(page);
 
       Render.page(page);
 
@@ -809,6 +805,8 @@
         availability: data.availability && typeof data.availability === "object" ? data.availability : {},
         recentActivities: Array.isArray(data.recentActivities) ? data.recentActivities : [],
         purchasingTrend: series(data.purchasingTrend),
+        monthlyPurchasingTrend: series(data.monthlyPurchasingTrend),
+        productPerformance: series(data.productPerformance),
         expenseBreakdown: series(data.expenseBreakdown),
       };
     }

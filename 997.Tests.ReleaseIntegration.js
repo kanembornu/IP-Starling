@@ -119,7 +119,7 @@ function testReleaseRouteInitializationOnce() {
 function testReleaseEventBindingOnce() {
   const events = releaseIntegrationSources().events;
   releaseAssert(/let initialized = false/.test(events) && /function init\(\)\s*\{\s*if \(initialized\) return;\s*initialized = true;/.test(events), "Events.init is not idempotent.");
-  ["bindSidebar", "bindTopbar", "bindDashboard", "bindGlobal", "bindMasterData", "bindKeyboard", "bindWindow", "bindPurchasing", "bindPickups", "bindReturns", "bindExpenses"].forEach((name) => {
+  ["bindSidebar", "bindDashboard", "bindGlobal", "bindMasterData", "bindKeyboard", "bindWindow", "bindPurchasing", "bindPickups", "bindReturns", "bindExpenses"].forEach((name) => {
     releaseAssert(releaseCount(releaseFunctionSource(events, "init"), new RegExp(`\\b${name}\\(\\);`, "g")) === 1, `${name} is not bound exactly once.`);
   });
 }

@@ -1,23 +1,17 @@
 <template id="layout-template">
-  <div class="flex h-screen bg-slate-100">
+  <div class="app-shell flex h-screen bg-slate-100">
     <!-- Sidebar -->
     <aside
       id="sidebar-container"
-      class="w-72 bg-white border-r border-slate-200 shadow-sm"
+      class="app-sidebar shrink-0 overflow-hidden bg-white"
     ></aside>
 
     <!-- Main Area -->
-    <div class="flex flex-col flex-1 overflow-hidden">
-      <!-- Topbar -->
-      <header
-        id="topbar-container"
-        class="h-16 bg-white border-b border-slate-200"
-      ></header>
-
+    <div class="app-main-frame flex min-w-0 flex-1 flex-col overflow-hidden">
       <!-- Content -->
       <main
         id="content-container"
-        class="flex-1 overflow-auto p-6 bg-slate-100"
+        class="app-content flex-1 overflow-auto bg-slate-100"
       ></main>
     </div>
   </div>

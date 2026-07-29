@@ -38,25 +38,6 @@
       );
     }
 
-    //===========================================================================
-    // Topbar
-    //===========================================================================
-
-    function bindTopbar() {
-      document.addEventListener(
-        "click",
-
-        (event) => {
-          if (event.target.closest("#btn-refresh")) {
-            App.refresh();
-
-            return;
-          }
-
-        },
-      );
-    }
-
     function bindFilterControls() {
       document.addEventListener("click", (event) => {
         const button = event.target.closest("[data-filter-clear]");
@@ -94,7 +75,7 @@
     }
 
     function isSearchInput(input) {
-      return input.id === "global-search" || input.dataset.module !== undefined;
+      return input.dataset.module !== undefined;
     }
 
     //===========================================================================
@@ -149,17 +130,6 @@
             return;
           }
 
-          if (event.ctrlKey && event.key.toLowerCase() === "f") {
-            event.preventDefault();
-
-            const search = DOM.$("global-search");
-
-            if (search) {
-              search.focus();
-
-              search.select();
-            }
-          }
         },
       );
     }
@@ -180,8 +150,6 @@
       initialized = true;
 
       bindSidebar();
-
-      bindTopbar();
 
       bindFilterControls();
 

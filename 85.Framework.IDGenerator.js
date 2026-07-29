@@ -44,8 +44,8 @@ const IDGenerator = (() => {
    * Counter Key
    * --------------------------------------------------------------------------
    */
-  function counterKey(prefix) {
-    return `SEQ_${prefix}_${dateCode()}`;
+  function counterKey(prefix, date = new Date()) {
+    return `SEQ_${prefix}_${dateCode(date)}`;
   }
 
   /**
@@ -105,6 +105,23 @@ const IDGenerator = (() => {
     return Number(properties.getProperty(counterKey(prefix)) || 0);
   }
 
+  /** Advance today's sequence monotonically without allocating an ID. */
+  function ensureAtLeast(prefix, minimum) {
+    const target = Math.max(0, Math.floor(Number(minimum) || 0));
+    const lock = LockService.getScriptLock();
+    const ownsLock = typeof lock.hasLock === "function" && lock.hasLock();
+    if (!ownsLock) lock.waitLock(30000);
+    try {
+      const key = counterKey(prefix);
+      const before = Number(properties.getProperty(key) || 0);
+      const after = Math.max(before, target);
+      if (after > before) properties.setProperty(key, String(after));
+      return { prefix, before, target, after, advanced: after > before };
+    } finally {
+      if (!ownsLock) lock.releaseLock();
+    }
+  }
+
   /**
    * --------------------------------------------------------------------------
    * Reset Today's Sequence
@@ -124,6 +141,8 @@ const IDGenerator = (() => {
     generate,
 
     current,
+
+    ensureAtLeast,
 
     reset,
   });

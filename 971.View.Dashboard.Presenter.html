@@ -1,20 +1,22 @@
 <script>
   const DashboardPresenter = (() => {
     let trendChart = null;
+    let productChart = null;
     let breakdownChart = null;
     const escape = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
     function destroyCharts() {
       if (trendChart) trendChart.destroy();
+      if (productChart) productChart.destroy();
       if (breakdownChart) breakdownChart.destroy();
       trendChart = null;
+      productChart = null;
       breakdownChart = null;
     }
 
     function render(data) {
       if (!data) return renderError("Dashboard data unavailable.");
       renderKPI(data.summary || {});
-      renderAvailability(data.availability || {});
       renderActivities(data.recentActivities || []);
       renderRange(data.range || {});
       renderCharts(data);
@@ -23,7 +25,6 @@
     function renderError(message = "Dashboard data unavailable. Refresh to retry.") {
       destroyCharts();
       Render.mount("dashboard-kpi", Components.empty(message));
-      Render.mount("dashboard-statistics", Components.empty("Availability unavailable."));
       Render.mount("dashboard-activities", Components.empty("Recent activities unavailable."));
     }
 
@@ -38,22 +39,12 @@
 
     function renderKPI(summary) {
       const cards = [
-        { title: "Purchasing Value", value: Format.currency(summary.purchasingValue), icon: "fa-cart-shopping", color: "amber" },
-        { title: "Expense", value: Format.currency(summary.expenseValue), icon: "fa-wallet", color: "red" },
-        { title: "Purchasing Records", value: summary.purchasingCount || 0, icon: "fa-receipt", color: "blue" },
-        { title: "Expense Records", value: summary.expenseCount || 0, icon: "fa-file-invoice-dollar", color: "green" },
+        { title: "Purchasing Value", value: Format.currency(summary.purchasingValue), icon: "fa-bag-shopping", color: "amber", detail: "Selected period" },
+        { title: "Expense Value", value: Format.currency(summary.expenseValue), icon: "fa-layer-group", color: "orange", detail: "Selected period" },
+        { title: "Purchased Units", value: Format.number(summary.purchasedUnits || 0), icon: "fa-boxes-stacked", color: "red", detail: "Units in range" },
+        { title: "Transactions", value: Format.number(summary.transactionCount || 0), icon: "fa-receipt", color: "green", detail: "Purchasing + expenses" },
       ];
       Render.mount("dashboard-kpi", cards.map(Components.stat).join(""));
-    }
-
-    function renderAvailability(availability) {
-      const names = { revenue: "Revenue", profit: "Profit", unitsSold: "Units Sold", activeSalesDays: "Active Sales Days",
-        bestSeller: "Best Seller", topRevenueProduct: "Top Revenue Product", hotColdSplit: "Hot/Cold Split", revenueTrend: "Revenue Trend" };
-      const html = Object.keys(names).map((key) => {
-        const available = availability[key]?.available === true;
-        return `<div class="flex justify-between gap-3 py-2"><span>${escape(names[key])}</span><span class="text-xs ${available ? "text-green-600" : "text-slate-500"}">${available ? "Available" : "Unavailable"}</span></div>`;
-      }).join("");
-      Render.mount("dashboard-statistics", html);
     }
 
     function renderActivities(activities) {
@@ -91,15 +82,23 @@
 
     function renderCharts(data) {
       destroyCharts();
-      const trend = data.purchasingTrend || { labels: [], values: [] };
+      const trend = data.monthlyPurchasingTrend || { labels: [], values: [] };
+      const products = data.productPerformance || { labels: [], values: [] };
       const breakdown = data.expenseBreakdown || { labels: [], values: [] };
       const trendEmpty = !trend.values?.some((value) => Number(value) !== 0);
+      const productEmpty = !products.values?.some((value) => Number(value) !== 0);
       const breakdownEmpty = !breakdown.values?.length;
       emptyChart("chart-overview", "dashboard-trend-empty", trendEmpty, "No purchasing value in this range.");
+      emptyChart("chart-product", "dashboard-product-empty", productEmpty, "No product purchasing data in this range.");
       emptyChart("chart-distribution", "dashboard-breakdown-empty", breakdownEmpty, "No expense data in this range.");
       if (typeof Chart === "undefined") return;
-      if (!trendEmpty) trendChart = new Chart(DOM.$("chart-overview"), { type: "line", data: { labels: trend.labels, datasets: [{ label: "Purchasing Value", data: trend.values, borderColor: "#4f46e5", backgroundColor: "rgba(79,70,229,.12)", fill: true, tension: .25 }] }, options: { responsive: true, plugins: { tooltip: { callbacks: { label: (context) => Format.currency(context.raw) } } } } });
-      if (!breakdownEmpty) breakdownChart = new Chart(DOM.$("chart-distribution"), { type: "doughnut", data: { labels: breakdown.labels, datasets: [{ data: breakdown.values, backgroundColor: ["#ef4444", "#f59e0b", "#3b82f6", "#10b981", "#8b5cf6", "#64748b"] }] }, options: { responsive: true, plugins: { tooltip: { callbacks: { label: (context) => `${context.label}: ${Format.currency(context.raw)}` } } } } });
+      const chartText = "#8f897f";
+      const chartGrid = "rgba(255,255,255,.07)";
+      const tooltip = { backgroundColor: "#25221e", borderColor: "#403a32", borderWidth: 1, titleColor: "#f4f1eb", bodyColor: "#d8d3ca" };
+      const monthLabels = trend.labels.map((label) => { const match = /^(\d{4})-(\d{2})$/.exec(String(label)); return match ? new Intl.DateTimeFormat("en", { month: "short", timeZone: "UTC" }).format(new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1))) : String(label); });
+      if (!trendEmpty) trendChart = new Chart(DOM.$("chart-overview"), { type: "line", data: { labels: monthLabels, datasets: [{ data: trend.values, borderColor: "#f59e0b", backgroundColor: "rgba(245,158,11,.07)", pointBackgroundColor: "#fbbf24", pointBorderColor: "#181714", pointRadius: 2.5, borderWidth: 2, fill: true, tension: .38 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { x: { ticks: { color: chartText }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: chartText, stepSize: 5000, callback: (value) => Number(value) === 0 ? "0" : `${Number(value) / 1000}K` }, grid: { color: chartGrid }, border: { display: false } } }, plugins: { legend: { display: false }, tooltip: { ...tooltip, callbacks: { label: (context) => Format.currency(context.raw) } } } } });
+      if (!productEmpty) productChart = new Chart(DOM.$("chart-product"), { type: "bar", data: { labels: products.labels, datasets: [{ data: products.values, backgroundColor: "rgba(163,230,53,.55)", borderColor: "#a3e635", borderWidth: 1, borderRadius: 6 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { x: { ticks: { color: chartText }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: chartText, callback: (value) => Number(value) === 0 ? "0" : `${Number(value) / 1000}K` }, grid: { color: chartGrid }, border: { display: false } } }, plugins: { legend: { display: false }, tooltip: { ...tooltip, callbacks: { label: (context) => Format.currency(context.raw) } } } } });
+      if (!breakdownEmpty) breakdownChart = new Chart(DOM.$("chart-distribution"), { type: "doughnut", data: { labels: breakdown.labels, datasets: [{ data: breakdown.values, borderColor: "#181714", borderWidth: 4, hoverOffset: 4, backgroundColor: ["#fb7185", "#f59e0b", "#a3e635", "#34d399", "#60a5fa", "#78716c"] }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "70%", plugins: { legend: { position: "bottom", labels: { color: chartText, padding: 16, boxWidth: 10, usePointStyle: true } }, tooltip: { ...tooltip, callbacks: { label: (context) => `${context.label}: ${Format.currency(context.raw)}` } } } } });
     }
 
     return Object.freeze({ render, renderLoading, renderError, renderRangeError, renderRangeControls, destroyCharts });

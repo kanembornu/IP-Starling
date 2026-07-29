@@ -1,35 +1,33 @@
 <template id="dashboard-page">
-  <div class="space-y-6">
-    <section class="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl text-white p-6 shadow">
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div><h1 class="text-3xl font-bold">Dashboard</h1><p class="mt-2 text-blue-100">Supported operational metrics</p></div>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-slate-800">
-          <label class="text-xs text-white">Range
-            <select id="dashboard-preset" class="mt-1 w-full rounded-lg border-0 px-3 py-2 text-sm text-slate-800">
+  <div class="dashboard-layout space-y-5">
+    <header>
+      <h2 class="text-2xl font-bold text-slate-800">Dashboard</h2>
+      <p class="mt-1 text-sm text-slate-500">Purchasing and expense performance for the selected period.</p>
+    </header>
+    <section id="dashboard-kpi" class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"></section>
+    <section class="dashboard-chart-grid grid grid-cols-1 gap-5 xl:grid-cols-2">
+      <div class="dashboard-panel ui-card">
+        <div class="dashboard-panel-header flex-wrap justify-between gap-3 border-b p-5">
+          <div><h3 class="font-semibold">Purchasing Value Trend</h3><div id="dashboard-range-label" class="mt-1 text-xs text-slate-500" aria-live="polite"></div></div>
+          <div class="dashboard-range-controls flex flex-wrap justify-end gap-2">
+            <label class="sr-only" for="dashboard-preset">Range</label>
+            <select id="dashboard-preset" class="h-9 rounded-lg px-3 text-xs text-slate-800">
               <option value="TODAY">Today</option><option value="LAST_7_DAYS">Last 7 Days</option>
               <option value="CURRENT_MONTH" selected>Current Month</option><option value="PREVIOUS_MONTH">Previous Month</option>
               <option value="CURRENT_YEAR">Current Year</option><option value="CUSTOM">Custom</option>
             </select>
-          </label>
-          <label id="dashboard-start-wrap" class="hidden text-xs text-white">Start
-            <input id="dashboard-start" type="date" class="mt-1 w-full rounded-lg border-0 px-3 py-2 text-sm text-slate-800" />
-          </label>
-          <label id="dashboard-end-wrap" class="hidden text-xs text-white">End
-            <input id="dashboard-end" type="date" class="mt-1 w-full rounded-lg border-0 px-3 py-2 text-sm text-slate-800" />
-          </label>
+            <label id="dashboard-start-wrap" class="hidden"><span class="sr-only">Start</span><input id="dashboard-start" type="date" class="h-9 rounded-lg px-2 text-xs text-slate-800" /></label>
+            <label id="dashboard-end-wrap" class="hidden"><span class="sr-only">End</span><input id="dashboard-end" type="date" class="h-9 rounded-lg px-2 text-xs text-slate-800" /></label>
+          </div>
+          <div id="dashboard-range-error" role="alert" class="hidden w-full rounded-lg bg-red-100 px-3 py-2 text-sm text-red-800"></div>
         </div>
+        <div id="dashboard-trend-empty" class="hidden p-8 text-center text-slate-500"></div><div class="dashboard-chart p-5"><canvas id="chart-overview" role="img" aria-label="Purchasing value trend chart"></canvas></div>
       </div>
-      <div id="dashboard-range-error" role="alert" class="hidden mt-3 rounded-lg bg-red-100 px-3 py-2 text-sm text-red-800"></div>
-      <div id="dashboard-range-label" class="mt-3 text-sm text-blue-100" aria-live="polite"></div>
+      <div class="dashboard-panel ui-card"><div class="dashboard-panel-header border-b p-5"><div><h3 class="font-semibold">Product Performance</h3><p class="mt-1 text-xs text-slate-500">Purchasing value by product</p></div></div><div id="dashboard-product-empty" class="hidden p-8 text-center text-slate-500"></div><div class="dashboard-chart p-5"><canvas id="chart-product" role="img" aria-label="Product purchasing performance chart"></canvas></div></div>
     </section>
-    <section id="dashboard-kpi" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6"></section>
-    <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-      <div class="bg-white rounded-xl border border-slate-200 shadow-sm"><div class="p-5 border-b"><h3 class="font-semibold">Purchasing Value Trend</h3></div><div id="dashboard-trend-empty" class="hidden p-8 text-center text-slate-500"></div><div class="p-5"><canvas id="chart-overview" role="img" aria-label="Purchasing value trend chart"></canvas></div></div>
-      <div class="bg-white rounded-xl border border-slate-200 shadow-sm"><div class="p-5 border-b"><h3 class="font-semibold">Expense by Category</h3></div><div id="dashboard-breakdown-empty" class="hidden p-8 text-center text-slate-500"></div><div class="p-5"><canvas id="chart-distribution" role="img" aria-label="Expense by category chart"></canvas></div></div>
-    </section>
-    <section class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-      <div class="xl:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm"><div class="p-5 border-b"><h3 class="font-semibold">Recent Activities</h3></div><div id="dashboard-activities" class="divide-y"></div></div>
-      <div class="bg-white rounded-xl border border-slate-200 shadow-sm"><div class="p-5 border-b"><h3 class="font-semibold">Availability</h3></div><div id="dashboard-statistics" class="p-5"></div></div>
+    <section class="dashboard-lower-grid grid grid-cols-1 gap-5 xl:grid-cols-2">
+      <div class="dashboard-panel ui-card"><div class="dashboard-panel-header border-b p-5"><div><h3 class="font-semibold">Expense by Category</h3><p class="mt-1 text-xs text-slate-500">Expense distribution</p></div></div><div id="dashboard-breakdown-empty" class="hidden p-8 text-center text-slate-500"></div><div class="dashboard-chart p-5"><canvas id="chart-distribution" role="img" aria-label="Expense by category chart"></canvas></div></div>
+      <div class="dashboard-panel ui-card"><div class="dashboard-panel-header border-b p-5"><div><h3 class="font-semibold">Recent Activities</h3><p class="mt-1 text-xs text-slate-500">Activity within the selected period</p></div></div><div id="dashboard-activities" class="divide-y"></div></div>
     </section>
   </div>
 </template>

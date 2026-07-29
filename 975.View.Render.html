@@ -138,36 +138,6 @@
     }
 
     //===========================================================================
-    // Topbar
-    //===========================================================================
-
-    function topbar(page = "dashboard") {
-      const container = DOM.$("topbar-container");
-
-      if (!container) {
-        return;
-      }
-
-      DOM.replace(
-        container,
-
-        clone("topbar-template"),
-      );
-
-      const title = DOM.$("page-title");
-
-      const subtitle = DOM.$("page-subtitle");
-
-      if (title) {
-        title.textContent = Format.title(page);
-      }
-
-      if (subtitle) {
-        subtitle.textContent = "IP-Starling Inventory Management";
-      }
-    }
-
-    //===========================================================================
     // Page
     //===========================================================================
 
@@ -237,8 +207,6 @@
       layout,
 
       sidebar,
-
-      topbar,
 
       page,
 

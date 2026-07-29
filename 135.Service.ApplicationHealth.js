@@ -2033,7 +2033,6 @@ const ApplicationHealth = (() => {
           "900.View.Index",
           "905.View.Layout",
           "910.View.Sidebar",
-          "915.View.Topbar",
           "955.View.Modal",
           "965.View.API",
           "969.View.Pagination",

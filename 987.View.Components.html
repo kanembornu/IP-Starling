@@ -73,6 +73,8 @@
           rounded-full
           text-xs
           font-medium
+          ui-badge
+          ${active ? "ui-badge--success" : "ui-badge--neutral"}
           ${color}
         ">
         ${text}
@@ -110,7 +112,7 @@
 
       icon = "",
 
-      color = "blue",
+      color = "slate",
 
       type = "button",
 
@@ -119,13 +121,13 @@
       classes = "",
     } = {}) {
       const palette = {
-        blue: "bg-blue-600 hover:bg-blue-700 text-white",
+        blue: "ui-button--primary bg-blue-600 hover:bg-blue-700 text-white",
 
-        red: "bg-red-600 hover:bg-red-700 text-white",
+        red: "ui-button--danger bg-red-600 hover:bg-red-700 text-white",
 
-        green: "bg-green-600 hover:bg-green-700 text-white",
+        green: "ui-button--success bg-green-600 hover:bg-green-700 text-white",
 
-        gray: "bg-slate-200 hover:bg-slate-300 text-slate-700",
+        gray: "ui-button--secondary bg-slate-200 hover:bg-slate-300 text-slate-700",
       };
 
       return `
@@ -142,6 +144,7 @@
           px-4
           py-2
           rounded-lg
+          ui-button
           transition
           ${palette[color]}
           ${classes}
@@ -284,6 +287,7 @@
       return `
       <section
         class="
+          ui-card
           bg-white
           rounded-xl
           border
@@ -351,6 +355,7 @@
       return `
       <div
         class="
+          ui-card
           bg-white
           rounded-xl
           border
@@ -424,6 +429,7 @@
       return `
       <div
         class="
+          ui-card
           bg-white
           rounded-xl
           border
@@ -510,42 +516,48 @@
       icon = "fa-chart-column",
 
       color = "blue",
+
+      detail = "Selected period",
     } = {}) {
       const palette = {
-        blue: "bg-blue-100 text-blue-600",
-
-        green: "bg-green-100 text-green-600",
-
-        red: "bg-red-100 text-red-600",
-
-        amber: "bg-amber-100 text-amber-600",
-
-        slate: "bg-slate-100 text-slate-600",
+        orange: "kpi-card--orange",
+        green: "kpi-card--green",
+        red: "kpi-card--red",
+        amber: "kpi-card--amber",
+        slate: "kpi-card--slate",
       };
 
       return `
       <div
         class="
-          bg-white
-          rounded-xl
-          border
-          border-slate-200
-          shadow-sm
-          p-6
+          kpi-card
+          ${palette[color] || palette.slate}
+          ui-card
+          px-5
+          py-6
         ">
 
         <div
           class="
             flex
             items-center
-            justify-between
+            gap-4
           ">
 
-          <div>
+          <div
+            class="kpi-icon">
+            ${Components.icon(icon, "text-lg")}
+          </div>
+
+          <div class="min-w-0 flex-1">
 
             <div
               class="
-                text-sm
+                truncate
+                text-xs
+                font-medium
+                uppercase
+                tracking-wider
                 text-slate-500
               ">
 
@@ -556,6 +568,7 @@
             <div
               class="
                 mt-2
+                truncate
                 text-3xl
                 font-bold
                 text-slate-800
@@ -565,20 +578,9 @@
 
             </div>
 
-          </div>
-
-          <div
-            class="
-              w-14
-              h-14
-              rounded-xl
-              flex
-              items-center
-              justify-center
-              ${palette[color]}
-            ">
-
-            ${Components.icon(icon, "text-xl")}
+            <div class="mt-2 truncate text-xs text-slate-500">
+              ${detail}
+            </div>
 
           </div>
 
