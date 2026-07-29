@@ -27,13 +27,13 @@
     <!-- Toolbar -->
     <!-- =============================================================== -->
 
-    <div data-purchasing-toolbar class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-      <div class="flex flex-wrap gap-3 items-center">
-        <div class="inline-flex rounded-lg border border-slate-300 p-1" role="group" aria-label="Purchasing list mode">
-          <button type="button" data-purchasing-mode="active" class="purchasing-mode rounded-md px-4 py-2 text-sm font-medium transition"><i class="fa-solid fa-circle-check mr-2"></i>Active</button>
-          <button type="button" data-purchasing-mode="deleted" class="purchasing-mode rounded-md px-4 py-2 text-sm font-medium transition"><i class="fa-solid fa-trash-can mr-2"></i>Deleted</button>
+    <div data-purchasing-toolbar data-filter-toolbar="purchasing" class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div class="inline-flex w-full rounded-lg border border-slate-300 p-1 sm:w-auto" role="group" aria-label="Purchasing status filter">
+          <button type="button" data-purchasing-mode="active" class="purchasing-mode flex-1 rounded-md px-4 py-2 text-sm font-medium transition sm:flex-none"><i class="fa-solid fa-circle-check mr-2"></i>Active</button>
+          <button type="button" data-purchasing-mode="deleted" class="purchasing-mode flex-1 rounded-md px-4 py-2 text-sm font-medium transition sm:flex-none"><i class="fa-solid fa-trash-can mr-2"></i>Deleted</button>
         </div>
-        <div class="flex-1">
+        <div class="w-full min-w-0 flex-1">
           <input
             id="inp-purchasing-search"
             type="text"
@@ -42,17 +42,12 @@
           />
         </div>
 
-        <button
-          id="btn-purchasing-refresh"
-          type="button"
-          title="Refresh Purchasing"
-          aria-label="Refresh Purchasing"
-          class="px-4 py-2 rounded-lg border border-slate-300 hover:bg-slate-100"
-        >
-          <i class="fa-solid fa-rotate-right"></i>
-        </button>
-
+        <div class="flex gap-2 sm:flex-none">
+          <button type="button" data-filter-clear="purchasing" class="flex-1 rounded-lg border border-slate-300 px-4 py-2 text-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"><i class="fa-solid fa-xmark mr-2"></i>Clear filters</button>
+          <button id="btn-purchasing-refresh" type="button" title="Refresh Purchasing" aria-label="Refresh Purchasing" class="rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"><i class="fa-solid fa-rotate-right"></i></button>
+        </div>
       </div>
+      <p data-filter-feedback="purchasing" class="mt-3 text-xs text-slate-500" aria-live="polite">No filters active</p>
     </div>
 
     <!-- =============================================================== -->

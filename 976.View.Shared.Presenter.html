@@ -20,11 +20,30 @@
       return Utils.escapeHTML(value);
     }
 
+    function renderFilterState(module, options = {}) {
+      const toolbar = document.querySelector(`[data-filter-toolbar="${module}"]`);
+      if (!toolbar) return;
+      const active = Boolean(options.active);
+      const loading = Boolean(options.loading);
+      toolbar.setAttribute("aria-busy", String(loading));
+      toolbar.querySelectorAll("input, select, button").forEach((control) => {
+        control.disabled = loading || (control.dataset.filterClear !== undefined && !active);
+      });
+      const feedback = toolbar.querySelector(`[data-filter-feedback="${module}"]`);
+      if (feedback) {
+        DOM.text(feedback, loading ? "Updating filters..." : active ? "Filters active" : "No filters active");
+        feedback.classList.toggle("font-medium", active && !loading);
+        feedback.classList.toggle("text-blue-700", active && !loading);
+        feedback.classList.toggle("text-slate-500", !active || loading);
+      }
+    }
+
     //===========================================================================
     // Public API
     //===========================================================================
 
     return Object.freeze({
+      renderFilterState,
       text,
     });
   })();

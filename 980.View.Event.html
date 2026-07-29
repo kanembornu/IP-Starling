@@ -60,6 +60,14 @@
       );
     }
 
+    function bindFilterControls() {
+      document.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-filter-clear]");
+        if (!button || button.disabled || button.dataset.filterClear === "logs") return;
+        App.clearFilters(button.dataset.filterClear);
+      });
+    }
+
     //===========================================================================
     // Search
     //===========================================================================
@@ -184,6 +192,8 @@
       bindSidebar();
 
       bindTopbar();
+
+      bindFilterControls();
 
       bindDashboard();
 
