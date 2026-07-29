@@ -639,6 +639,29 @@
       } catch (error) { if (request !== logsRequest || state.page !== "logs") return; LogsPresenter.renderError(readableLoadError(error, "Logs could not be loaded.")); syncFilterToolbar("logs"); }
     }
 
+    function openLogDetail(serializedRow) {
+      if (state.page !== "logs") return false;
+      let row = {};
+      try { row = JSON.parse(String(serializedRow || "{}")); } catch (error) { return false; }
+      Modal.open({ title: "Log Detail", width: "lg", body: LogsPresenter.renderDetail(row), footer: '<button type="button" data-logs-detail-close class="rounded-lg border border-slate-300 px-5 py-2 hover:bg-slate-100">Close</button>' });
+      return true;
+    }
+
+    function closeLogDetail() {
+      if (state.page !== "logs") return false;
+      Modal.close();
+      return true;
+    }
+
+    function changeLogsPage(action) {
+      if (state.page !== "logs") return false;
+      if (action === "previous" && state.logsPage > 1) state.logsPage -= 1;
+      else if (action === "next") state.logsPage += 1;
+      else return false;
+      loadLogs();
+      return true;
+    }
+
     function bindLogsActions() {
       const applyFilters = () => {
         const next = logsFilterValues(); const error = DOM.$("logs-filter-error");
@@ -661,8 +684,6 @@
         const button = event.target.closest("[data-logs-action]"); if (!button || state.page !== "logs") return;
         const action = button.dataset.logsAction;
         if (action === "clear") { state.logsFilters = { preset: "CURRENT_MONTH", dateFrom: "", dateTo: "", level: "", category: "", module: "", action: "", status: "", search: "" }; state.logsPage = 1; return loadLogs(); }
-        if (action === "previous" && state.logsPage > 1) { state.logsPage -= 1; return loadLogs(); }
-        if (action === "next") { state.logsPage += 1; return loadLogs(); }
       });
       document.addEventListener("change", (event) => { if (event.target?.id === "logs-page-size" && state.page === "logs") { state.logsPageSize = validPageSize(event.target.value); state.logsPageSizeSelected = true; state.logsPage = 1; loadLogs(); } });
     }
@@ -954,7 +975,6 @@
             const request = productRequest;
             try {
               const response = await Api.Product.restore(productId);
-              console.info("Product restore response", response);
               if (request !== productRequest || state.page !== "products" || state.productMode !== "deleted") return true;
               if (!response?.success) { Toast.error(response?.message || "Product could not be restored."); return true; }
               restored = true; Toast.success(response.message || "Product restored.");
@@ -1082,7 +1102,7 @@
           if (attempted || state.partnerRestoreBusyId || state.page !== "partners" || state.partnerMode !== "deleted") return false;
           attempted = true; state.partnerRestoreBusyId = cleanId; renderPartners(); const request = partnerRequest;
           try {
-            const response = await Api.Partner.restore(cleanId); console.info("Partner restore response", response);
+            const response = await Api.Partner.restore(cleanId);
             if (request !== partnerRequest || state.page !== "partners" || state.partnerMode !== "deleted") return true;
             if (!response?.success) { Toast.error(response?.message || "Mitra tidak dapat dipulihkan."); return true; }
             restored = true; Toast.success(response.message || "Mitra berhasil dipulihkan."); state.deletedPartners = state.deletedPartners.filter((item) => String(item.ID) !== cleanId); partnersLoaded = false; state.pickupPartners = null; return true;
@@ -1216,7 +1236,7 @@
           if (attempted || state.pickupRestoreBusyId || state.page !== "pickups" || state.pickupMode !== "trash") return false;
           attempted = true; state.pickupRestoreBusyId = cleanId; renderPickups(); const request = ++pickupRequest;
           try {
-            const response = await Api.Pickup.restore(cleanId); console.info("Pickup restore response", response);
+            const response = await Api.Pickup.restore(cleanId);
             if (request !== pickupRequest || state.page !== "pickups" || state.pickupMode !== "trash") return true;
             if (!response?.success) { Toast.error(response?.message || "Pickup tidak dapat dipulihkan."); return true; }
             restored = true; invalidateReturnDependencies(); Toast.success(response.message || "Pickup berhasil dipulihkan."); state.deletedPickups = state.deletedPickups.filter((item) => String(item.ID) !== cleanId); return true;
@@ -2005,6 +2025,9 @@
       deletePartner,
       restorePartner,
       closePartnerModal,
+      openLogDetail,
+      closeLogDetail,
+      changeLogsPage,
     });
   })();
 

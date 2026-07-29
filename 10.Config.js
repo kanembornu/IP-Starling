@@ -148,7 +148,7 @@ const ID_PREFIX = Object.freeze({
  * ---------------------------------------------------------------------------
  */
 const ENV = Object.freeze({
-  DEBUG: true,
+  DEBUG: false,
 
   LOG_ENABLED: true,
 

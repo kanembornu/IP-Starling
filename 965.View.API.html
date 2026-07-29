@@ -13,14 +13,10 @@
     //===========================================================================
 
     function run(fn, ...args) {
-      console.log("CALL :", fn, args);
-
       return new Promise((resolve, reject) => {
         google.script.run
 
           .withSuccessHandler((result) => {
-            console.log("SUCCESS :", fn, result);
-
             resolve(result);
           })
 

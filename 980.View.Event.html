@@ -53,9 +53,6 @@
             return;
           }
 
-          if (event.target.closest("#btn-notification")) {
-            console.log("Notification");
-          }
         },
       );
     }
@@ -172,13 +169,6 @@
     //===========================================================================
 
     function bindWindow() {
-      window.addEventListener(
-        "resize",
-
-        Utils.throttle(() => {
-          console.log("Window resized");
-        }, 250),
-      );
     }
 
     //===========================================================================
@@ -213,11 +203,30 @@
 
       bindExpenses();
 
+      bindLogs();
+
       document.addEventListener(
         "click",
 
         handleActionClick,
       );
+    }
+
+    //===========================================================================
+    // Logs intent delegation
+    //===========================================================================
+
+    function bindLogs() {
+      document.addEventListener("click", handleLogsClick);
+    }
+
+    function handleLogsClick(event) {
+      const detail = event.target.closest("[data-logs-detail]");
+      if (detail) return App.openLogDetail(detail.dataset.logsDetail);
+      if (event.target.closest("[data-logs-detail-close]")) return App.closeLogDetail();
+      const pagination = event.target.closest("[data-logs-action]");
+      if (!pagination || pagination.disabled || pagination.getAttribute("aria-disabled") === "true") return;
+      if (["previous", "next"].includes(pagination.dataset.logsAction)) return App.changeLogsPage(pagination.dataset.logsAction);
     }
 
     //===========================================================================
