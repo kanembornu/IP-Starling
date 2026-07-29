@@ -52,10 +52,8 @@
     }
     function renderActions(id, busyId) {
       if (Utils.isEmpty(id)) return text("-");
-      const disabled = busyId ? "disabled aria-disabled=\"true\"" : "";
-      return `<button type="button" data-purchasing-action="edit" data-purchasing-id="${escape(id)}" ${disabled} title="Edit" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg transition bg-blue-50 hover:bg-blue-100 text-blue-700">${Components.icon("fa-pen")} <span>Edit</span></button>
-        <button type="button" data-purchasing-action="view" data-purchasing-id="${escape(id)}" ${disabled} title="View" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg transition bg-slate-100 hover:bg-slate-200 text-slate-700">${Components.icon("fa-eye")} <span>View</span></button>
-        <button type="button" data-purchasing-action="delete" data-purchasing-id="${escape(id)}" ${disabled} title="Delete" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg transition bg-red-50 hover:bg-red-100 text-red-700">${Components.icon("fa-trash-can")} <span>${String(busyId) === String(id) ? "Deleting..." : "Delete"}</span></button>`;
+      const busy = Boolean(busyId); const attrs = (action) => `data-purchasing-action="${action}" data-purchasing-id="${escape(id)}"`;
+      return Components.tableActions(`${Components.tableAction({ label: "View", icon: "fa-eye", attributes: attrs("view"), disabled: busy })}${Components.tableAction({ label: "Edit", icon: "fa-pen", tone: "blue", attributes: attrs("edit"), disabled: busy })}${Components.tableAction({ label: String(busyId) === String(id) ? "Deleting..." : "Delete", icon: "fa-trash-can", tone: "red", attributes: attrs("delete"), busy })}`);
     }
     function renderDeletedRow(row, view) {
       const id = safeValue(row?.[FIELD.ID]); const busy = Boolean(view.busyId); const allowed = row?.canRestore === true && !busy;
@@ -65,7 +63,7 @@
         Components.tableCell(text(formatNumber(row?.[FIELD.QTY])), "whitespace-nowrap text-right align-top"), Components.tableCell(text(formatCurrency(row?.[FIELD.PRICE])), "whitespace-nowrap text-right align-top"), Components.tableCell(text(formatCurrency(row?.[FIELD.TOTAL])), "whitespace-nowrap text-right align-top"),
         Components.tableCell(Components.badge(row?.canRestore === true ? "Aman direstore" : "Tidak dapat direstore", row?.canRestore === true), "whitespace-nowrap text-center align-top"),
         Components.tableCell(text(row?.restoreReason), "min-w-[22rem] whitespace-normal break-words align-top leading-relaxed"),
-        Components.tableCell(`<button type="button" data-purchasing-action="restore" data-purchasing-id="${escape(id)}" ${allowed ? "" : "disabled aria-disabled=\"true\""} class="rounded-lg px-3 py-2 ${row?.canRestore === true ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "cursor-not-allowed bg-slate-100 text-slate-400"} ${busy ? "cursor-not-allowed opacity-50" : ""}">${Components.icon("fa-rotate-left")} <span>${String(view.busyId || "") === String(id) ? "Restoring..." : "Restore"}</span></button>`, "whitespace-nowrap text-center align-top")
+        Components.tableCell(Components.tableActions(Components.tableAction({ label: String(view.busyId || "") === String(id) ? "Restoring..." : "Restore", icon: "fa-rotate-left", tone: row?.canRestore === true ? "green" : "gray", attributes: `data-purchasing-action="restore" data-purchasing-id="${escape(id)}"`, disabled: !allowed, busy })), "whitespace-nowrap text-center align-top")
       ]);
     }
 

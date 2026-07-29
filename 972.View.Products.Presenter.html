@@ -188,15 +188,9 @@
     function renderActions(id, mode, restoreBusyId) {
       if (mode === "deleted") {
         const pending = String(restoreBusyId || "") === String(id);
-        return `<div class="flex items-center justify-center">${actionButton(pending ? "Restoring..." : "Restore", "fa-rotate-left", "green", id, "restore", pending)}</div>`;
+        return Components.tableActions(actionButton(pending ? "Restoring..." : "Restore", "fa-rotate-left", "green", id, "restore", pending));
       }
-      return `
-        <div class="flex items-center justify-center gap-2">
-          ${actionButton("Edit", "fa-pen", "blue", id)}
-
-          ${actionButton("Delete", "fa-trash-can", "red", id)}
-        </div>
-      `;
+      return Components.tableActions(`${actionButton("Edit", "fa-pen", "blue", id)}${actionButton("Delete", "fa-trash-can", "red", id)}`);
     }
 
     function actionButton(
@@ -212,42 +206,7 @@
 
       disabled = false,
     ) {
-      const palette = {
-        blue: "bg-blue-100 hover:bg-blue-200 text-blue-600",
-
-        red: "bg-red-100 hover:bg-red-200 text-red-600",
-
-        green: "bg-green-100 hover:bg-green-200 text-green-700",
-      };
-
-      return `
-    <button
-      type="button"
-
-      data-action="${action}"
-
-      data-id="${text(id)}"
-
-      title="${label}"
-
-      ${disabled ? "disabled aria-busy=\"true\"" : ""}
-
-      class="
-        inline-flex
-        items-center
-        gap-2
-        px-3
-        py-2
-        rounded-lg
-        transition
-        ${palette[color]}
-      "
-    >
-      ${Components.icon(icon)}
-
-      <span>${label}</span>
-    </button>
-  `;
+      return Components.tableAction({ label, icon, tone: color, attributes: `data-action="${action}" data-id="${text(id)}"`, busy: disabled });
     }
 
     //===========================================================================

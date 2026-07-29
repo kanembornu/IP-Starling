@@ -64,13 +64,13 @@
     }
 
     function renderActiveActions(id, busyId) {
-      const disabled = busyId ? "disabled aria-disabled=\"true\"" : "";
-      return `<div class="inline-flex flex-wrap justify-center gap-2"><button type="button" data-expense-action="view" data-expense-id="${escape(id)}" ${disabled} class="rounded-lg bg-slate-100 px-3 py-2 text-slate-700 hover:bg-slate-200">${Components.icon("fa-eye")} <span>View</span></button><button type="button" data-expense-action="edit" data-expense-id="${escape(id)}" ${disabled} class="rounded-lg bg-blue-50 px-3 py-2 text-blue-700 hover:bg-blue-100">${Components.icon("fa-pen")} <span>Edit</span></button><button type="button" data-expense-action="delete" data-expense-id="${escape(id)}" ${disabled} class="rounded-lg bg-red-50 px-3 py-2 text-red-700 hover:bg-red-100">${Components.icon("fa-trash-can")} <span>${String(busyId) === String(id) ? "Deleting..." : "Delete"}</span></button></div>`;
+      const busy = Boolean(busyId); const attrs = (action) => `data-expense-action="${action}" data-expense-id="${escape(id)}"`;
+      return Components.tableActions(`${Components.tableAction({ label: "View", icon: "fa-eye", attributes: attrs("view"), disabled: busy })}${Components.tableAction({ label: "Edit", icon: "fa-pen", tone: "blue", attributes: attrs("edit"), disabled: busy })}${Components.tableAction({ label: String(busyId) === String(id) ? "Deleting..." : "Delete", icon: "fa-trash-can", tone: "red", attributes: attrs("delete"), busy })}`);
     }
 
     function renderDeletedAction(id, busyId) {
       const busy = Boolean(busyId);
-      return `<button type="button" data-expense-action="restore" data-expense-id="${escape(id)}" ${busy ? "disabled aria-disabled=\"true\"" : ""} class="rounded-lg bg-emerald-50 px-3 py-2 text-emerald-700 hover:bg-emerald-100 ${busy ? "cursor-not-allowed opacity-50" : ""}">${Components.icon("fa-rotate-left")} <span>${String(busyId) === String(id) ? "Restoring..." : "Restore"}</span></button>`;
+      return Components.tableActions(Components.tableAction({ label: String(busyId) === String(id) ? "Restoring..." : "Restore", icon: "fa-rotate-left", tone: "green", attributes: `data-expense-action="restore" data-expense-id="${escape(id)}"`, busy }));
     }
 
     function renderCreateForm(view = {}) { return renderForm("create", view); }

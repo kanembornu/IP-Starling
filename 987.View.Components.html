@@ -205,6 +205,29 @@
     `;
     }
 
+    function tableAction({
+      label = "",
+      icon = "",
+      tone = "gray",
+      attributes = "",
+      disabled = false,
+      busy = false,
+    } = {}) {
+      const palette = {
+        gray: "bg-slate-100 text-slate-700 hover:bg-slate-200",
+        blue: "bg-blue-50 text-blue-700 hover:bg-blue-100",
+        red: "bg-red-50 text-red-700 hover:bg-red-100",
+        green: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+      };
+      const unavailable = disabled || busy;
+
+      return `<button type="button" ${attributes} title="${Utils.escapeHTML(String(label || ""))}" ${unavailable ? `disabled aria-disabled="true"${busy ? ' aria-busy="true"' : ""}` : ""} class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 transition ${palette[tone] || palette.gray} disabled:cursor-not-allowed disabled:opacity-50">${Components.icon(icon)}<span>${Utils.escapeHTML(String(label || ""))}</span></button>`;
+    }
+
+    function tableActions(actions = "") {
+      return `<div class="inline-flex flex-col items-stretch justify-center gap-2 sm:flex-row sm:items-center">${actions}</div>`;
+    }
+
     function formFieldError(attribute, field) {
       return `<p ${attribute}="${Utils.escapeHTML(String(field || ""))}" role="alert" class="mt-1 hidden whitespace-pre-wrap break-words text-sm text-red-600"></p>`;
     }
@@ -896,6 +919,10 @@
       button,
 
       iconButton,
+
+      tableAction,
+
+      tableActions,
 
       formFieldError,
 
