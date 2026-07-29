@@ -36,7 +36,7 @@
 
     function icon(name, classes = "") {
       return `
-      <i class="fa-solid ${name} ${classes}"></i>
+      <i class="fa-solid ${name} ${classes}" aria-hidden="true"></i>
     `;
     }
 
@@ -46,7 +46,8 @@
         class="fa-solid
                fa-spinner
                fa-spin
-               ${size}">
+               ${size}"
+        aria-hidden="true">
       </i>
     `;
     }
@@ -182,11 +183,15 @@
       return `
       <button
 
+        type="button"
+
         ${id ? `id="${id}"` : ""}
 
         ${data}
 
         title="${title}"
+
+        aria-label="${title}"
 
         class="
           w-9
@@ -703,6 +708,9 @@
     function loading(message = "Loading...") {
       return `
       <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
         class="
           flex
           flex-col

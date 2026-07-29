@@ -1,10 +1,15 @@
 <template id="modal-template">
   <div
     id="modal-overlay"
+    aria-hidden="true"
     class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-50 p-2 sm:p-4"
   >
     <div
       id="modal-window"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+      tabindex="-1"
       class="flex max-h-[calc(100dvh-1rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)]"
     >
       <!-- =========================================================== -->

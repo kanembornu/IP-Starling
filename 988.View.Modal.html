@@ -8,6 +8,7 @@
    */
 
   const Modal = (() => {
+    let returnFocus = null;
     //===========================================================================
     // Elements
     //===========================================================================
@@ -47,7 +48,44 @@
 
       container.appendChild(template.content.cloneNode(true));
 
+      overlay()?.addEventListener("keydown", handleKeydown);
+
       return true;
+    }
+
+    function focusableElements() {
+      const dialog = windowElement();
+      if (!dialog) return [];
+      return Array.from(dialog.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+        .filter((element) => !element.closest(".hidden") && element.getAttribute("aria-hidden") !== "true");
+    }
+
+    function handleKeydown(event) {
+      if (event.key === "Escape") {
+        const closeButton = DOM.$("btn-modal-close");
+        if (!closeButton?.disabled) {
+          event.preventDefault();
+          closeButton?.click();
+        }
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+      const focusable = focusableElements();
+      if (!focusable.length) {
+        event.preventDefault();
+        windowElement()?.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
 
     //===========================================================================
@@ -103,6 +141,8 @@
     });
 
     function open(options = {}) {
+      if (!overlay() || overlay()?.classList.contains("hidden")) returnFocus = document.activeElement;
+
       if (!DOM.$("modal-overlay")) {
         init();
       }
@@ -131,6 +171,8 @@
         modal.classList.remove("hidden");
 
         modal.classList.add("flex");
+
+        modal.setAttribute("aria-hidden", "false");
       }
 
       const ov = overlay();
@@ -139,6 +181,8 @@
         ov.classList.remove("hidden");
         ov.classList.add("flex");
       }
+
+      (focusableElements()[0] || windowElement())?.focus();
     }
 
     //===========================================================================
@@ -157,6 +201,11 @@
 
         "hidden",
       );
+
+      overlay()?.setAttribute("aria-hidden", "true");
+
+      if (returnFocus?.isConnected) returnFocus.focus();
+      returnFocus = null;
     }
 
     //===========================================================================
