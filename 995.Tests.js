@@ -73,6 +73,14 @@ function runCoreRegressionTests() {
   runTestSuite("Core regression tests", [
     testCoreValidator,
     testCoreResponse,
+    testIDGeneratorCanonicalSequenceKeyContract,
+    testIDGeneratorPersistedReadBackContract,
+    testIDGeneratorRuntimeStorageAdapterContract,
+    testIDGeneratorCurrentDateMaximumScanContract,
+    testIDGeneratorSelfHealingAndLockContract,
+    testIDGeneratorPickupDetailCollisionRegression,
+    testIDGeneratorAllEntitySequenceRegression,
+    testRuntimeIdSequenceRepairEntryPointContract,
     testRepositoryCacheOversizedValueBypass,
   ]);
 }
@@ -672,10 +680,40 @@ function runDashboardFocusedTests() {
     testDashboardEmptyAndNumericSafety,
     testDashboardRangeMetricsAndAvailability,
     testDashboardDateRangeContract,
+    testPickupHistoricalPriceSchemaContract,
+    testPickupHistoricalPriceSnapshotSourceContract,
+    testReturnHistoricalValuationSourceContract,
+    testDashboardCurrentMonthWeeklyAggregation,
+    testDashboardAdaptiveDailyAggregationContract,
+    testDashboardAdaptiveWeeklyAggregationContract,
+    testDashboardAdaptiveMonthlyAggregationContract,
+    testDashboardAdaptiveYearlyAggregationContract,
+    testDashboardChronologicalBucketContract,
+    testDashboardNetPickupValueMonthlyAndWeeklyContract,
+    testDashboardCategoryAggregationContract,
+    testDashboardChartFormattingContract,
+    testDashboardResponsiveOutsideDonutContract,
+    testApplicationThemeSwitchingAndPersistenceContract,
+    testDashboardChartThemeAdaptationContract,
+    testDashboardChartMarkerRenderingContract,
+    testDashboardDonutLabelPolishContract,
+    testDashboardKpiAndRecentActivityLayoutContract,
     testDashboardRecentActivityStableOrdering,
     testDashboardControllerAndFrontendContracts,
     testDashboardExpenseControlledReconciliation,
     testDashboardPurchasingControlledReconciliation,
+  ]);
+}
+
+function runFinalUiUxContractTests() {
+  runTestSuite("Final UI/UX contract tests", [
+    testGlobalNominalFormatterParserContract,
+    testMonetaryPayloadNumericContract,
+    testPickupSuccessfulSaveModalCloseContract,
+    testPickupQtyRecalculationContract,
+    testPickupHeaderDetailQtyConsistencyContract,
+    testPurchaseDateOnlyRoundTripContract,
+    testSettingsHeaderThemeAndRefreshCleanupContract,
   ]);
 }
 

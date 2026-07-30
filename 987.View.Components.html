@@ -129,7 +129,6 @@
 
         gray: "ui-button--secondary bg-slate-200 hover:bg-slate-300 text-slate-700",
       };
-
       return `
       <button
 
@@ -526,6 +525,8 @@
         amber: "kpi-card--amber",
         slate: "kpi-card--slate",
       };
+      const valueLength = String(value).length;
+      const valueSize = valueLength > 16 ? "kpi-value--xlong" : valueLength > 12 ? "kpi-value--long" : "";
 
       return `
       <div
@@ -546,7 +547,7 @@
 
           <div
             class="kpi-icon">
-            ${Components.icon(icon, "text-lg")}
+            ${Components.icon(icon, "text-2xl")}
           </div>
 
           <div class="min-w-0 flex-1">
@@ -567,12 +568,12 @@
 
             <div
               class="
+                kpi-value
+                ${valueSize}
                 mt-2
-                truncate
-                text-3xl
                 font-bold
                 text-slate-800
-              ">
+              " title="${String(value).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}">
 
               ${value}
 

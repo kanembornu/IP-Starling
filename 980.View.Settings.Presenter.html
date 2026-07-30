@@ -3,10 +3,12 @@
     const escape = (value) => Utils.escapeHTML(String(value ?? ""));
 
     function renderLoading() {
-      Render.mount("settings-content", Components.loading({ message: "Loading settings..." }));
+      renderTheme();
+      Render.mount("settings-content", Components.loading("Loading settings..."));
     }
 
     function renderError(message = "Settings could not be loaded.") {
+      renderTheme();
       Render.mount("settings-content", Components.empty(escape(message)));
     }
 
@@ -48,11 +50,32 @@
       const groups = ["Business", "Dashboard", "System", "UI"];
       const html = groups.map((group) => {
         const items = settings.filter((setting) => setting.group === group && setting.key !== "ROWS_PER_PAGE");
-        return `<section><h2 class="mb-3 text-lg font-bold text-slate-800">${escape(group)}</h2><div class="grid grid-cols-1 gap-4 xl:grid-cols-2">${items.map((setting) => card(setting, busyKey)).join("")}</div></section>`;
+        const theme = group === "UI" ? themeCard() : "";
+        const title = group === "UI" ? "UI Settings" : group;
+        const description = group === "UI" ? `<p class="mb-3 text-sm text-slate-500">Control local appearance and user-interface preferences.</p>` : "";
+        return `<section ${group === "UI" ? 'data-settings-group="ui-settings"' : ""}><h2 class="${description ? "" : "mb-3 "}text-lg font-bold text-slate-800">${escape(title)}</h2>${description}<div class="grid grid-cols-1 gap-4 xl:grid-cols-2">${theme}${items.map((setting) => card(setting, busyKey)).join("")}</div></section>`;
       }).join("");
       Render.mount("settings-content", html || Components.empty("No settings available."));
+      renderTheme();
     }
 
-    return Object.freeze({ renderLoading, renderError, render });
+    function themeCard() {
+      return `<article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="theme-setting-title">
+        <h3 id="theme-setting-title" class="font-semibold text-slate-800">Theme</h3>
+        <p id="theme-setting-help" class="mt-1 text-sm text-slate-500">Choose the application appearance saved for this browser.</p>
+        <label class="mt-4 block text-sm font-medium text-slate-700" for="application-theme">Application theme
+          <select id="application-theme" data-theme-selector class="mt-2 h-10 w-full rounded-lg border border-slate-300 px-3" aria-describedby="theme-setting-help">
+            <option value="dark">Dark</option><option value="light">Light</option>
+          </select>
+        </label>
+      </article>`;
+    }
+
+    function renderTheme() {
+      const selector = DOM.$("application-theme");
+      if (selector && window.Theme) selector.value = window.Theme.get();
+    }
+
+    return Object.freeze({ renderLoading, renderError, render, renderTheme });
   })();
 </script>

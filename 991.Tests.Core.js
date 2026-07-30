@@ -29,6 +29,138 @@ function testCoreResponse() {
   }
 }
 
+function idGeneratorFixture(options = {}) {
+  const values = Object.assign({}, options.properties || {});
+  const lockCalls = { waits: 0, releases: 0 };
+  const lock = {
+    hasLock() { return false; },
+    waitLock() { lockCalls.waits += 1; },
+    releaseLock() { lockCalls.releases += 1; },
+  };
+  return {
+    values,
+    lockCalls,
+    generator: IDGenerator.createForTesting({
+      properties: {
+        getProperty(key) { return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : null; },
+        setProperty(key, value) { values[key] = String(value); },
+        deleteProperty(key) { delete values[key]; },
+      },
+      lockFactory: () => lock,
+      now: () => new Date("2026-07-30T02:00:00.000Z"),
+      formatDate: () => "260730",
+      rowsFor: (schema) => (options.rows || {})[schema.NAME] || [],
+      reservedIdsFor: (schema) => (options.reserved || {})[schema.NAME] || [],
+    }),
+  };
+}
+
+function testIDGeneratorCanonicalSequenceKeyContract() {
+  const fixture = idGeneratorFixture();
+  if (fixture.generator.counterKey("PH") !== "SEQ_PH_260730" ||
+      fixture.generator.counterKey("PD") !== "SEQ_PD_260730") {
+    throw new Error("Pickup sequence keys do not use the canonical IDGenerator key builder.");
+  }
+  const seedSource = String(DevelopmentSeed.synchronizeSequences);
+  const healthSource = String(ApplicationHealth.capture);
+  if (!/IDGenerator\.counterKey/.test(seedSource) || !/IDGenerator\.current/.test(seedSource) ||
+      !/IDGenerator\.current/.test(healthSource) || /`SEQ_/.test(seedSource) || /`SEQ_/.test(healthSource)) {
+    throw new Error("Seed or Application Health duplicates or bypasses canonical sequence access.");
+  }
+}
+
+function testIDGeneratorPersistedReadBackContract() {
+  const fixture = idGeneratorFixture({ properties: { SEQ_PH_260730: "1" } });
+  const result = fixture.generator.ensureAtLeast("PH", 4);
+  if (result.key !== "SEQ_PH_260730" || result.after !== 4 || !result.verified ||
+      fixture.generator.current("PH") !== 4 || fixture.values.SEQ_PH_260730 !== "4") {
+    throw new Error("Sequence advancement was not verified through canonical persisted read-back.");
+  }
+  fixture.generator.ensureAtLeast("PH", 2);
+  if (fixture.generator.current("PH") !== 4) throw new Error("Sequence synchronization decremented a counter.");
+}
+
+function testIDGeneratorRuntimeStorageAdapterContract() {
+  const source = expenseFrontendSource("85.Framework.IDGenerator");
+  if (!/PropertiesService\.getScriptProperties\(\)/.test(source) ||
+      !/properties\.getProperty\(counterKey\(prefix, date\)\)/.test(source) ||
+      !/properties\.setProperty\(counterKey\(prefix, date\), String\(sequence\)\)/.test(source) ||
+      /getDocumentProperties|getUserProperties/.test(source)) {
+    throw new Error("IDGenerator runtime storage is not canonical Script Properties.");
+  }
+}
+
+function testIDGeneratorCurrentDateMaximumScanContract() {
+  const schema = PICKUP_DETAIL_SCHEMA;
+  const idIndex = schema.HEADERS.indexOf(schema.PRIMARY_KEY);
+  const row = (id) => schema.HEADERS.map((_, index) => index === idIndex ? id : "");
+  const fixture = idGeneratorFixture({
+    rows: { PickupDetail: [row("PD26072900099"), row("PD26073000003"), row("PD26073000002")] },
+    reserved: { PickupDetail: ["PD26073000004"] },
+  });
+  if (fixture.generator.maximumExisting(schema) !== 4) {
+    throw new Error("Current-date maximum scan did not include persisted and reserved IDs.");
+  }
+}
+
+function testIDGeneratorSelfHealingAndLockContract() {
+  const schema = PICKUP_HEADER_SCHEMA;
+  const idIndex = schema.HEADERS.indexOf(schema.PRIMARY_KEY);
+  const row = schema.HEADERS.map((_, index) => index === idIndex ? "PH26073000001" : "");
+  const fixture = idGeneratorFixture({ rows: { PickupHeader: [row] } });
+  const repair = fixture.generator.repairSequence(schema);
+  const first = fixture.generator.generate(schema);
+  const second = fixture.generator.generate(schema);
+  if (repair.previousSequence !== 0 || repair.allocatedMaximum !== 1 ||
+      repair.repairedSequence !== 1 || repair.persistedReadBack !== 1 ||
+      first !== "PH26073000002" || second !== "PH26073000003" ||
+      fixture.generator.current("PH") !== 3 || fixture.lockCalls.waits !== 3 ||
+      fixture.lockCalls.releases !== 3) {
+    throw new Error("Locked allocation did not self-heal or remain collision-safe across allocations.");
+  }
+}
+
+function testIDGeneratorPickupDetailCollisionRegression() {
+  const schema = PICKUP_DETAIL_SCHEMA;
+  const idIndex = schema.HEADERS.indexOf(schema.PRIMARY_KEY);
+  const rows = [1, 2, 3].map((suffix) => schema.HEADERS.map((_, index) =>
+    index === idIndex ? `PD260730${String(suffix).padStart(5, "0")}` : ""));
+  const fixture = idGeneratorFixture({ rows: { PickupDetail: rows } });
+  const repair = fixture.generator.repairSequence(schema);
+  if (repair.previousSequence !== 0 || repair.allocatedMaximum !== 3 ||
+      repair.repairedSequence !== 3 || repair.persistedReadBack !== 3 ||
+      fixture.generator.generate(schema) !== "PD26073000004" || fixture.generator.current("PD") !== 4) {
+    throw new Error("Pickup Detail allocation did not recover from a zero stored sequence.");
+  }
+}
+
+function testRuntimeIdSequenceRepairEntryPointContract() {
+  const source = String(repairCurrentIdSequences);
+  if (!/^function repairCurrentIdSequences\(\)/.test(source) ||
+      !/LockService\.getScriptLock\(\)/.test(source) ||
+      !/ID_GENERATOR_SCHEMA_KEYS\.map/.test(source) ||
+      !/IDGenerator\.repairSequence\(schema, applicationDate\)/.test(source) ||
+      !/storageBackend:\s*"ScriptProperties"/.test(source) ||
+      !/Logger\.log\(JSON\.stringify\(report, null, 2\)\)/.test(source)) {
+    throw new Error("Editor-runnable current sequence repair contract is incomplete.");
+  }
+}
+
+function testIDGeneratorAllEntitySequenceRegression() {
+  const keys = ["PRODUCT", "PARTNER", "PICKUP_HEADER", "PICKUP_DETAIL", "RETURN", "PURCHASE", "EXPENSE", "SETTINGS"];
+  keys.forEach((key) => {
+    const schema = SCHEMA[key];
+    const idIndex = schema.HEADERS.indexOf(schema.PRIMARY_KEY);
+    const existing = `${schema.ID_PREFIX}26073000002`;
+    const row = schema.HEADERS.map((_, index) => index === idIndex ? existing : "");
+    const fixture = idGeneratorFixture({ rows: { [schema.NAME]: [row] } });
+    const allocated = fixture.generator.generate(schema);
+    if (allocated !== `${schema.ID_PREFIX}26073000003` || fixture.generator.current(schema.ID_PREFIX) !== 3) {
+      throw new Error(`${key} sequence remained behind its current-date allocated maximum.`);
+    }
+  });
+}
+
 function testRepositoryCacheOversizedValueBypass() {
   const schema = { TABLE: "CacheTest", PRIMARY_KEY: "ID", SYSTEM: { IS_DELETED: "Deleted" } };
 

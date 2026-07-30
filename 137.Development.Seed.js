@@ -3,7 +3,7 @@
  * Nothing in this file runs automatically. Use previewDevelopmentSeed() first.
  */
 const DevelopmentSeed = (() => {
-  const VERSION = "2026.07.29-v1";
+  const VERSION = "2026.07.29-v2";
   const RANDOM_SEED = 2602010731;
   const CONFIRMATION_TOKEN = "RESET_IP_STARLING_DEVELOPMENT_DATA_2026";
   const PERIOD = Object.freeze({ start: "2026-02-01", end: "2026-07-31" });
@@ -19,15 +19,9 @@ const DevelopmentSeed = (() => {
     "IDEMPOTENCY",
     "LOGS",
   ]);
-  const SEQUENTIAL_SEED_KEYS = Object.freeze([
-    "PRODUCT",
-    "PARTNER",
-    "PICKUP_HEADER",
-    "PICKUP_DETAIL",
-    "RETURN",
-    "PURCHASE",
-    "EXPENSE",
-  ]);
+  const SEQUENTIAL_SEED_KEYS = Object.freeze(
+    ID_GENERATOR_SCHEMA_KEYS.filter((key) => RESET_SCHEMA_KEYS.indexOf(key) >= 0),
+  );
 
   function seededRandom(seed) {
     let state = seed >>> 0;
@@ -307,6 +301,8 @@ const DevelopmentSeed = (() => {
                 PickupID: headerId,
                 ProductID: item.product.ID,
                 Qty: item.qty,
+                Harga: item.product.Harga,
+                Total: item.qty * item.product.Harga,
                 Notes:
                   detailIndex === 0 && pickupOrdinal % 23 === 0
                     ? "Kemasan dingin"
@@ -519,6 +515,10 @@ const DevelopmentSeed = (() => {
         errors.push(`Detail ${row.ID} PickupID`);
       if (!productIds.has(row.ProductID))
         errors.push(`Detail ${row.ID} ProductID`);
+      if (!Number.isFinite(Number(row.Harga)) || Number(row.Harga) < 0)
+        errors.push(`Detail ${row.ID} Harga`);
+      if (Number(row.Total) !== Number(row.Qty) * Number(row.Harga))
+        errors.push(`Detail ${row.ID} Total`);
     });
     rows.RETURN.forEach((row) => {
       const detail = detailById[row.PickupDetailID];
@@ -606,7 +606,12 @@ const DevelopmentSeed = (() => {
     const checks = {};
     Object.keys(targets).forEach((key) => {
       const target = targets[key];
-      const current = Number((sequences || {})[target.prefix] || 0);
+      const synchronized = (sequences || {})[key] || {};
+      const current = Number(
+        synchronized.after == null
+          ? (sequences || {})[target.prefix] || 0
+          : synchronized.after,
+      );
       checks[key] = {
         prefix: target.prefix,
         current,
@@ -620,8 +625,9 @@ const DevelopmentSeed = (() => {
     };
   }
   function synchronizeSequences(dataset) {
+    const synchronizationDate = new Date();
     const todayCode = Utilities.formatDate(
-      new Date(),
+      synchronizationDate,
       APP_CONFIG.TIMEZONE,
       "yyMMdd",
     );
@@ -632,8 +638,19 @@ const DevelopmentSeed = (() => {
       result[key] = Object.assign(
         {},
         target,
-        IDGenerator.ensureAtLeast(target.prefix, target.maximum),
+        IDGenerator.ensureAtLeast(
+          target.prefix,
+          target.maximum,
+          synchronizationDate,
+        ),
       );
+      const readBack = IDGenerator.current(target.prefix, synchronizationDate);
+      if (readBack < target.maximum)
+        throw new Error(
+          `Sequence synchronization failed for ${IDGenerator.counterKey(target.prefix, synchronizationDate)}.`,
+        );
+      result[key].after = readBack;
+      result[key].verified = true;
     });
     return result;
   }
@@ -660,12 +677,18 @@ const DevelopmentSeed = (() => {
       ),
     };
   }
-  function verifyHeaders() {
+  function legacyPickupDetailHeaders() {
+    return PICKUP_DETAIL_SCHEMA.HEADERS.filter((header) =>
+      header !== PICKUP_DETAIL_FIELDS.PRICE && header !== PICKUP_DETAIL_FIELDS.TOTAL);
+  }
+  function verifyHeaders(allowLegacyPickupDetails = false) {
     const result = {};
     RESET_SCHEMA_KEYS.forEach((key) => {
       const schema = SCHEMA[key];
       const actual = RepositoryBase.headers(schema);
-      if (JSON.stringify(actual) !== JSON.stringify(schema.HEADERS))
+      const legacyPickupDetails = allowLegacyPickupDetails && schema === PICKUP_DETAIL_SCHEMA &&
+        JSON.stringify(actual) === JSON.stringify(legacyPickupDetailHeaders());
+      if (JSON.stringify(actual) !== JSON.stringify(schema.HEADERS) && !legacyPickupDetails)
         throw new Error(`Canonical header mismatch: ${schema.TABLE}.`);
       result[schema.TABLE] = actual.slice();
     });
@@ -675,7 +698,7 @@ const DevelopmentSeed = (() => {
     const dataset = generate();
     const check = integrity(dataset);
     const env = environment();
-    const headers = verifyHeaders();
+    const headers = verifyHeaders(true);
     const estimatedBySheet = volumes(dataset);
     const estimatedTotal = Object.keys(estimatedBySheet).reduce(
       (sum, sheetName) => sum + estimatedBySheet[sheetName],
@@ -713,7 +736,7 @@ const DevelopmentSeed = (() => {
     const env = environment();
     if (env.production)
       throw new Error("Development backup aborted: environment is production.");
-    verifyHeaders();
+    verifyHeaders(true);
     const spreadsheet = Database.spreadsheet();
     const stamp = Utilities.formatDate(
       new Date(),
@@ -741,6 +764,18 @@ const DevelopmentSeed = (() => {
     RepositoryCache.clear(schema);
     RepositoryBase.clearHeaderCache(schema);
   }
+  function preparePickupDetailHeaders() {
+    const actual = RepositoryBase.headers(PICKUP_DETAIL_SCHEMA);
+    if (JSON.stringify(actual) === JSON.stringify(PICKUP_DETAIL_SCHEMA.HEADERS)) return;
+    if (JSON.stringify(actual) !== JSON.stringify(legacyPickupDetailHeaders())) {
+      throw new Error("PickupDetails header upgrade aborted: legacy header is not exact.");
+    }
+    const sheet = RepositoryBase.sheet(PICKUP_DETAIL_SCHEMA);
+    sheet.clear();
+    sheet.getRange(1, 1, 1, PICKUP_DETAIL_SCHEMA.HEADERS.length)
+      .setValues([PICKUP_DETAIL_SCHEMA.HEADERS.slice()]);
+    RepositoryBase.clearHeaderCache(PICKUP_DETAIL_SCHEMA);
+  }
   function execute(token) {
     if (token !== CONFIRMATION_TOKEN)
       throw new Error(
@@ -756,7 +791,7 @@ const DevelopmentSeed = (() => {
         throw new Error(
           "Development reset aborted: environment is production.",
         );
-      verifyHeaders();
+      verifyHeaders(true);
       const dataset = generate();
       const check = integrity(dataset);
       if (!check.valid)
@@ -764,6 +799,7 @@ const DevelopmentSeed = (() => {
           `Generated seed failed integrity validation: ${check.errors.join(" | ")}`,
         );
       backupSummary = backup();
+      preparePickupDetailHeaders();
       RESET_SCHEMA_KEYS.forEach((key) => clearDataRows(SCHEMA[key]));
       RESET_SCHEMA_KEYS.forEach((key) =>
         RepositoryWriter.insertMany(SCHEMA[key], dataset.rows[key]),

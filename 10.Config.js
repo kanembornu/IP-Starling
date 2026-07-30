@@ -142,6 +142,18 @@ const ID_PREFIX = Object.freeze({
   LOG: "LG",
 });
 
+/** Canonical schemas whose IDs are allocated by IDGenerator. */
+const ID_GENERATOR_SCHEMA_KEYS = Object.freeze([
+  "PRODUCT",
+  "PARTNER",
+  "PICKUP_HEADER",
+  "PICKUP_DETAIL",
+  "RETURN",
+  "PURCHASE",
+  "EXPENSE",
+  "SETTINGS",
+]);
+
 /**
  * ---------------------------------------------------------------------------
  * Environment Config

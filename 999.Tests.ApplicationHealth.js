@@ -40,7 +40,7 @@ function applicationHealthHealthyRows() {
   rows[PRODUCT_SCHEMA.TABLE] = [applicationHealthRow(PRODUCT_SCHEMA, "PR26072600001", { Nama: "Coffee", Kategori: "Drink", Satuan: "cup", Harga: 10000 })];
   rows[PARTNER_SCHEMA.TABLE] = [applicationHealthRow(PARTNER_SCHEMA, "PT26072600001", { Nama: "Supplier", Alamat: "", Telepon: "", Jenis: "Supplier" })];
   rows[PICKUP_HEADER_SCHEMA.TABLE] = [applicationHealthRow(PICKUP_HEADER_SCHEMA, "PH26072600001", { PickupNo: "PU-1", Tanggal: "2026-07-26", PartnerID: "PT26072600001", TotalItem: 1, TotalQty: 10, Status: "Posted", Notes: "" })];
-  rows[PICKUP_DETAIL_SCHEMA.TABLE] = [applicationHealthRow(PICKUP_DETAIL_SCHEMA, "PD26072600001", { PickupID: "PH26072600001", ProductID: "PR26072600001", Qty: 10, Notes: "" })];
+  rows[PICKUP_DETAIL_SCHEMA.TABLE] = [applicationHealthRow(PICKUP_DETAIL_SCHEMA, "PD26072600001", { PickupID: "PH26072600001", ProductID: "PR26072600001", Qty: 10, Harga: 10000, Total: 100000, Notes: "" })];
   rows[RETURN_SCHEMA.TABLE] = [];
   rows[PURCHASING_SCHEMA.TABLE] = [applicationHealthRow(PURCHASING_SCHEMA, "PC26072600001", { Tanggal: "2026-07-26", SupplierID: "PT26072600001", ProductID: "PR26072600001", Qty: 2, Harga: 10000, Total: 20000 })];
   rows[EXPENSE_SCHEMA.TABLE] = [applicationHealthRow(EXPENSE_SCHEMA, "EX26072600001", { Tanggal: "2026-07-26", Kategori: "Ops", Keterangan: "Transport", Nominal: 5000 })];
@@ -116,6 +116,15 @@ function testApplicationHealthReturnOverAllocationDetection() {
   ];
   const report = applicationHealthEvaluate(applicationHealthFixture({ [RETURN_SCHEMA.TABLE]: returns }));
   applicationHealthAssert(applicationHealthCheck(report, "Relationships", "Active Return quantity eligibility").status === "FAIL", "Return over-allocation was not detected.");
+}
+
+function testApplicationHealthPickupHistoricalValueDetection() {
+  const detail = applicationHealthRow(PICKUP_DETAIL_SCHEMA, "PD26072600001", {
+    PickupID: "PH26072600001", ProductID: "PR26072600001", Qty: 10,
+    Harga: 10000, Total: 99999, Notes: "",
+  });
+  const report = applicationHealthEvaluate(applicationHealthFixture({ [PICKUP_DETAIL_SCHEMA.TABLE]: [detail] }));
+  applicationHealthAssert(applicationHealthCheck(report, "Relationships", "Pickup detail historical value reconciliation").status === "FAIL", "Invalid Pickup Detail historical total was not detected.");
 }
 
 function testApplicationHealthSoftDeletedHistoricalReferenceClassification() {
@@ -359,6 +368,18 @@ function testApplicationHealthDiagnosticRunnerRegistration() {
   applicationHealthAssert(String(ApplicationHealth.runtimeFunctionRegistry).indexOf("globalThis") < 0, "Callable resolution still depends on globalThis.");
 }
 
+function testApplicationHealthCanonicalSequenceSourceContract() {
+  const snapshot = applicationHealthFixture();
+  const detail = snapshot.sheets[PICKUP_DETAIL_SCHEMA.TABLE].values[1];
+  detail[PICKUP_DETAIL_SCHEMA.HEADERS.indexOf(PICKUP_DETAIL_SCHEMA.PRIMARY_KEY)] = "PD26072600003";
+  snapshot.sequences.PD = 0;
+  const report = applicationHealthEvaluate(snapshot);
+  const check = applicationHealthCheck(report, "IDs", "PICKUP_DETAIL: current sequence collision safety");
+  applicationHealthAssert(check.status === "FAIL" && /trails today's allocated maximum 3/.test(check.diagnostic), "Sequence collision was suppressed or downgraded.");
+  const capture = String(ApplicationHealth.capture);
+  applicationHealthAssert(/IDGenerator\.current/.test(capture) && !/SEQ_/.test(capture), "Application Health bypasses canonical IDGenerator sequence access.");
+}
+
 const APPLICATION_HEALTH_TESTS = Object.freeze([
   testApplicationHealthRunnerReadOnly,
   testApplicationHealthMissingSheetDetection,
@@ -368,6 +389,7 @@ const APPLICATION_HEALTH_TESTS = Object.freeze([
   testApplicationHealthOrphanPickupDetailDetection,
   testApplicationHealthBrokenMasterReferenceDetection,
   testApplicationHealthReturnOverAllocationDetection,
+  testApplicationHealthPickupHistoricalValueDetection,
   testApplicationHealthSoftDeletedHistoricalReferenceClassification,
   testApplicationHealthMalformedIdempotencyRowDetection,
   testApplicationHealthCommittedMissingResourceDetection,
@@ -400,4 +422,5 @@ const APPLICATION_HEALTH_TESTS = Object.freeze([
   testApplicationHealthDiagnosticRunnersNoAuditWrite,
   testApplicationHealthDiagnosticRunnersNoCacheMutation,
   testApplicationHealthDiagnosticRunnerRegistration,
+  testApplicationHealthCanonicalSequenceSourceContract,
 ]);

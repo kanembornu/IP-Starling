@@ -3,7 +3,217 @@
     let trendChart = null;
     let productChart = null;
     let breakdownChart = null;
-    const escape = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    const escape = (value) =>
+      String(value ?? "").replace(
+        /[&<>"']/g,
+        (c) =>
+          ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;",
+          })[c],
+      );
+
+    function compactNumber(value) {
+      const number = Number(value) || 0;
+      const absolute = Math.abs(number);
+      if (absolute >= 1000000)
+        return `${Number((number / 1000000).toFixed(1))}M`;
+      if (absolute >= 1000) return `${Number((number / 1000).toFixed(1))}K`;
+      return String(number);
+    }
+
+    function appropriateTickStep(values) {
+      const maximum = Math.max(0, ...values.map((value) => Number(value) || 0));
+      if (!maximum) return 1;
+      const rough = maximum / 5;
+      const magnitude = 10 ** Math.floor(Math.log10(rough));
+      const normalized = rough / magnitude;
+      const nice =
+        normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+      return nice * magnitude;
+    }
+
+    function rangeMonth(value) {
+      const match = /^(\d{4})-(\d{2})/.exec(String(value || ""));
+      return match ? `${match[2]}/${match[1]}` : "";
+    }
+
+    function themeToken(name, fallback) {
+      const value = getComputedStyle(document.documentElement)
+        .getPropertyValue(name)
+        .trim();
+      return value || fallback;
+    }
+
+    function chartTheme() {
+      return {
+        text: themeToken("--color-chart-text", "#d8d3ca"),
+        grid: themeToken("--color-chart-grid", "rgba(255,255,255,.08)"),
+        label: themeToken("--color-chart-label", "#f4f1eb"),
+        leader: themeToken("--color-chart-leader", "#aaa49a"),
+        markerFill: themeToken("--color-chart-marker-fill", "#ffffff"),
+        markerBorder: themeToken("--color-chart-marker-border", "#34d399"),
+        markerGlow: themeToken(
+          "--color-chart-marker-glow",
+          "rgba(52,211,153,.42)",
+        ),
+        tooltip: themeToken("--color-tooltip", "#25221e"),
+        tooltipBorder: themeToken("--color-tooltip-border", "#403a32"),
+        surface: themeToken("--color-panel", "#271d18"),
+      };
+    }
+
+    function lineMarkerGlow(theme) {
+      return {
+        id: "dashboardLineMarkerGlow",
+        beforeDatasetDraw(chart) {
+          if (theme.markerGlow === "transparent") return;
+          const points = chart.getDatasetMeta(0).data || [];
+          const context = chart.ctx;
+          context.save();
+          context.fillStyle = theme.markerFill;
+          context.shadowColor = theme.markerGlow;
+          context.shadowBlur = 8;
+          points.forEach((point) => {
+            if (
+              point.skip ||
+              !Number.isFinite(point.x) ||
+              !Number.isFinite(point.y)
+            )
+              return;
+            context.beginPath();
+            context.arc(point.x, point.y, 3.5, 0, Math.PI * 2);
+            context.fill();
+          });
+          context.restore();
+        },
+      };
+    }
+
+    function distributeOutsideLabels(items, top, bottom, gap) {
+      items.sort((left, right) => left.desiredY - right.desiredY);
+      items.forEach((item, index) => {
+        item.y = Math.max(
+          item.desiredY,
+          index ? items[index - 1].y + gap : top,
+        );
+      });
+      for (let index = items.length - 1; index >= 0; index -= 1) {
+        const maximum =
+          index === items.length - 1 ? bottom : items[index + 1].y - gap;
+        items[index].y = Math.min(items[index].y, maximum);
+      }
+      if (items.length && items[0].y < top) {
+        const shift = top - items[0].y;
+        items.forEach((item) => {
+          item.y += shift;
+        });
+      }
+      return items;
+    }
+
+    function outsideDonutLabels(theme) {
+      return {
+        id: "dashboardOutsideDonutLabels",
+        afterDatasetsDraw(chart) {
+          const meta = chart.getDatasetMeta(0);
+          const values = chart.data.datasets[0].data.map(
+            (value) => Number(value) || 0,
+          );
+          const total = values.reduce((sum, value) => sum + value, 0);
+          if (!total || !meta.data.length) return;
+          const context = chart.ctx;
+          const top = chart.chartArea.top + 12;
+          const bottom = chart.chartArea.bottom - 12;
+          const gap = 36;
+          const sideCapacity = Math.max(1, Math.floor((bottom - top) / gap));
+          const candidates = meta.data
+            .map((arc, index) => {
+              const angle = (arc.startAngle + arc.endAngle) / 2;
+              return {
+                arc,
+                index,
+                angle,
+                percent: values[index] / total,
+                side: Math.cos(angle) >= 0 ? "right" : "left",
+                desiredY:
+                  arc.y + Math.sin(angle) * (arc.outerRadius + 25),
+              };
+            })
+            .filter((item) => item.percent > 0);
+          const visibleForSide = (side) => {
+            const items = candidates.filter((item) => item.side === side);
+            return items.length > sideCapacity
+              ? items
+                  .slice()
+                  .sort((left, right) => right.percent - left.percent)
+                  .slice(0, sideCapacity)
+              : items;
+          };
+          const left = distributeOutsideLabels(
+            visibleForSide("left"),
+            top,
+            bottom,
+            gap,
+          );
+          const right = distributeOutsideLabels(
+            visibleForSide("right"),
+            top,
+            bottom,
+            gap,
+          );
+
+          context.save();
+          context.lineWidth = 1.35;
+          context.strokeStyle = theme.leader;
+          context.fillStyle = theme.label;
+          [...left, ...right].forEach((item) => {
+            const direction = item.side === "right" ? 1 : -1;
+            const startX =
+              item.arc.x + Math.cos(item.angle) * item.arc.outerRadius;
+            const startY =
+              item.arc.y + Math.sin(item.angle) * item.arc.outerRadius;
+            const elbowX =
+              item.arc.x + direction * (item.arc.outerRadius + 17);
+            const textX = item.side === "right" ? chart.width - 8 : 8;
+            const category = String(chart.data.labels[item.index] || "");
+            const percentage = `${(item.percent * 100).toFixed(1)}%`;
+            context.font = "650 12.25px Inter, sans-serif";
+            const categoryWidth = context.measureText(category).width;
+            context.font = "600 11.75px Inter, sans-serif";
+            const percentageWidth = context.measureText(percentage).width;
+            const textWidth = Math.max(categoryWidth, percentageWidth);
+            const lineEndX =
+              item.side === "right"
+                ? textX - textWidth - 7
+                : textX + textWidth + 7;
+            context.beginPath();
+            context.moveTo(startX, startY);
+            context.lineTo(elbowX, item.y);
+            context.lineTo(lineEndX, item.y);
+            context.stroke();
+            context.textAlign = item.side === "right" ? "right" : "left";
+            context.textBaseline = "middle";
+            context.font = "650 12.25px Inter, sans-serif";
+            context.fillText(
+              category,
+              textX,
+              item.y - 8,
+            );
+            context.font = "600 11.75px Inter, sans-serif";
+            context.fillText(
+              percentage,
+              textX,
+              item.y + 9,
+            );
+          });
+          context.restore();
+        },
+      };
+    }
 
     function destroyCharts() {
       if (trendChart) trendChart.destroy();
@@ -22,10 +232,15 @@
       renderCharts(data);
     }
 
-    function renderError(message = "Dashboard data unavailable. Refresh to retry.") {
+    function renderError(
+      message = "Dashboard data unavailable. Refresh to retry.",
+    ) {
       destroyCharts();
       Render.mount("dashboard-kpi", Components.empty(message));
-      Render.mount("dashboard-activities", Components.empty("Recent activities unavailable."));
+      Render.mount(
+        "dashboard-activities",
+        Components.empty("Recent activities unavailable."),
+      );
     }
 
     function renderLoading() {
@@ -34,27 +249,71 @@
 
     function renderRangeError(message) {
       const error = DOM.$("dashboard-range-error");
-      if (error) { DOM.text(error, message || "Dashboard range is invalid."); error.classList.remove("hidden"); }
+      if (error) {
+        DOM.text(error, message || "Dashboard range is invalid.");
+        error.classList.remove("hidden");
+      }
     }
 
     function renderKPI(summary) {
       const cards = [
-        { title: "Purchasing Value", value: Format.currency(summary.purchasingValue), icon: "fa-bag-shopping", color: "amber", detail: "Selected period" },
-        { title: "Expense Value", value: Format.currency(summary.expenseValue), icon: "fa-layer-group", color: "orange", detail: "Selected period" },
-        { title: "Purchased Units", value: Format.number(summary.purchasedUnits || 0), icon: "fa-boxes-stacked", color: "red", detail: "Units in range" },
-        { title: "Transactions", value: Format.number(summary.transactionCount || 0), icon: "fa-receipt", color: "green", detail: "Purchasing + expenses" },
+        {
+          title: "Net Pickup Value",
+          value: Format.currency(summary.netPickupValue),
+          icon: "fa-truck-ramp-box",
+          color: "amber",
+          detail: "Pickup value minus returns",
+        },
+        {
+          title: "Expense Value",
+          value: Format.currency(summary.expenseValue),
+          icon: "fa-layer-group",
+          color: "orange",
+          detail: "Selected period",
+        },
+        {
+          title: "Purchased Units",
+          value: Format.number(summary.purchasedUnits || 0),
+          icon: "fa-boxes-stacked",
+          color: "red",
+          detail: "Units in range",
+        },
+        {
+          title: "Transactions",
+          value: Format.number(summary.transactionCount || 0),
+          icon: "fa-receipt",
+          color: "green",
+          detail: "Purchasing + expenses",
+        },
       ];
       Render.mount("dashboard-kpi", cards.map(Components.stat).join(""));
     }
 
     function renderActivities(activities) {
-      if (!activities.length) return Render.mount("dashboard-activities", Components.empty("No recent activities."));
-      Render.mount("dashboard-activities", activities.map((item) => `<div class="flex items-center justify-between gap-4 p-4"><div><div class="font-medium text-slate-800">${escape(item.module)} · ${escape(item.label)}</div><div class="text-sm text-slate-500">${escape(item.id)}${item.eventType ? ` · ${escape(item.eventType)}` : ""}</div></div><div class="text-xs text-slate-400 text-right">${escape(item.eventTimeDisplay || item.eventTime)}</div></div>`).join(""));
+      if (!activities.length)
+        return Render.mount(
+          "dashboard-activities",
+          Components.empty("No recent activities."),
+        );
+      Render.mount(
+        "dashboard-activities",
+        activities
+          .slice(0, 5)
+          .map(
+            (item) =>
+              `<div class="flex items-center justify-between gap-4 p-4"><div><div class="font-medium text-slate-800">${escape(item.module)} · ${escape(item.label)}</div><div class="text-sm text-slate-500">${escape(item.id)}${item.eventType ? ` · ${escape(item.eventType)}` : ""}</div></div><div class="text-xs text-slate-400 text-right">${escape(item.eventTimeDisplay || item.eventTime)}</div></div>`,
+          )
+          .join(""),
+      );
     }
 
     function renderRange(range) {
       const label = DOM.$("dashboard-range-label");
-      if (label) DOM.text(label, `${range.startDate || ""} through ${range.endDate || ""} · ${range.timezone || ""} · ${range.granularity || ""}`);
+      if (label)
+        DOM.text(
+          label,
+          `${rangeMonth(range.startDate)} – ${rangeMonth(range.endDate)}`,
+        );
     }
 
     function renderRangeControls(range = {}, message = "") {
@@ -77,30 +336,235 @@
       const canvas = DOM.$(id);
       const empty = DOM.$(emptyId);
       if (canvas) canvas.parentElement.classList.toggle("hidden", isEmpty);
-      if (empty) { empty.classList.toggle("hidden", !isEmpty); DOM.text(empty, message); }
+      if (empty) {
+        empty.classList.toggle("hidden", !isEmpty);
+        DOM.text(empty, message);
+      }
     }
 
     function renderCharts(data) {
       destroyCharts();
-      const trend = data.monthlyPurchasingTrend || { labels: [], values: [] };
+      const trend = data.netPickupValueTrend || { labels: [], values: [] };
       const products = data.productPerformance || { labels: [], values: [] };
       const breakdown = data.expenseBreakdown || { labels: [], values: [] };
       const trendEmpty = !trend.values?.some((value) => Number(value) !== 0);
-      const productEmpty = !products.values?.some((value) => Number(value) !== 0);
+      const productEmpty = !products.values?.some(
+        (value) => Number(value) !== 0,
+      );
       const breakdownEmpty = !breakdown.values?.length;
-      emptyChart("chart-overview", "dashboard-trend-empty", trendEmpty, "No purchasing value in this range.");
-      emptyChart("chart-product", "dashboard-product-empty", productEmpty, "No product purchasing data in this range.");
-      emptyChart("chart-distribution", "dashboard-breakdown-empty", breakdownEmpty, "No expense data in this range.");
+      emptyChart(
+        "chart-overview",
+        "dashboard-trend-empty",
+        trendEmpty,
+        "No net pickup value in this range.",
+      );
+      emptyChart(
+        "chart-product",
+        "dashboard-product-empty",
+        productEmpty,
+        "No product purchasing data in this range.",
+      );
+      emptyChart(
+        "chart-distribution",
+        "dashboard-breakdown-empty",
+        breakdownEmpty,
+        "No expense data in this range.",
+      );
       if (typeof Chart === "undefined") return;
-      const chartText = "#8f897f";
-      const chartGrid = "rgba(255,255,255,.07)";
-      const tooltip = { backgroundColor: "#25221e", borderColor: "#403a32", borderWidth: 1, titleColor: "#f4f1eb", bodyColor: "#d8d3ca" };
-      const monthLabels = trend.labels.map((label) => { const match = /^(\d{4})-(\d{2})$/.exec(String(label)); return match ? new Intl.DateTimeFormat("en", { month: "short", timeZone: "UTC" }).format(new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1))) : String(label); });
-      if (!trendEmpty) trendChart = new Chart(DOM.$("chart-overview"), { type: "line", data: { labels: monthLabels, datasets: [{ data: trend.values, borderColor: "#f59e0b", backgroundColor: "rgba(245,158,11,.07)", pointBackgroundColor: "#fbbf24", pointBorderColor: "#181714", pointRadius: 2.5, borderWidth: 2, fill: true, tension: .38 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { x: { ticks: { color: chartText }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: chartText, stepSize: 5000, callback: (value) => Number(value) === 0 ? "0" : `${Number(value) / 1000}K` }, grid: { color: chartGrid }, border: { display: false } } }, plugins: { legend: { display: false }, tooltip: { ...tooltip, callbacks: { label: (context) => Format.currency(context.raw) } } } } });
-      if (!productEmpty) productChart = new Chart(DOM.$("chart-product"), { type: "bar", data: { labels: products.labels, datasets: [{ data: products.values, backgroundColor: "rgba(163,230,53,.55)", borderColor: "#a3e635", borderWidth: 1, borderRadius: 6 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { x: { ticks: { color: chartText }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: chartText, callback: (value) => Number(value) === 0 ? "0" : `${Number(value) / 1000}K` }, grid: { color: chartGrid }, border: { display: false } } }, plugins: { legend: { display: false }, tooltip: { ...tooltip, callbacks: { label: (context) => Format.currency(context.raw) } } } } });
-      if (!breakdownEmpty) breakdownChart = new Chart(DOM.$("chart-distribution"), { type: "doughnut", data: { labels: breakdown.labels, datasets: [{ data: breakdown.values, borderColor: "#181714", borderWidth: 4, hoverOffset: 4, backgroundColor: ["#fb7185", "#f59e0b", "#a3e635", "#34d399", "#60a5fa", "#78716c"] }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "70%", plugins: { legend: { position: "bottom", labels: { color: chartText, padding: 16, boxWidth: 10, usePointStyle: true } }, tooltip: { ...tooltip, callbacks: { label: (context) => `${context.label}: ${Format.currency(context.raw)}` } } } } });
+      const theme = chartTheme();
+      const markerGlow = lineMarkerGlow(theme);
+      const tooltip = {
+        backgroundColor: theme.tooltip,
+        borderColor: theme.tooltipBorder,
+        borderWidth: 1,
+        titleColor: theme.label,
+        bodyColor: theme.text,
+      };
+      // Product-owner label is "Revenue Trend"; the canonical series remains Net Pickup Value.
+      if (!trendEmpty)
+        trendChart = new Chart(DOM.$("chart-overview"), {
+          type: "line",
+          data: {
+            labels: trend.labels,
+            datasets: [
+              {
+                data: trend.values,
+                borderColor: "#f59e0b",
+                backgroundColor: "rgba(245,158,11,.07)",
+                pointBackgroundColor: theme.markerFill,
+                pointBorderColor: theme.markerBorder,
+                pointHoverBackgroundColor: theme.markerFill,
+                pointHoverBorderColor: theme.markerBorder,
+                pointRadius: 3.5,
+                pointHoverRadius: 5.5,
+                pointBorderWidth: 2,
+                pointHoverBorderWidth: 2.5,
+                borderWidth: 2,
+                fill: true,
+                tension: 0.38,
+              },
+            ],
+          },
+          plugins: [markerGlow],
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animations: {
+              radius: { duration: 180, easing: "easeOutQuart" },
+            },
+            scales: {
+              x: {
+                ticks: {
+                  color: theme.text,
+                  font: { size: 13, weight: "600" },
+                  padding: 8,
+                },
+                grid: { display: false },
+              },
+              y: {
+                beginAtZero: true,
+                min: 0,
+                ticks: {
+                  color: theme.text,
+                  font: { size: 13, weight: "600" },
+                  padding: 8,
+                  stepSize: 10000000,
+                  callback: compactNumber,
+                },
+                grid: { color: theme.grid },
+                border: { display: false },
+              },
+            },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                ...tooltip,
+                displayColors: false,
+                callbacks: { label: (context) => Format.currency(context.raw) },
+              },
+            },
+          },
+        });
+      const categoryLabels = products.labels.map((label) =>
+        String(label).trim().split(/\s+/),
+      );
+      if (!productEmpty)
+        productChart = new Chart(DOM.$("chart-product"), {
+          type: "bar",
+          data: {
+            labels: categoryLabels,
+            datasets: [
+              {
+                data: products.values,
+                backgroundColor: "rgba(163,230,53,.55)",
+                borderColor: "#a3e635",
+                borderWidth: 1,
+                borderRadius: 6,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: {
+                offset: true,
+                ticks: {
+                  color: theme.text,
+                  font: { size: 12, weight: "600" },
+                  autoSkip: false,
+                  maxRotation: 0,
+                  minRotation: 0,
+                  padding: 8,
+                },
+                grid: { display: false },
+              },
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  color: theme.text,
+                  font: { size: 12, weight: "600" },
+                  stepSize: appropriateTickStep(products.values),
+                  callback: compactNumber,
+                },
+                grid: { color: theme.grid },
+                border: { display: false },
+              },
+            },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                ...tooltip,
+                displayColors: false,
+                callbacks: {
+                  title: (items) => items[0]?.label?.replace(/,/g, " ") || "",
+                  label: (context) => Format.currency(context.raw),
+                },
+              },
+            },
+          },
+        });
+      const donutLabels = outsideDonutLabels(theme);
+      if (!breakdownEmpty)
+        breakdownChart = new Chart(DOM.$("chart-distribution"), {
+          type: "doughnut",
+          data: {
+            labels: breakdown.labels,
+            datasets: [
+              {
+                data: breakdown.values,
+                borderColor: theme.surface,
+                borderWidth: 3,
+                hoverOffset: 4,
+                backgroundColor: [
+                  "#fb7185",
+                  "#f59e0b",
+                  "#84cc16",
+                  "#10b981",
+                  "#3b82f6",
+                  "#8b5cf6",
+                  "#ec4899",
+                  "#14b8a6",
+                ],
+              },
+            ],
+          },
+          plugins: [donutLabels],
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: "64%",
+            layout: { padding: { left: 108, right: 108, top: 12, bottom: 12 } },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                ...tooltip,
+                displayColors: false,
+                callbacks: {
+                  label: (context) => {
+                    const total = context.dataset.data.reduce(
+                      (sum, value) => sum + Number(value || 0),
+                      0,
+                    );
+                    const percent = total
+                      ? (Number(context.raw) / total) * 100
+                      : 0;
+                    return `${context.label}: ${Format.currency(context.raw)} (${percent.toFixed(1)}%)`;
+                  },
+                },
+              },
+            },
+          },
+        });
     }
 
-    return Object.freeze({ render, renderLoading, renderError, renderRangeError, renderRangeControls, destroyCharts });
+    return Object.freeze({
+      render,
+      renderLoading,
+      renderError,
+      renderRangeError,
+      renderRangeControls,
+      destroyCharts,
+    });
   })();
 </script>

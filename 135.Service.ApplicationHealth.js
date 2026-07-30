@@ -23,16 +23,7 @@ const ApplicationHealth = (() => {
     "Tests",
     "Release",
   ]);
-  const BUSINESS_SCHEMA_KEYS = Object.freeze([
-    "PRODUCT",
-    "PARTNER",
-    "PICKUP_HEADER",
-    "PICKUP_DETAIL",
-    "RETURN",
-    "PURCHASE",
-    "EXPENSE",
-    "SETTINGS",
-  ]);
+  const BUSINESS_SCHEMA_KEYS = ID_GENERATOR_SCHEMA_KEYS;
   const INTERNAL_SCHEMA_KEYS = Object.freeze(["IDEMPOTENCY", "LOGS"]);
   const SUPPORTED_IDEMPOTENCY_OPERATIONS = Object.freeze({
     PICKUP_CREATE: "PICKUP_HEADER",
@@ -838,6 +829,29 @@ const ApplicationHealth = (() => {
         })),
         headerById,
         PICKUP_HEADER_SCHEMA,
+      ),
+    );
+    const pickupValueStarted = Date.now();
+    const invalidPickupValues = details.filter((detail) => {
+      const priceValue = detail[PICKUP_DETAIL_FIELDS.PRICE];
+      const totalValue = detail[PICKUP_DETAIL_FIELDS.TOTAL];
+      const qty = Number(detail[PICKUP_DETAIL_FIELDS.QTY]);
+      const price = Number(priceValue);
+      const total = Number(totalValue);
+      return priceValue === "" || priceValue === null || totalValue === "" || totalValue === null ||
+        !Number.isFinite(qty) || !Number.isFinite(price) || !Number.isFinite(total) ||
+        qty < 0 || price < 0 || total !== qty * price;
+    }).map((detail) => detail.ID);
+    result.Relationships.push(
+      check(
+        "Pickup detail historical value reconciliation",
+        invalidPickupValues.length ? STATUS.FAIL : STATUS.PASS,
+        details.length,
+        invalidPickupValues.length
+          ? `${invalidPickupValues.length} Pickup Detail rows do not reconcile Qty x Harga = Total.`
+          : "Pickup Detail historical prices and totals reconcile.",
+        invalidPickupValues,
+        pickupValueStarted,
       ),
     );
 

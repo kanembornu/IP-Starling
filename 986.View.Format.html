@@ -35,6 +35,63 @@
     }
 
     //===========================================================================
+    // Nominal Form Input
+    //===========================================================================
+
+    function nominalDigits(value) {
+      if (value === null || value === undefined || value === "") return "";
+      return String(value).replace(/\D/g, "");
+    }
+
+    function nominalInput(value) {
+      const digits = nominalDigits(value);
+      if (!digits) return "";
+      const normalized = digits.replace(/^0+(?=\d)/, "");
+      return normalized.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    }
+
+    function nominalValue(value) {
+      const digits = nominalDigits(value);
+      return digits ? Number(digits) : NaN;
+    }
+
+    function updateNominalInput(input) {
+      if (!input) return "";
+      const cursor = Number(input.selectionStart);
+      const digitsBeforeCursor = Number.isFinite(cursor)
+        ? nominalDigits(input.value.slice(0, cursor)).length
+        : nominalDigits(input.value).length;
+      const formatted = nominalInput(input.value);
+      input.value = formatted;
+      if (typeof input.setSelectionRange === "function") {
+        let nextCursor = 0;
+        let seenDigits = 0;
+        while (nextCursor < formatted.length && seenDigits < digitsBeforeCursor) {
+          if (/\d/.test(formatted[nextCursor])) seenDigits += 1;
+          nextCursor += 1;
+        }
+        input.setSelectionRange(nextCursor, nextCursor);
+      }
+      return formatted;
+    }
+
+    function dateInput(value) {
+      if (value === null || value === undefined || value === "") return "";
+      const source = String(value).trim();
+      const exact = /^(\d{4})-(\d{2})-(\d{2})$/.exec(source);
+      if (exact) {
+        const year = Number(exact[1]);
+        const month = Number(exact[2]);
+        const day = Number(exact[3]);
+        const probe = new Date(year, month - 1, day);
+        return probe.getFullYear() === year && probe.getMonth() === month - 1 && probe.getDate() === day ? source : "";
+      }
+      const parsed = value instanceof Date ? value : new Date(value);
+      if (Number.isNaN(parsed.getTime())) return "";
+      return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
+    }
+
+    //===========================================================================
     // Percent
     //===========================================================================
 
@@ -152,6 +209,14 @@
       number,
 
       currency,
+
+      nominalInput,
+
+      nominalValue,
+
+      updateNominalInput,
+
+      dateInput,
 
       percent,
 

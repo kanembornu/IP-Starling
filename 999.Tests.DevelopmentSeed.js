@@ -17,6 +17,15 @@ function testDevelopmentSeedForeignKeyIntegrityContract() {
 function testDevelopmentSeedQuantityAndTotalIntegrityContract() {
   developmentSeedAssert(DevelopmentSeed.integrity(DevelopmentSeed.generate()).quantitiesAndTotals, "Seed quantity or purchasing total integrity failed.");
 }
+function testDevelopmentSeedPickupHistoricalPricingContract() {
+  const dataset = DevelopmentSeed.generate();
+  const productById = dataset.rows.PRODUCT.reduce((lookup, row) => { lookup[row.ID] = row; return lookup; }, {});
+  dataset.rows.PICKUP_DETAIL.forEach((detail) => {
+    developmentSeedAssert(Number.isFinite(Number(detail.Harga)) && Number(detail.Harga) >= 0, `Pickup Detail ${detail.ID} Harga is invalid.`);
+    developmentSeedAssert(Number(detail.Total) === Number(detail.Qty) * Number(detail.Harga), `Pickup Detail ${detail.ID} Total is invalid.`);
+    developmentSeedAssert(productById[detail.ProductID], `Pickup Detail ${detail.ID} ProductID is invalid.`);
+  });
+}
 function testDevelopmentSeedDeterministicContract() {
   const first = JSON.stringify(DevelopmentSeed.generate()); const second = JSON.stringify(DevelopmentSeed.generate());
   developmentSeedAssert(first === second, "Seed output is not deterministic.");
@@ -50,6 +59,7 @@ function testDevelopmentSeedSafetySourceContract() {
   developmentSeedAssert(/return result/.test(preview), "Preview must return the same object that is written to the execution log.");
   developmentSeedAssert(/production/.test(execute) && /production/.test(backup), "Production guard is missing.");
   developmentSeedAssert(execute.indexOf("backup()") < execute.indexOf("clearDataRows"), "Backup must occur before deletion.");
+  developmentSeedAssert(execute.indexOf("backup()") < execute.indexOf("preparePickupDetailHeaders"), "Pickup Detail header upgrade must occur after backup.");
   developmentSeedAssert(/LockService/.test(execute) && /finally/.test(execute) && /releaseLock/.test(execute), "Script lock contract is missing.");
   developmentSeedAssert(DevelopmentSeed.RESET_SCHEMA_KEYS.indexOf("SETTINGS") < 0, "Settings must never be reset.");
   developmentSeedAssert(previewDevelopmentSeed.toString().indexOf("execute") < 0, "Preview must not execute reset.");
@@ -65,7 +75,8 @@ function testDevelopmentSeedSequenceSynchronizationContract() {
   });
   developmentSeedAssert(targets.PICKUP_HEADER.maximum > 0 && targets.PICKUP_DETAIL.maximum > 0, "Current-date Pickup Header/Detail allocations are missing from the sequence target.");
   const synchronize = DevelopmentSeed.synchronizeSequences.toString(); const generator = IDGenerator.ensureAtLeast.toString();
-  developmentSeedAssert(/IDGenerator\.ensureAtLeast\(target\.prefix,\s*target\.maximum\)/.test(synchronize), "Seed execution does not advance each derived sequence target.");
+  developmentSeedAssert(/IDGenerator\.ensureAtLeast\([\s\S]*target\.prefix,[\s\S]*target\.maximum,[\s\S]*synchronizationDate/.test(synchronize), "Seed execution does not advance each derived sequence target with the canonical date.");
+  developmentSeedAssert(/IDGenerator\.current\(target\.prefix,\s*synchronizationDate\)/.test(synchronize) && /verified = true/.test(synchronize), "Seed execution does not verify persisted sequence read-back.");
   developmentSeedAssert(/Math\.max\(before,\s*target\)/.test(generator) && !/deleteProperty/.test(generator), "Sequence synchronization can move a counter backward.");
 }
 function testDevelopmentSeedCurrentDateCollisionSafetyContract() {
@@ -80,6 +91,7 @@ const DEVELOPMENT_SEED_CONTRACT_TESTS = Object.freeze([
   testDevelopmentSeedSchemaHeaderContract,
   testDevelopmentSeedForeignKeyIntegrityContract,
   testDevelopmentSeedQuantityAndTotalIntegrityContract,
+  testDevelopmentSeedPickupHistoricalPricingContract,
   testDevelopmentSeedDeterministicContract,
   testDevelopmentSeedVolumeAndPeriodContract,
   testDevelopmentSeedSafetySourceContract,

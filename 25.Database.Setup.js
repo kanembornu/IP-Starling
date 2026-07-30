@@ -83,6 +83,10 @@ const DatabaseSetup = (() => {
       throw new Error("Logs headers differ from LOG_SCHEMA; run the read-only Logs audit before any migration.");
     }
 
+    if (schema.TABLE === SHEET_NAMES.PICKUP_DETAILS && currentHeaders.length > 0) {
+      throw new Error("PickupDetails headers require historical Harga/Total. Do not fabricate production history; use the confirmed development reseed for demo data or an explicitly approved production migration.");
+    }
+
     /**
      * Reset Header
      */

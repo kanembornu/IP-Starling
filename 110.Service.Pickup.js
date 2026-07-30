@@ -86,7 +86,7 @@ function PickupService(options) {
     return Utilities.formatDate(timestamp, APP_CONFIG.TIMEZONE, "yyyy-MM-dd");
   }
 
-  function validateDocument(document) {
+  function validateDocument(document, existingDetails = []) {
     const header = document.header;
     const details = document.details;
     const normalizedDate = normalizeTanggal(header[PICKUP_HEADER_FIELDS.DATE]);
@@ -109,7 +109,27 @@ function PickupService(options) {
     }
 
     const productIds = Object.create(null);
+    const historicalPriceByProduct = Object.create(null);
+    const historicalProductSeen = Object.create(null);
     let totalQty = 0;
+
+    existingDetails.forEach((detail) => {
+      const productId = String(detail[PICKUP_DETAIL_FIELDS.PRODUCT_ID] || "");
+      const priceValue = detail[PICKUP_DETAIL_FIELDS.PRICE];
+      const totalValue = detail[PICKUP_DETAIL_FIELDS.TOTAL];
+      const price = Number(priceValue);
+      const total = Number(totalValue);
+      const qty = Number(detail[PICKUP_DETAIL_FIELDS.QTY]);
+      if (productId) historicalProductSeen[productId] = true;
+      if (productId && priceValue !== "" && priceValue !== null &&
+          totalValue !== "" && totalValue !== null &&
+          Number.isFinite(price) && price >= 0 && Number.isFinite(total) &&
+          total === qty * price) {
+        historicalPriceByProduct[productId] = price;
+      }
+    });
+
+    const normalizedDetails = [];
 
     for (let index = 0; index < details.length; index++) {
       const detail = details[index];
@@ -136,6 +156,43 @@ function PickupService(options) {
 
       productIds[productId] = true;
       totalQty += qty;
+      const currentPrice = Number(product[PRODUCT_FIELDS.PRICE]);
+      if (!Number.isFinite(currentPrice) || currentPrice < 0) {
+        return Response.error("Harga produk tidak valid.");
+      }
+      if (historicalProductSeen[productId] &&
+          !Object.prototype.hasOwnProperty.call(historicalPriceByProduct, productId)) {
+        return Response.error("Harga historis detail Pickup tidak valid; perubahan diblokir.");
+      }
+      const price = Object.prototype.hasOwnProperty.call(historicalPriceByProduct, productId)
+        ? historicalPriceByProduct[productId]
+        : currentPrice;
+      normalizedDetails.push(Object.assign({}, detail, {
+        [PICKUP_DETAIL_FIELDS.QTY]: qty,
+        [PICKUP_DETAIL_FIELDS.PRICE]: price,
+        [PICKUP_DETAIL_FIELDS.TOTAL]: qty * price,
+      }));
+    }
+
+    const suppliedItem = header[PICKUP_HEADER_FIELDS.TOTAL_ITEM];
+    const suppliedQty = header[PICKUP_HEADER_FIELDS.TOTAL_QTY];
+    if (
+      suppliedItem !== undefined &&
+      suppliedItem !== null &&
+      Number(suppliedItem) !== details.length
+    ) {
+      return Response.error(
+        "TotalItem header tidak sesuai dengan jumlah detail Pickup.",
+      );
+    }
+    if (
+      suppliedQty !== undefined &&
+      suppliedQty !== null &&
+      Number(suppliedQty) !== totalQty
+    ) {
+      return Response.error(
+        "TotalQty header tidak sesuai dengan jumlah Qty detail Pickup.",
+      );
     }
 
     return {
@@ -144,7 +201,7 @@ function PickupService(options) {
         [PICKUP_HEADER_FIELDS.TOTAL_ITEM]: details.length,
         [PICKUP_HEADER_FIELDS.TOTAL_QTY]: totalQty,
       }),
-      details,
+      details: normalizedDetails,
     };
   }
 
@@ -532,8 +589,11 @@ function PickupService(options) {
           header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY];
       },
 
-      beforeUpdate(document) {
-        const validation = this.beforeCreate(document);
+      beforeUpdate(document, existingHeader) {
+        const existingDetails = RepositoryReader.find(PICKUP_DETAIL_SCHEMA, {
+          [PICKUP_DETAIL_FIELDS.PICKUP_ID]: existingHeader[PICKUP_HEADER_SCHEMA.PRIMARY_KEY],
+        });
+        const validation = validateDocument(document, existingDetails);
 
         if (validation && validation.success === false) {
           return validation;
@@ -621,7 +681,9 @@ function PickupService(options) {
     const shapeValidation = validateDocumentShape(document);
     if (shapeValidation) return shapeValidation;
 
-    const validation = validateDocument(document);
+    const validation = validateDocument(document, pickupPhysicalDetails(id).filter((detail) =>
+      detail[PICKUP_DETAIL_SCHEMA.SYSTEM.IS_ACTIVE] === true &&
+      detail[PICKUP_DETAIL_SCHEMA.SYSTEM.IS_DELETED] !== true));
     if (validation && validation.success === false) return validation;
 
     const current = transaction.findById(id);
@@ -726,9 +788,14 @@ function PickupService(options) {
     return withPickupMutationLock(() => restoreUnlocked(id));
   }
 
+  function findAllDetails() {
+    return Response.success(RepositoryReader.findAll(PICKUP_DETAIL_SCHEMA));
+  }
+
   return Object.freeze({
     findAll: transaction.findAll,
     findById: transaction.findById,
+    findAllDetails,
     create,
     update,
     remove,

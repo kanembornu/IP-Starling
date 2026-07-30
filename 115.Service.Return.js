@@ -127,6 +127,12 @@ function ReturnService(options = {}) {
     enriched.PickupDetailQty = pickupDetail
       ? pickupDetail[PICKUP_DETAIL_FIELDS.QTY]
       : "";
+    enriched.PickupDetailHarga = pickupDetail
+      ? pickupDetail[PICKUP_DETAIL_FIELDS.PRICE]
+      : "";
+    enriched.ReturnValue = pickupDetail
+      ? Number(row[RETURN_FIELDS.QTY]) * Number(pickupDetail[PICKUP_DETAIL_FIELDS.PRICE])
+      : "";
 
     // Ownership mismatches remain visible in lists and never rewrite stored IDs.
     if (pickupDetail && !detailMatchesReturn) {
@@ -264,6 +270,19 @@ function ReturnService(options = {}) {
 
     if (!isActive(pickupDetail, PICKUP_DETAIL_SCHEMA)) {
       return Response.error("Pickup Detail tidak ditemukan atau tidak aktif.");
+    }
+
+    const pickupPriceValue = pickupDetail[PICKUP_DETAIL_FIELDS.PRICE];
+    const pickupTotalValue = pickupDetail[PICKUP_DETAIL_FIELDS.TOTAL];
+    const pickupQty = Number(pickupDetail[PICKUP_DETAIL_FIELDS.QTY]);
+    const pickupPrice = Number(pickupPriceValue);
+    const pickupTotal = Number(pickupTotalValue);
+    if (pickupPriceValue === "" || pickupPriceValue === null ||
+        pickupTotalValue === "" || pickupTotalValue === null ||
+        !Number.isFinite(pickupQty) || !Number.isFinite(pickupPrice) ||
+        pickupPrice < 0 || !Number.isFinite(pickupTotal) ||
+        pickupTotal !== pickupQty * pickupPrice) {
+      return Response.error("Harga historis Pickup Detail tidak valid.");
     }
 
     const pickupId = pickupDetail[PICKUP_DETAIL_FIELDS.PICKUP_ID];

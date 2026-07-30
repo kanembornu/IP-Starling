@@ -7,7 +7,6 @@ function DashboardService(dependencies = {}) {
   const purchases = dependencies.purchases || PurchasingService();
   const expenses = dependencies.expenses || ExpenseService();
   const now = typeof dependencies.now === "function" ? dependencies.now : Utils.now;
-  const settings = dependencies.settings || SettingsService();
   const timezone = APP_CONFIG.TIMEZONE;
   const DAY_MS = 86400000;
 
@@ -50,13 +49,7 @@ function DashboardService(dependencies = {}) {
   }
 
   function resolveRange(request = {}) {
-    let defaultPreset = "CURRENT_MONTH";
-    if (!request.preset) {
-      const configured = settings.getResolved("DASHBOARD_DEFAULT_RANGE");
-      if (configured && configured.success && configured.data && configured.data.valid !== false) {
-        defaultPreset = configured.data.value;
-      }
-    }
+    const defaultPreset = "CURRENT_YEAR";
     const preset = String(request.preset || defaultPreset).toUpperCase();
     const allowed = ["TODAY", "LAST_7_DAYS", "CURRENT_MONTH", "PREVIOUS_MONTH", "CURRENT_YEAR", "CUSTOM"];
     if (allowed.indexOf(preset) < 0) return rangeError("INVALID_PRESET", "Dashboard preset is invalid.", "preset");
@@ -87,7 +80,8 @@ function DashboardService(dependencies = {}) {
     if (endOrdinal - startOrdinal > 1826) return rangeError("RANGE_TOO_LARGE", "Dashboard range cannot exceed five calendar years.");
     const days = endOrdinal - startOrdinal + 1;
     return { success: true, preset, startDate, endDate, startOrdinal, endOrdinal,
-      granularity: days <= 31 ? "daily" : days <= 180 ? "weekly" : "monthly" };
+      granularity: preset === "CURRENT_MONTH" || preset === "PREVIOUS_MONTH" ? "weekly" :
+        days <= 31 ? "daily" : days <= 90 ? "weekly" : days <= 731 ? "monthly" : "yearly" };
   }
 
   function inRange(row, range) {
@@ -126,16 +120,72 @@ function DashboardService(dependencies = {}) {
       values: entries.map((x) => x.amount) };
   }
 
-  function bucketKey(dateValue, granularity) {
-    if (granularity === "monthly") return dateValue.slice(0, 7);
-    if (granularity === "daily") return dateValue;
+  function shortDate(value) {
+    const part = dateParts(value);
+    return `${String(part.day).padStart(2, "0")}/${String(part.month).padStart(2, "0")}`;
+  }
+
+  function timeBuckets(range) {
+    const buckets = [];
+    if (range.granularity === "daily") {
+      for (let current = range.startOrdinal; current <= range.endOrdinal; current += 1) {
+        const date = dateFromOrdinal(current);
+        buckets.push({ key: date, label: shortDate(date), startOrdinal: current, endOrdinal: current });
+      }
+    } else if (range.granularity === "weekly") {
+      const oneMonth = range.startDate.slice(0, 7) === range.endDate.slice(0, 7);
+      let current = range.startOrdinal;
+      let index = 1;
+      while (current <= range.endOrdinal) {
+        const end = Math.min(current + 6, range.endOrdinal);
+        const startDate = dateFromOrdinal(current);
+        const endDate = dateFromOrdinal(end);
+        const startPart = dateParts(startDate);
+        const endPart = dateParts(endDate);
+        const label = oneMonth ? `M${index}` : startPart.month === endPart.month
+          ? `${String(startPart.day).padStart(2, "0")}–${shortDate(endDate)}`
+          : `${shortDate(startDate)}–${shortDate(endDate)}`;
+        buckets.push({ key: `W${index}`, label, startOrdinal: current, endOrdinal: end });
+        current = end + 1;
+        index += 1;
+      }
+    } else if (range.granularity === "monthly") {
+      let year = dateParts(range.startDate).year;
+      let month = dateParts(range.startDate).month;
+      const endKey = range.endDate.slice(0, 7);
+      const crossesYears = range.startDate.slice(0, 4) !== range.endDate.slice(0, 4);
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      while (true) {
+        const key = `${year}-${String(month).padStart(2, "0")}`;
+        const monthStart = Math.max(ordinal(`${key}-01`), range.startOrdinal);
+        const nextMonth = month === 12 ? `${year + 1}-01-01` : `${year}-${String(month + 1).padStart(2, "0")}-01`;
+        const monthEnd = Math.min(ordinal(nextMonth) - 1, range.endOrdinal);
+        buckets.push({ key, label: crossesYears ? `${monthNames[month - 1]} ${year}` : monthNames[month - 1],
+          startOrdinal: monthStart, endOrdinal: monthEnd });
+        if (key === endKey) break;
+        month += 1;
+        if (month === 13) { month = 1; year += 1; }
+      }
+    } else {
+      const startYear = dateParts(range.startDate).year;
+      const endYear = dateParts(range.endDate).year;
+      for (let year = startYear; year <= endYear; year += 1) {
+        buckets.push({ key: String(year), label: String(year),
+          startOrdinal: Math.max(ordinal(`${year}-01-01`), range.startOrdinal),
+          endOrdinal: Math.min(ordinal(`${year}-12-31`), range.endOrdinal) });
+      }
+    }
+    return buckets;
+  }
+
+  function bucketForDate(dateValue, buckets) {
     const value = ordinal(dateValue);
-    const day = new Date(value * DAY_MS).getUTCDay();
-    return dateFromOrdinal(value - ((day + 6) % 7));
+    return buckets.find((bucket) => value >= bucket.startOrdinal && value <= bucket.endOrdinal);
   }
 
   function purchasingAggregate(source, range) {
     const qualifying = source.filter((row) => inRange(row, range));
+    const buckets = timeBuckets(range);
     const grouped = {};
     let total = 0;
     qualifying.forEach((row) => {
@@ -146,29 +196,55 @@ function DashboardService(dependencies = {}) {
       const canonical = qty * price;
       if (stored !== canonical) throw new Error(`Purchasing ${id} Total does not reconcile with Qty x Harga.`);
       total += canonical;
-      const key = bucketKey(businessDate(row.Tanggal), range.granularity);
-      grouped[key] = (grouped[key] || 0) + canonical;
+      const bucket = bucketForDate(businessDate(row.Tanggal), buckets);
+      if (!bucket) throw new Error(`Purchasing ${id} is outside the resolved Dashboard buckets.`);
+      grouped[bucket.key] = (grouped[bucket.key] || 0) + canonical;
     });
-    const labels = [];
-    if (range.granularity === "monthly") {
-      let year = dateParts(range.startDate).year;
-      let month = dateParts(range.startDate).month;
-      const endKey = range.endDate.slice(0, 7);
-      while (true) {
-        const key = `${year}-${String(month).padStart(2, "0")}`;
-        labels.push(key);
-        if (key === endKey) break;
-        month += 1;
-        if (month === 13) { month = 1; year += 1; }
-      }
-    } else {
-      let current = range.granularity === "weekly"
-        ? ordinal(bucketKey(range.startDate, "weekly")) : range.startOrdinal;
-      const step = range.granularity === "weekly" ? 7 : 1;
-      while (current <= range.endOrdinal) { labels.push(dateFromOrdinal(current)); current += step; }
-    }
     const units = qualifying.reduce((sum, row) => sum + finiteNonNegative(row.Qty, `Purchasing ${row.ID || "(unknown)"} Qty`), 0);
-    return { count: qualifying.length, units, total, labels, values: labels.map((key) => grouped[key] || 0) };
+    return { count: qualifying.length, units, total, labels: buckets.map((bucket) => bucket.label),
+      values: buckets.map((bucket) => grouped[bucket.key] || 0) };
+  }
+
+  function netPickupValueAggregate(headers, details, returnRows, range) {
+    const headerById = {};
+    const detailById = {};
+    headers.forEach((header) => { headerById[String(header.ID || "")] = header; });
+    details.forEach((detail) => { detailById[String(detail.ID || "")] = detail; });
+    const grossByBucket = {};
+    const returnByBucket = {};
+    const buckets = timeBuckets(range);
+    let gross = 0;
+    let returned = 0;
+
+    details.forEach((detail) => {
+      const header = headerById[String(detail.PickupID || "")];
+      if (!header) throw new Error(`Pickup Detail ${detail.ID || "(unknown)"} references a missing active Pickup Header.`);
+      if (!inRange(header, range)) return;
+      const qty = finiteNonNegative(detail.Qty, `Pickup Detail ${detail.ID || "(unknown)"} Qty`);
+      const price = finiteNonNegative(detail.Harga, `Pickup Detail ${detail.ID || "(unknown)"} Harga`);
+      const stored = finiteNonNegative(detail.Total, `Pickup Detail ${detail.ID || "(unknown)"} Total`);
+      if (stored !== qty * price) throw new Error(`Pickup Detail ${detail.ID || "(unknown)"} Total does not reconcile with Qty x Harga.`);
+      const bucket = bucketForDate(businessDate(header.Tanggal), buckets);
+      if (!bucket) throw new Error(`Pickup ${header.ID || "(unknown)"} is outside the resolved Dashboard buckets.`);
+      grossByBucket[bucket.key] = (grossByBucket[bucket.key] || 0) + stored;
+      gross += stored;
+    });
+
+    returnRows.filter((row) => inRange(row, range)).forEach((row) => {
+      const detail = detailById[String(row.PickupDetailID || "")];
+      if (!detail) throw new Error(`Return ${row.ID || "(unknown)"} references a missing Pickup Detail.`);
+      const qty = finiteNonNegative(row.Qty, `Return ${row.ID || "(unknown)"} Qty`);
+      const price = finiteNonNegative(detail.Harga, `Pickup Detail ${detail.ID || "(unknown)"} Harga`);
+      const value = qty * price;
+      const bucket = bucketForDate(businessDate(row.Tanggal), buckets);
+      if (!bucket) throw new Error(`Return ${row.ID || "(unknown)"} is outside the resolved Dashboard buckets.`);
+      returnByBucket[bucket.key] = (returnByBucket[bucket.key] || 0) + value;
+      returned += value;
+    });
+
+    return { labels: buckets.map((bucket) => bucket.label),
+      values: buckets.map((bucket) => (grossByBucket[bucket.key] || 0) - (returnByBucket[bucket.key] || 0)),
+      gross, returned, total: gross - returned, granularity: range.granularity };
   }
 
   function monthlyPurchasingAggregate(source, range) {
@@ -195,17 +271,21 @@ function DashboardService(dependencies = {}) {
   }
 
   function productPerformance(source, productsSource, range) {
-    const names = {};
-    productsSource.forEach((row) => { names[String(row.ID || "")] = String(row.Nama || row.ID || "Unknown Product"); });
+    const categories = {};
+    productsSource.forEach((row) => {
+      const id = String(row.ID || "");
+      categories[id] = String(row.Kategori || "Uncategorized").trim() || "Uncategorized";
+    });
     const grouped = {};
     source.filter((row) => inRange(row, range)).forEach((row) => {
       const id = String(row.ProductID || "").trim();
       if (!id) throw new Error(`Purchasing ${row.ID || "(unknown)"} has a blank ProductID.`);
-      if (!grouped[id]) grouped[id] = { id, label: names[id] || id, quantity: 0, value: 0 };
-      grouped[id].quantity += finiteNonNegative(row.Qty, `Purchasing ${row.ID || "(unknown)"} Qty`);
-      grouped[id].value += finiteNonNegative(row.Total, `Purchasing ${row.ID || "(unknown)"} Total`);
+      const category = categories[id] || "Uncategorized";
+      if (!grouped[category]) grouped[category] = { category, label: category, quantity: 0, value: 0 };
+      grouped[category].quantity += finiteNonNegative(row.Qty, `Purchasing ${row.ID || "(unknown)"} Qty`);
+      grouped[category].value += finiteNonNegative(row.Total, `Purchasing ${row.ID || "(unknown)"} Total`);
     });
-    const rows = Object.keys(grouped).map((id) => grouped[id])
+    const rows = Object.keys(grouped).map((category) => grouped[category])
       .sort((a, b) => b.value - a.value || b.quantity - a.quantity || a.label.localeCompare(b.label));
     return { rows, labels: rows.map((row) => row.label), values: rows.map((row) => row.value), quantities: rows.map((row) => row.quantity) };
   }
@@ -232,7 +312,7 @@ function DashboardService(dependencies = {}) {
         eventType: updated && event === updated ? "updated" : "created", _time: event.getTime() });
     }));
     result.sort((a, b) => b._time - a._time || a.module.localeCompare(b.module) || a.id.localeCompare(b.id));
-    return result.slice(0, 10).map(({ _time, ...item }) => item);
+    return result.slice(0, 5).map(({ _time, ...item }) => item);
   }
 
   function getDashboard(request = {}) {
@@ -240,11 +320,13 @@ function DashboardService(dependencies = {}) {
     if (!range.success) return range;
     try {
       const source = { products: rows(products), partners: rows(partners), pickups: rows(pickups),
+        pickupDetails: typeof pickups.findAllDetails === "function" ? rows({ findAll: pickups.findAllDetails }) : [],
         returns: rows(returns), purchases: rows(purchases), expenses: rows(expenses) };
       const expense = expenseAggregate(source.expenses, range);
       const purchasing = purchasingAggregate(source.purchases, range);
       const monthlyPurchasing = monthlyPurchasingAggregate(source.purchases, range);
       const productsByPurchasing = productPerformance(source.purchases, source.products, range);
+      const netPickupValue = netPickupValueAggregate(source.pickups, source.pickupDetails, source.returns, range);
       const unavailable = { available: false, reason: "CANONICAL_SALES_SOURCE_MISSING" };
       return Response.success({
         range: { preset: range.preset, startDate: range.startDate, endDate: range.endDate,
@@ -253,6 +335,7 @@ function DashboardService(dependencies = {}) {
           pickups: source.pickups.length, returns: source.returns.length,
           purchasingCount: purchasing.count, expenseCount: expense.count,
           purchasingValue: purchasing.total, expenseValue: expense.total,
+          netPickupValue: netPickupValue.total,
           purchasedUnits: purchasing.units, transactionCount: purchasing.count + expense.count,
           revenue: null, profit: null },
         financial: { revenue: null, expense: expense.total, profit: null,
@@ -260,6 +343,7 @@ function DashboardService(dependencies = {}) {
         expenseBreakdown: { labels: expense.labels, values: expense.values, total: expense.total },
         purchasingTrend: { labels: purchasing.labels, values: purchasing.values,
           total: purchasing.total, granularity: range.granularity },
+        netPickupValueTrend: netPickupValue,
         monthlyPurchasingTrend: monthlyPurchasing,
         productPerformance: productsByPurchasing,
         leaders: { bestSeller: null, topRevenueProduct: null,

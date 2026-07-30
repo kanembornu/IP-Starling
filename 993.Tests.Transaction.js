@@ -5,6 +5,7 @@ function testPickupServicePublicApi() {
     "create",
     "evaluateRestoreEligibility",
     "findAll",
+    "findAllDetails",
     "findById",
     "listDeleted",
     "remove",
@@ -6903,6 +6904,13 @@ function dashboardStub(rows, statistics) {
   };
 }
 
+function dashboardPickupStub(headers, details) {
+  return {
+    findAll() { return Response.success(headers || []); },
+    findAllDetails() { return Response.success(details || []); },
+  };
+}
+
 function dashboardFixture(overrides) {
   const empty = dashboardStub([], { total: 0, active: 0, inactive: 0 });
   return DashboardService(Object.assign({
@@ -6980,6 +6988,10 @@ function testDashboardRecentActivityStableOrdering() {
   const products = dashboardStub([
     { ID: "PR_OLD", CreatedAt: "2026-01-01T00:00:00.000Z" },
     { ID: "PR_NEW", CreatedAt: "2026-02-01T00:00:00.000Z", UpdatedAt: "2026-03-01T00:00:00.000Z" },
+    { ID: "PR_2", CreatedAt: "2026-02-20T00:00:00.000Z" },
+    { ID: "PR_3", CreatedAt: "2026-02-18T00:00:00.000Z" },
+    { ID: "PR_4", CreatedAt: "2026-02-16T00:00:00.000Z" },
+    { ID: "PR_5", CreatedAt: "2026-02-14T00:00:00.000Z" },
   ]);
   const expenses = dashboardStub([
     { ID: "EX_MID", CreatedAt: "2026-01-15T00:00:00.000Z" },
@@ -6987,8 +6999,8 @@ function testDashboardRecentActivityStableOrdering() {
   const activities = dashboardFixture({ products, expenses })
     .getDashboard().data.recentActivities;
 
-  if (activities.map((item) => item.id).join(",") !== "PR_NEW,EX_MID,PR_OLD") {
-    throw new Error("Dashboard recent activity ordering is unstable.");
+  if (activities.length !== 5 || activities.map((item) => item.id).join(",") !== "PR_NEW,PR_2,PR_3,PR_4,PR_5") {
+    throw new Error("Dashboard recent activity ordering or five-record limit is unstable.");
   }
 }
 
@@ -7036,6 +7048,330 @@ function testDashboardDateRangeContract() {
   const monthly = service.getDashboard({ preset: "CUSTOM", startDate: "2026-01-01", endDate: "2026-07-01" });
   if (daily.data.range.granularity !== "daily" || weekly.data.range.granularity !== "weekly" ||
       monthly.data.range.granularity !== "monthly") throw new Error("Dashboard granularity boundaries failed.");
+}
+
+function testDashboardCurrentMonthWeeklyAggregation() {
+  const purchases = dashboardStub([
+    { ID: "PU_M1", Tanggal: "2026-07-01", Qty: 1, Harga: 100, Total: 100 },
+    { ID: "PU_M2", Tanggal: "2026-07-08", Qty: 2, Harga: 100, Total: 200 },
+    { ID: "PU_M4", Tanggal: "2026-07-22", Qty: 3, Harga: 100, Total: 300 },
+  ]);
+  const response = dashboardFixture({ purchases }).getDashboard({ preset: "CURRENT_MONTH" });
+  if (!response.success || response.data.range.granularity !== "weekly" ||
+      response.data.purchasingTrend.labels.join(",") !== "M1,M2,M3,M4" ||
+      response.data.purchasingTrend.values.join(",") !== "100,200,0,300") {
+    throw new Error("Dashboard current-month week-of-month aggregation contract failed.");
+  }
+}
+
+function testDashboardAdaptiveDailyAggregationContract() {
+  const data = dashboardFixture().getDashboard({ preset: "CUSTOM", startDate: "2026-07-01", endDate: "2026-07-03" }).data;
+  if (data.range.granularity !== "daily" || data.netPickupValueTrend.labels.join(",") !== "01/07,02/07,03/07") {
+    throw new Error("Dashboard adaptive daily aggregation contract failed.");
+  }
+}
+
+function testDashboardAdaptiveWeeklyAggregationContract() {
+  const data = dashboardFixture().getDashboard({ preset: "CUSTOM", startDate: "2026-01-01", endDate: "2026-02-01" }).data;
+  if (data.range.granularity !== "weekly" || data.netPickupValueTrend.labels.join(",") !==
+      "01–07/01,08–14/01,15–21/01,22–28/01,29/01–01/02") {
+    throw new Error("Dashboard adaptive weekly aggregation contract failed.");
+  }
+}
+
+function testDashboardAdaptiveMonthlyAggregationContract() {
+  const sameYear = dashboardFixture().getDashboard({ preset: "CUSTOM", startDate: "2026-01-01", endDate: "2026-04-01" }).data;
+  const crossYear = dashboardFixture().getDashboard({ preset: "CUSTOM", startDate: "2025-11-01", endDate: "2026-02-01" }).data;
+  if (sameYear.range.granularity !== "monthly" || sameYear.netPickupValueTrend.labels.join(",") !== "Jan,Feb,Mar,Apr" ||
+      crossYear.netPickupValueTrend.labels.join(",") !== "Nov 2025,Dec 2025,Jan 2026,Feb 2026") {
+    throw new Error("Dashboard adaptive monthly aggregation contract failed.");
+  }
+}
+
+function testDashboardAdaptiveYearlyAggregationContract() {
+  const data = dashboardFixture().getDashboard({ preset: "CUSTOM", startDate: "2023-01-01", endDate: "2025-01-02" }).data;
+  if (data.range.granularity !== "yearly" || data.netPickupValueTrend.labels.join(",") !== "2023,2024,2025") {
+    throw new Error("Dashboard adaptive yearly aggregation contract failed.");
+  }
+}
+
+function testDashboardChronologicalBucketContract() {
+  const data = dashboardFixture().getDashboard({ preset: "CUSTOM", startDate: "2025-12-15", endDate: "2026-04-15" }).data;
+  if (data.netPickupValueTrend.labels.join(",") !== "Dec 2025,Jan 2026,Feb 2026,Mar 2026,Apr 2026" ||
+      data.netPickupValueTrend.labels.length !== data.netPickupValueTrend.values.length) {
+    throw new Error("Dashboard chronological continuous bucket contract failed.");
+  }
+}
+
+function testPickupHistoricalPriceSchemaContract() {
+  if (PICKUP_DETAIL_FIELDS.PRICE !== "Harga" || PICKUP_DETAIL_FIELDS.TOTAL !== "Total" ||
+      PICKUP_DETAIL_SCHEMA.HEADERS.indexOf("Harga") < 0 || PICKUP_DETAIL_SCHEMA.HEADERS.indexOf("Total") < 0 ||
+      !PICKUP_DETAIL_SCHEMA.VALIDATION.Harga.required || !PICKUP_DETAIL_SCHEMA.VALIDATION.Total.required) {
+    throw new Error("Pickup Detail historical price schema contract failed.");
+  }
+}
+
+function testPickupHistoricalPriceSnapshotSourceContract() {
+  const source = String(PickupService);
+  if (!/product\[PRODUCT_FIELDS\.PRICE\]/.test(source) ||
+      !/historicalPriceByProduct/.test(source) ||
+      !/PICKUP_DETAIL_FIELDS\.TOTAL\]: qty \* price/.test(source) ||
+      /detail\[PICKUP_DETAIL_FIELDS\.PRICE\].*=.*product\[PRODUCT_FIELDS\.PRICE\]/.test(source)) {
+    throw new Error("Pickup Detail server-owned historical price snapshot contract failed.");
+  }
+}
+
+function testReturnHistoricalValuationSourceContract() {
+  const source = String(ReturnService);
+  if (!/PickupDetailHarga/.test(source) || !/ReturnValue/.test(source) ||
+      !/pickupDetail\[PICKUP_DETAIL_FIELDS\.PRICE\]/.test(source) ||
+      /ReturnValue[\s\S]{0,200}PRODUCT_FIELDS\.PRICE/.test(source)) {
+    throw new Error("Return valuation does not exclusively use Pickup Detail historical Harga.");
+  }
+}
+
+function testDashboardNetPickupValueMonthlyAndWeeklyContract() {
+  const headers = [
+    { ID: "PH_1", Tanggal: "2026-07-01" },
+    { ID: "PH_2", Tanggal: "2026-07-08" },
+    { ID: "PH_3", Tanggal: "2026-06-15" },
+  ];
+  const details = [
+    { ID: "PD_1", PickupID: "PH_1", ProductID: "PR_1", Qty: 2, Harga: 500000, Total: 1000000 },
+    { ID: "PD_2", PickupID: "PH_2", ProductID: "PR_1", Qty: 1, Harga: 1000000, Total: 1000000 },
+    { ID: "PD_3", PickupID: "PH_3", ProductID: "PR_1", Qty: 1, Harga: 500000, Total: 500000 },
+  ];
+  const returns = dashboardStub([
+    { ID: "RT_1", PickupID: "PH_1", PickupDetailID: "PD_1", Tanggal: "2026-07-08", Qty: 1 },
+  ]);
+  const service = dashboardFixture({ pickups: dashboardPickupStub(headers, details), returns });
+  const month = service.getDashboard({ preset: "CURRENT_MONTH" }).data;
+  if (month.summary.netPickupValue !== 1500000 || month.netPickupValueTrend.labels.join(",") !== "M1,M2,M3,M4" ||
+      month.netPickupValueTrend.values.join(",") !== "1000000,500000,0,0") {
+    throw new Error("Net Pickup Value current-month weekly aggregation failed.");
+  }
+  const year = service.getDashboard({ preset: "CURRENT_YEAR" }).data;
+  if (year.netPickupValueTrend.granularity !== "monthly" ||
+      year.netPickupValueTrend.values.slice(5, 7).join(",") !== "500000,1500000" ||
+      year.summary.netPickupValue !== 2000000) {
+    throw new Error("Net Pickup Value current-year monthly aggregation failed.");
+  }
+}
+
+function testDashboardCategoryAggregationContract() {
+  const products = dashboardStub([
+    { ID: "PR_1", Nama: "One", Kategori: "Coffee Beans" },
+    { ID: "PR_2", Nama: "Two", Kategori: "Coffee Beans" },
+    { ID: "PR_3", Nama: "Three", Kategori: "Equipment" },
+  ]);
+  const purchases = dashboardStub([
+    { ID: "PU_1", ProductID: "PR_1", Tanggal: "2026-07-01", Qty: 1, Harga: 100, Total: 100 },
+    { ID: "PU_2", ProductID: "PR_2", Tanggal: "2026-07-02", Qty: 2, Harga: 100, Total: 200 },
+    { ID: "PU_3", ProductID: "PR_3", Tanggal: "2026-07-03", Qty: 1, Harga: 50, Total: 50 },
+  ]);
+  const data = dashboardFixture({ products, purchases })
+    .getDashboard({ preset: "CUSTOM", startDate: "2026-07-01", endDate: "2026-07-03" }).data;
+  if (data.productPerformance.labels.join(",") !== "Coffee Beans,Equipment" ||
+      data.productPerformance.values.join(",") !== "300,50") {
+    throw new Error("Dashboard product-category aggregation contract failed.");
+  }
+}
+
+function testDashboardChartFormattingContract() {
+  const presenter = expenseFrontendSource("971.View.Dashboard.Presenter");
+  const view = expenseFrontendSource("950.View.Dashboard");
+  if (!view.includes("Revenue Trend") || !/Net Pickup Value/.test(presenter) ||
+      !/beginAtZero:\s*true,\s*min:\s*0/.test(presenter) ||
+      !/labels:\s*trend\.labels/.test(presenter) ||
+      !/split\(\/\\s\+\/\)/.test(presenter) || !/Format\.currency\(context\.raw\)/.test(presenter)) {
+    throw new Error("Dashboard chart title, axes, labels, legend, or tooltip formatting contract failed.");
+  }
+}
+
+function testDashboardResponsiveOutsideDonutContract() {
+  const presenter = expenseFrontendSource("971.View.Dashboard.Presenter");
+  const block = dashboardFrontendBlock(presenter, "function outsideDonutLabels(theme)", "function destroyCharts()");
+  if (!/afterDatasetsDraw\(chart\)/.test(block) || !/arc\.startAngle/.test(block) ||
+      !/arc\.outerRadius/.test(block) || !/chart\.chartArea/.test(block) ||
+      !/distributeOutsideLabels/.test(block) || !/sideCapacity/.test(block) ||
+      !/context\.lineTo\(elbowX, item\.y\)/.test(block) ||
+      !/context\.lineTo\(lineEndX, item\.y\)/.test(block) ||
+      !/toFixed\(1\)/.test(block)) {
+    throw new Error("Dashboard responsive outside donut labels or leader-line positioning contract failed.");
+  }
+  const renderCharts = dashboardFrontendBlock(presenter, "function renderCharts(data)", "return Object.freeze");
+  if (!/legend:\s*\{\s*display:\s*false\s*\}/.test(renderCharts) ||
+      /legend:\s*\{[\s\S]{0,100}position:/.test(renderCharts)) {
+    throw new Error("Dashboard donut legend was not completely removed.");
+  }
+}
+
+function testApplicationThemeSwitchingAndPersistenceContract() {
+  const index = expenseFrontendSource("900.View.Index");
+  const settings = expenseFrontendSource("947.View.Settings");
+  const app = expenseFrontendSource("970.View.App");
+  const settingsPresenter = expenseFrontendSource("980.View.Settings.Presenter");
+  if (!/data-theme="light"/.test(index) || !/ip-starling-theme/.test(index) ||
+      !/localStorage\.getItem\(STORAGE_KEY\)/.test(index) || !/localStorage\.setItem\(STORAGE_KEY, theme\)/.test(index) ||
+      !/document\.documentElement\.dataset\.theme/.test(index) ||
+      !/data-theme-selector/.test(settings) || !/value="dark"/.test(settings) || !/value="light"/.test(settings) ||
+      !/window\.Theme\.set\(event\.target\.value\)/.test(app) ||
+      !/app:themechange/.test(app) || !/DashboardPresenter\.render\(state\.dashboard\)/.test(app) ||
+      !/window\.Theme\.get\(\)/.test(settingsPresenter)) {
+    throw new Error("Application theme switching, persistence, restoration, or immediate update contract failed.");
+  }
+}
+
+function testDashboardChartThemeAdaptationContract() {
+  const presenter = expenseFrontendSource("971.View.Dashboard.Presenter");
+  const index = expenseFrontendSource("900.View.Index");
+  ["--color-chart-text", "--color-chart-grid", "--color-chart-label", "--color-chart-leader", "--color-tooltip", "--color-tooltip-border"].forEach((token) => {
+    if (index.indexOf(token) < 0 || presenter.indexOf(token) < 0) throw new Error(`Dashboard chart theme token is missing: ${token}`);
+  });
+  if (!/font:\s*\{\s*size:\s*13,\s*weight:\s*"600"\s*\}/.test(presenter) ||
+      !/backgroundColor:\s*theme\.tooltip/.test(presenter) ||
+      !/strokeStyle = theme\.leader/.test(presenter) || !/fillStyle = theme\.label/.test(presenter) ||
+      !/grid:\s*\{\s*color:\s*theme\.grid\s*\}/.test(presenter)) {
+    throw new Error("Dashboard chart theme adaptation or enlarged axis contract failed.");
+  }
+}
+
+function testDashboardChartMarkerRenderingContract() {
+  const presenter = expenseFrontendSource("971.View.Dashboard.Presenter");
+  const index = expenseFrontendSource("900.View.Index");
+  ["--color-chart-marker-fill", "--color-chart-marker-border", "--color-chart-marker-glow"].forEach((token) => {
+    if (index.indexOf(token) < 0 || presenter.indexOf(token) < 0) throw new Error(`Dashboard marker theme token is missing: ${token}`);
+  });
+  if (!/pointRadius:\s*3\.5/.test(presenter) || !/pointHoverRadius:\s*5\.5/.test(presenter) ||
+      !/pointBorderWidth:\s*2/.test(presenter) || !/pointHoverBorderWidth:\s*2\.5/.test(presenter) ||
+      !/pointBackgroundColor:\s*theme\.markerFill/.test(presenter) ||
+      !/pointBorderColor:\s*theme\.markerBorder/.test(presenter) ||
+      !/function lineMarkerGlow\(theme\)/.test(presenter) || !/shadowBlur = 8/.test(presenter) ||
+      !/radius:\s*\{\s*duration:\s*180,\s*easing:\s*"easeOutQuart"/.test(presenter) ||
+      !/borderWidth:\s*2/.test(presenter)) {
+    throw new Error("Dashboard line marker size, contrast, hover, glow, or animation contract failed.");
+  }
+}
+
+function testDashboardDonutLabelPolishContract() {
+  const presenter = expenseFrontendSource("971.View.Dashboard.Presenter");
+  const block = dashboardFrontendBlock(presenter, "function outsideDonutLabels(theme)", "function destroyCharts()");
+  if (!/const gap = 36/.test(block) || !/650 12\.25px Inter/.test(block) ||
+      !/600 11\.75px Inter/.test(block) || !/textWidth \+ 7/.test(block) ||
+      !/textWidth - 7/.test(block) || !/context\.lineTo\(lineEndX, item\.y\)/.test(block) ||
+      !/distributeOutsideLabels/.test(block) || !/afterDatasetsDraw\(chart\)/.test(block)) {
+    throw new Error("Dashboard outside donut label size, spacing, leader-line, or responsive positioning contract failed.");
+  }
+}
+
+function testDashboardKpiAndRecentActivityLayoutContract() {
+  const components = expenseFrontendSource("987.View.Components");
+  const styles = expenseFrontendSource("900.View.Index");
+  const presenter = expenseFrontendSource("971.View.Dashboard.Presenter");
+  if (!/kpi-value/.test(components) || /kpi-value[\s\S]{0,120}truncate/.test(components) ||
+      !/kpi-value--long/.test(styles) || !/kpi-value--xlong/.test(styles) ||
+      !/#dashboard-activities\s*\{\s*max-height:\s*none;\s*overflow:\s*visible/.test(styles) ||
+      !/activities\.slice\(0, 5\)/.test(presenter)) {
+    throw new Error("Dashboard KPI large-value or Recent Activity top-five no-scroll contract failed.");
+  }
+}
+
+function testGlobalNominalFormatterParserContract() {
+  const format = expenseFrontendSource("986.View.Format");
+  const events = expenseFrontendSource("980.View.Event");
+  const product = expenseFrontendSource("981.View.Products.Form");
+  const purchasing = expenseFrontendSource("978.View.Purchasing.Presenter");
+  const expenses = expenseFrontendSource("977.View.Expenses.Presenter");
+  if (!/function nominalInput\(value\)/.test(format) ||
+      !/replace\(\/\\D\/g, ""\)/.test(format) ||
+      !/replace\(\/\\B\(\?=\(\\d\{3\}\)\+\(\?!\\d\)\)\/g, "\."\)/.test(format) ||
+      !/function nominalValue\(value\)/.test(format) ||
+      !/Format\.updateNominalInput\(event\.target\)/.test(events) ||
+      !/data-nominal-input/.test(product) || !/data-nominal-input/.test(purchasing) ||
+      !/data-nominal-input/.test(expenses)) {
+    throw new Error("Shared Indonesian nominal input formatter/parser contract failed.");
+  }
+  if (/data-nominal-input[^>]*data-pickup-detail-field="Qty"/.test(expenseFrontendSource("974.View.Pickups.Presenter"))) {
+    throw new Error("Nominal formatting was incorrectly applied to Qty.");
+  }
+}
+
+function testMonetaryPayloadNumericContract() {
+  const app = expenseFrontendSource("970.View.App");
+  const product = expenseFrontendSource("981.View.Products.Form");
+  if (!/Harga:\s*Format\.nominalValue/.test(product) ||
+      !/const price = Format\.nominalValue\(priceText\)/.test(app) ||
+      !/const amount = Format\.nominalValue\(amountText\)/.test(app) ||
+      !/payload:\s*\{\s*Tanggal: date,[\s\S]{0,180}Harga: price/.test(app) ||
+      !/Nominal: amount/.test(app)) {
+    throw new Error("Formatted monetary text is not converted to canonical numeric payloads.");
+  }
+}
+
+function testPickupSuccessfulSaveModalCloseContract() {
+  const app = expenseFrontendSource("970.View.App");
+  const submit = dashboardFrontendBlock(app, "async function submitPickupForm()", "async function deletePickup");
+  if (!/closePickupModal\(true\)/.test(submit) ||
+      (submit.match(/await loadPickups\(\)/g) || []).length !== 1 ||
+      (submit.match(/Toast\.success\(/g) || []).length !== 1 ||
+      !/function closePickupModal\(force=false\)/.test(app) ||
+      !/state\.pickupForm=null;state\.pickupFormKind=null/.test(app) ||
+      !/Modal\.close\(\)/.test(app)) {
+    throw new Error("Pickup Add/Edit success does not close and reset the modal exactly once.");
+  }
+}
+
+function testPickupQtyRecalculationContract() {
+  const app = expenseFrontendSource("970.View.App");
+  const presenter = expenseFrontendSource("974.View.Pickups.Presenter");
+  if (!/function pickupTotals\(form=state\.pickupForm\)/.test(app) ||
+      !/Number\.isFinite\(qty\)&&qty>0\?qty:0/.test(app) ||
+      !/function syncPickupTotals\(\)/.test(app) ||
+      !/TotalItem:totals\.TotalItem,TotalQty:totals\.TotalQty/.test(app) ||
+      !/function addPickupDetail\(\)[\s\S]{0,180}syncPickupTotals\(\)/.test(app) ||
+      !/function removePickupDetail\(localId\)[\s\S]{0,240}syncPickupTotals\(\)/.test(app) ||
+      !/if\(localId\)syncPickupTotals\(\)/.test(app) ||
+      !/pickup-form-total-item/.test(presenter) || !/pickup-form-total-qty/.test(presenter)) {
+    throw new Error("Pickup Add/Edit quantity recalculation contract failed.");
+  }
+}
+
+function testPickupHeaderDetailQtyConsistencyContract() {
+  const source = String(PickupService);
+  if (!/suppliedItem/.test(source) || !/suppliedQty/.test(source) ||
+      !/Number\(suppliedItem\) !== details\.length/.test(source) ||
+      !/Number\(suppliedQty\) !== totalQty/.test(source) ||
+      !/TotalQty header tidak sesuai/.test(source)) {
+    throw new Error("Pickup backend does not reject mismatched header/detail totals.");
+  }
+}
+
+function testPurchaseDateOnlyRoundTripContract() {
+  const format = expenseFrontendSource("986.View.Format");
+  const app = expenseFrontendSource("970.View.App");
+  const purchasing = expenseFrontendSource("978.View.Purchasing.Presenter");
+  const expenses = expenseFrontendSource("977.View.Expenses.Presenter");
+  const pickups = expenseFrontendSource("974.View.Pickups.Presenter");
+  if (!/function dateInput\(value\)/.test(format) || !/parsed\.getFullYear\(\)/.test(format) ||
+      /toISOString\(\)/.test(format) || !/function dateInput\(value\) \{ return Format\.dateInput\(value\); \}/.test(app) ||
+      !/Format\.dateInput\(value\)/.test(expenses) || !/Format\.dateInput\(value\)/.test(pickups) ||
+      !/type="date"/.test(purchasing)) {
+    throw new Error("Purchase/shared date-only round-trip contract failed.");
+  }
+}
+
+function testSettingsHeaderThemeAndRefreshCleanupContract() {
+  const view = expenseFrontendSource("947.View.Settings");
+  const presenter = expenseFrontendSource("980.View.Settings.Presenter");
+  const app = expenseFrontendSource("970.View.App");
+  if (!/text-2xl font-bold text-slate-800">Settings/.test(view) ||
+      !/text-sm text-slate-500/.test(view) || /settings-hero/.test(view) ||
+      /data-settings-action="refresh"/.test(view) || /action === "refresh"/.test(app) ||
+      !/data-settings-group="ui-settings"/.test(presenter) ||
+      !/"UI Settings"/.test(presenter) || !/data-theme-selector/.test(presenter) ||
+      !/value="dark"/.test(presenter) || !/value="light"/.test(presenter)) {
+    throw new Error("Settings header, UI Settings theme category, or dead Refresh cleanup contract failed.");
+  }
 }
 
 function testDashboardExpenseControlledReconciliation() {

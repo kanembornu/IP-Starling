@@ -51,6 +51,11 @@
     //===========================================================================
 
     function bindGlobal() {
+      document.addEventListener("input", (event) => {
+        if (event.target?.matches("[data-nominal-input]")) {
+          Format.updateNominalInput(event.target);
+        }
+      });
       document.addEventListener(
         "input",
 

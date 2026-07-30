@@ -71,7 +71,9 @@
 
               <input
                 id="inp-product-price"
-                type="number"
+                type="text"
+                inputmode="numeric"
+                data-nominal-input
                 class="w-full rounded-lg border border-slate-300 px-3 py-2"
                 placeholder="0"
               />
@@ -107,7 +109,7 @@
         Nama: DOM.value("inp-product-name").trim(),
         Kategori: DOM.value("inp-product-category").trim(),
         Satuan: DOM.value("inp-product-unit").trim(),
-        Harga: Number(DOM.value("inp-product-price")),
+        Harga: Format.nominalValue(DOM.value("inp-product-price")),
         IsActive: DOM.checked("inp-product-active"),
       };
     }
@@ -120,7 +122,7 @@
       DOM.setValue("inp-product-name", product.Nama ?? "");
       DOM.setValue("inp-product-category", product.Kategori ?? "");
       DOM.setValue("inp-product-unit", product.Satuan ?? "");
-      DOM.setValue("inp-product-price", product.Harga ?? "");
+      DOM.setValue("inp-product-price", Format.nominalInput(product.Harga ?? ""));
       DOM.setChecked("inp-product-active", product.IsActive);
     }
 

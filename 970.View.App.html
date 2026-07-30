@@ -29,9 +29,9 @@
 
       dashboardError: "",
 
-      dashboardRange: { preset: "", startDate: "", endDate: "" },
+      dashboardRange: { preset: "CURRENT_YEAR", startDate: "", endDate: "" },
 
-      dashboardRangeControls: { preset: "", startDate: "", endDate: "" },
+      dashboardRangeControls: { preset: "CURRENT_YEAR", startDate: "", endDate: "" },
 
       settings: [],
 
@@ -283,6 +283,11 @@
       Render.page(state.page);
 
       Events.init();
+
+      window.addEventListener("app:themechange", () => {
+        SettingsPresenter.renderTheme();
+        if (state.page === "dashboard" && state.dashboard) DashboardPresenter.render(state.dashboard);
+      });
 
       bindSettingsActions();
 
@@ -751,11 +756,15 @@
     }
 
     function bindSettingsActions() {
+      document.addEventListener("change", (event) => {
+        if (event.target?.matches("[data-theme-selector]") && window.Theme) {
+          window.Theme.set(event.target.value);
+        }
+      });
       document.addEventListener("click", (event) => {
         const button = event.target.closest("[data-settings-action]");
         if (!button || state.page !== "settings") return;
         const action = button.dataset.settingsAction;
-        if (action === "refresh") loadSettings();
         if (action === "save") mutateSetting(button.dataset.key, false);
         if (action === "reset") mutateSetting(button.dataset.key, true);
       });
@@ -766,7 +775,7 @@
     //===========================================================================
 
     function dashboardRangeFromControls() {
-      const preset = DOM.$("dashboard-preset")?.value || "CURRENT_MONTH";
+      const preset = DOM.$("dashboard-preset")?.value || "CURRENT_YEAR";
       return {
         preset,
         startDate: DOM.$("dashboard-start")?.value || "",
@@ -805,6 +814,7 @@
         availability: data.availability && typeof data.availability === "object" ? data.availability : {},
         recentActivities: Array.isArray(data.recentActivities) ? data.recentActivities : [],
         purchasingTrend: series(data.purchasingTrend),
+        netPickupValueTrend: series(data.netPickupValueTrend),
         monthlyPurchasingTrend: series(data.monthlyPurchasingTrend),
         productPerformance: series(data.productPerformance),
         expenseBreakdown: series(data.expenseBreakdown),
@@ -1266,19 +1276,21 @@
       pickupDependencyLoading=Promise.all([state.pickupProducts?Promise.resolve({success:true,data:state.pickupProducts}):Api.Product.list(),state.pickupPartners?Promise.resolve({success:true,data:state.pickupPartners}):Api.Partner.list()]).then(([products,partners])=>{if(request!==pickupDependencyRequest)return false;if(!products?.success||!partners?.success)throw new Error(products?.message||partners?.message||"Master data for Pickup could not be loaded.");state.pickupProducts=pickupSelectable(products.data);state.pickupPartners=pickupSelectable(partners.data);if(!state.pickupProducts.length||!state.pickupPartners.length)throw new Error("Active Product and Partner data are required to create a Pickup.");return true;}).finally(()=>{if(request===pickupDependencyRequest)pickupDependencyLoading=null;});return pickupDependencyLoading;
     }
     function newPickupDetail(){return {localId:String(pickupNextDetailId++),ProductID:"",Qty:"",Notes:""};}
+    function pickupTotals(form=state.pickupForm){const details=Array.isArray(form?.details)?form.details:[];return {TotalItem:details.length,TotalQty:details.reduce((total,row)=>{const qty=Number(row?.Qty);return total+(Number.isFinite(qty)&&qty>0?qty:0);},0)};}
+    function syncPickupTotals(){if(!state.pickupForm)return {TotalItem:0,TotalQty:0};const totals=pickupTotals(state.pickupForm);state.pickupForm.header=Object.assign({},state.pickupForm.header,totals);DOM.text(DOM.$("pickup-form-total-item"),String(totals.TotalItem));DOM.text(DOM.$("pickup-form-total-qty"),PickupsPresenter.formatQty(totals.TotalQty));return totals;}
     function pickupFormView(){return {kind:state.pickupFormKind,form:state.pickupForm,products:state.pickupProducts||[],partners:state.pickupPartners||[]};}
-    function showPickupForm(){Modal.open({title:state.pickupFormKind==="edit"?"Edit Pickup":"Create Pickup",width:"xl",body:PickupsPresenter.renderForm(pickupFormView()),footer:PickupsPresenter.renderFormFooter(state.pickupFormKind,state.pickupSubmitting)});DOM.$("inp-pickup-form-date")?.focus();}
-    async function openCreatePickup(){if(state.pickupSubmitting)return;const request=++pickupDetailRequest;try{await ensurePickupDependencies();if(request!==pickupDetailRequest||state.page!=="pickups")return;pickupNextDetailId=1;state.pickupFormKind="create";state.pickupCreateRequestKey=createRequestKey();state.pickupForm={header:{Tanggal:"",PartnerID:"",Notes:""},details:[newPickupDetail()]};showPickupForm();}catch(error){if(request===pickupDetailRequest)Toast.error(readableLoadError(error,"Master data for Pickup could not be loaded."));}}
+    function showPickupForm(){syncPickupTotals();Modal.open({title:state.pickupFormKind==="edit"?"Edit Pickup":"Create Pickup",width:"xl",body:PickupsPresenter.renderForm(pickupFormView()),footer:PickupsPresenter.renderFormFooter(state.pickupFormKind,state.pickupSubmitting)});syncPickupTotals();DOM.$("inp-pickup-form-date")?.focus();}
+    async function openCreatePickup(){if(state.pickupSubmitting)return;const request=++pickupDetailRequest;try{await ensurePickupDependencies();if(request!==pickupDetailRequest||state.page!=="pickups")return;pickupNextDetailId=1;state.pickupFormKind="create";state.pickupCreateRequestKey=createRequestKey();state.pickupForm={header:{Tanggal:"",PartnerID:"",Notes:"",TotalItem:0,TotalQty:0},details:[newPickupDetail()]};showPickupForm();}catch(error){if(request===pickupDetailRequest)Toast.error(readableLoadError(error,"Master data for Pickup could not be loaded."));}}
     function validPickupDetail(response){return Boolean(response?.success&&response.data&&response.data.header&&Array.isArray(response.data.details));}
-    async function openEditPickup(id){const clean=String(id||"").trim();if(!clean||state.pickupSubmitting)return Toast.error("Pickup ID is unavailable.");const request=++pickupDetailRequest;state.pickupCreateRequestKey=null;state.pickupBusyId=clean;Modal.open({title:"Edit Pickup",width:"xl",body:Components.loading("Loading pickup..."),footer:PickupsPresenter.renderFormFooter("edit",true)});try{const [ready,response]=await Promise.all([ensurePickupDependencies(),Api.Pickup.findById(clean)]);if(!ready||request!==pickupDetailRequest||state.page!=="pickups")return;if(!validPickupDetail(response))throw new Error(response?.message||"Pickup could not be loaded for editing.");pickupNextDetailId=1;const header=response.data.header;const details=pickupSelectable(response.data.details).map((d)=>({localId:String(pickupNextDetailId++),ProductID:String(d.ProductID||""),Qty:d.Qty??"",Notes:String(d.Notes||"")}));state.pickupFormKind="edit";state.pickupForm={id:clean,header:{Tanggal:PickupsPresenter.dateInputValue(header.Tanggal),PartnerID:String(header.PartnerID||""),Notes:String(header.Notes||"")},details:details.length?details:[newPickupDetail()]};showPickupForm();}catch(error){if(request===pickupDetailRequest){Toast.error(readableLoadError(error,"Pickup could not be loaded for editing."));Modal.body(Components.empty("Pickup could not be loaded for editing."));}}finally{if(request===pickupDetailRequest)state.pickupBusyId=null;}}
+    async function openEditPickup(id){const clean=String(id||"").trim();if(!clean||state.pickupSubmitting)return Toast.error("Pickup ID is unavailable.");const request=++pickupDetailRequest;state.pickupCreateRequestKey=null;state.pickupBusyId=clean;Modal.open({title:"Edit Pickup",width:"xl",body:Components.loading("Loading pickup..."),footer:PickupsPresenter.renderFormFooter("edit",true)});try{const [ready,response]=await Promise.all([ensurePickupDependencies(),Api.Pickup.findById(clean)]);if(!ready||request!==pickupDetailRequest||state.page!=="pickups")return;if(!validPickupDetail(response))throw new Error(response?.message||"Pickup could not be loaded for editing.");pickupNextDetailId=1;const header=response.data.header;const details=pickupSelectable(response.data.details).map((d)=>({localId:String(pickupNextDetailId++),ProductID:String(d.ProductID||""),Qty:d.Qty??"",Notes:String(d.Notes||"")}));state.pickupFormKind="edit";state.pickupForm={id:clean,header:{Tanggal:PickupsPresenter.dateInputValue(header.Tanggal),PartnerID:String(header.PartnerID||""),Notes:String(header.Notes||""),TotalItem:0,TotalQty:0},details:details.length?details:[newPickupDetail()]};showPickupForm();}catch(error){if(request===pickupDetailRequest){Toast.error(readableLoadError(error,"Pickup could not be loaded for editing."));Modal.body(Components.empty("Pickup could not be loaded for editing."));}}finally{if(request===pickupDetailRequest)state.pickupBusyId=null;}}
     async function viewPickup(id){const clean=String(id||"").trim();if(!clean)return Toast.error("Pickup ID is unavailable.");const request=++pickupDetailRequest;Modal.open({title:"Pickup Detail",width:"lg",body:Components.loading("Loading pickup..."),footer:PickupsPresenter.renderDetailFooter(clean)});try{const response=await Api.Pickup.findById(clean);if(request!==pickupDetailRequest||state.page!=="pickups")return;if(!validPickupDetail(response))throw new Error(response?.message||"Pickup detail is unavailable.");Modal.body(PickupsPresenter.renderDetail(response.data.header,response.data.details));}catch(error){if(request===pickupDetailRequest){const message=readableLoadError(error,"Load pickup failed.");Toast.error(message);Modal.body(Components.empty(message));}}}
-    function updatePickupForm(field,value,localId=""){if(!state.pickupForm||state.pickupSubmitting)return;if(localId&&["ProductID","Qty","Notes"].includes(field)){const detail=state.pickupForm.details.find((d)=>d.localId===localId);if(detail)detail[field]=value;}else if(["Tanggal","PartnerID","Notes"].includes(field))state.pickupForm.header[field]=value;}
-    function addPickupDetail(){if(!state.pickupForm||state.pickupSubmitting)return;state.pickupForm.details.push(newPickupDetail());Modal.body(PickupsPresenter.renderForm(pickupFormView()));}
-    function removePickupDetail(localId){if(!state.pickupForm||state.pickupSubmitting||state.pickupForm.details.length===1)return;state.pickupForm.details=state.pickupForm.details.filter((d)=>d.localId!==String(localId));Modal.body(PickupsPresenter.renderForm(pickupFormView()));}
-    function validatePickupForm(){const form=state.pickupForm||{},header={Tanggal:String(form.header?.Tanggal||"").trim(),PartnerID:String(form.header?.PartnerID||"").trim(),Notes:String(form.header?.Notes||"").trim()};if(!header.Tanggal)return {field:"Tanggal",message:"Tanggal is required."};if(!header.PartnerID)return {field:"PartnerID",message:"Partner is required."};if(!form.details?.length)return {field:"details",message:"At least one item is required."};const seen=new Set(),details=[];for(const row of form.details){const product=String(row.ProductID||"").trim(),qty=Number(row.Qty);if(!product)return {field:"details",message:"Each item needs a Product."};if(!Number.isFinite(qty))return {field:"details",message:"Each Qty must be numeric."};if(qty<=0)return {field:"details",message:"Each Qty must be greater than zero."};if(seen.has(product))return {field:"details",message:"Duplicate Products are not allowed."};seen.add(product);details.push({ProductID:product,Qty:qty,Notes:String(row.Notes||"").trim()});}return {document:{header,details}};}
-    async function submitPickupForm(){if(state.pickupSubmitting||!state.pickupForm)return;const validation=validatePickupForm();if(!validation.document){if(!PickupsPresenter.showFieldError(validation.field,validation.message))Toast.warning(validation.message);return false;}state.pickupSubmitting=true;pickupRequest++;Modal.footer(PickupsPresenter.renderFormFooter(state.pickupFormKind,true));const editing=state.pickupFormKind==="edit",id=state.pickupForm.id;try{const createDocument=editing?validation.document:Object.assign({},validation.document,{IdempotencyKey:state.pickupCreateRequestKey});const response=editing?await Api.Pickup.update(id,validation.document):await Api.Pickup.create(createDocument);if(!response?.success)throw new Error(response?.message||(editing?"Pickup could not be updated.":"Pickup could not be created."));Toast.success(response.meta?.idempotentReplay?"Pickup request was already completed.":response.message||(editing?"Pickup updated.":"Pickup created."));closePickupModal();await loadPickups();}catch(error){Toast.error(readableLoadError(error,editing?"Pickup could not be updated.":"Pickup could not be created."));}finally{state.pickupSubmitting=false;if(state.pickupForm)Modal.footer(PickupsPresenter.renderFormFooter(state.pickupFormKind,false));}}
+    function updatePickupForm(field,value,localId=""){if(!state.pickupForm||state.pickupSubmitting)return;if(localId&&["ProductID","Qty","Notes"].includes(field)){const detail=state.pickupForm.details.find((d)=>d.localId===localId);if(detail)detail[field]=value;}else if(["Tanggal","PartnerID","Notes"].includes(field))state.pickupForm.header[field]=value;if(localId)syncPickupTotals();}
+    function addPickupDetail(){if(!state.pickupForm||state.pickupSubmitting)return;state.pickupForm.details.push(newPickupDetail());syncPickupTotals();Modal.body(PickupsPresenter.renderForm(pickupFormView()));syncPickupTotals();}
+    function removePickupDetail(localId){if(!state.pickupForm||state.pickupSubmitting||state.pickupForm.details.length===1)return;state.pickupForm.details=state.pickupForm.details.filter((d)=>d.localId!==String(localId));syncPickupTotals();Modal.body(PickupsPresenter.renderForm(pickupFormView()));syncPickupTotals();}
+    function validatePickupForm(){const form=state.pickupForm||{},totals=syncPickupTotals(),header={Tanggal:String(form.header?.Tanggal||"").trim(),PartnerID:String(form.header?.PartnerID||"").trim(),Notes:String(form.header?.Notes||"").trim(),TotalItem:totals.TotalItem,TotalQty:totals.TotalQty};if(!header.Tanggal)return {field:"Tanggal",message:"Tanggal is required."};if(!header.PartnerID)return {field:"PartnerID",message:"Partner is required."};if(!form.details?.length)return {field:"details",message:"At least one item is required."};const seen=new Set(),details=[];for(const row of form.details){const product=String(row.ProductID||"").trim(),qty=Number(row.Qty);if(!product)return {field:"details",message:"Each item needs a Product."};if(!Number.isFinite(qty))return {field:"details",message:"Each Qty must be numeric."};if(qty<=0)return {field:"details",message:"Each Qty must be greater than zero."};if(seen.has(product))return {field:"details",message:"Duplicate Products are not allowed."};seen.add(product);details.push({ProductID:product,Qty:qty,Notes:String(row.Notes||"").trim()});}return {document:{header,details}};}
+    async function submitPickupForm(){if(state.pickupSubmitting||!state.pickupForm)return;const validation=validatePickupForm();if(!validation.document){if(!PickupsPresenter.showFieldError(validation.field,validation.message))Toast.warning(validation.message);return false;}state.pickupSubmitting=true;pickupRequest++;Modal.footer(PickupsPresenter.renderFormFooter(state.pickupFormKind,true));const editing=state.pickupFormKind==="edit",id=state.pickupForm.id;try{const createDocument=editing?validation.document:Object.assign({},validation.document,{IdempotencyKey:state.pickupCreateRequestKey});const response=editing?await Api.Pickup.update(id,validation.document):await Api.Pickup.create(createDocument);if(!response?.success)throw new Error(response?.message||(editing?"Pickup could not be updated.":"Pickup could not be created."));Toast.success(response.meta?.idempotentReplay?"Pickup request was already completed.":response.message||(editing?"Pickup updated.":"Pickup created."));closePickupModal(true);await loadPickups();return true;}catch(error){Toast.error(readableLoadError(error,editing?"Pickup could not be updated.":"Pickup could not be created."));return false;}finally{state.pickupSubmitting=false;if(state.pickupForm)Modal.footer(PickupsPresenter.renderFormFooter(state.pickupFormKind,false));}}
     async function deletePickup(id){const clean=String(id||"").trim(),row=state.pickups.find((item)=>String(item.ID)===clean);if(!clean||!row||state.pickupBusyId)return false;let succeeded=false,attempted=false;try{await Dialog.confirm({title:"Delete Pickup",intent:"delete",confirmText:"Delete",loadingText:"Deleting...",message:`Delete Pickup <strong>${Utils.escapeHTML(row.PickupNo||clean)}</strong>?`,onConfirm:async()=>{if(attempted||state.pickupBusyId||state.page!=="pickups"||state.pickupMode!=="active")return false;attempted=true;state.pickupBusyId=clean;renderPickups();try{pickupRequest++;const response=await Api.Pickup.remove(clean);if(!response?.success){Toast.error(response?.message||"Pickup could not be deleted.");return false;}succeeded=true;invalidateReturnDependencies();Toast.success(response.message||"Pickup deleted.");state.pickups=state.pickups.filter((item)=>String(item.ID)!==clean);renderPickups();return true;}catch(error){Toast.error(readableLoadError(error,"Pickup could not be deleted. Please try again."));return false;}finally{state.pickupBusyId=null;}}});return succeeded;}finally{state.pickupBusyId=null;if(state.page==="pickups"&&state.pickupMode==="active")renderPickups();}}
-    function closePickupModal(){if(state.pickupSubmitting)return false;pickupDetailRequest++;state.pickupForm=null;state.pickupFormKind=null;state.pickupCreateRequestKey=null;Modal.close();return true;}
+    function closePickupModal(force=false){if(state.pickupSubmitting&&!force)return false;pickupDetailRequest++;state.pickupForm=null;state.pickupFormKind=null;state.pickupCreateRequestKey=null;state.pickupBusyId=null;Modal.close();return true;}
 
     //===========================================================================
     // Returns
@@ -1581,12 +1593,12 @@
       if (kind !== state.purchasingFormKind || !state.purchasingForm || !["Tanggal", "SupplierID", "ProductID", "Qty", "Harga"].includes(field)) return;
       state.purchasingForm[field] = value; PurchasingPresenter.clearFieldError(kind, field); if (field === "Qty" || field === "Harga") PurchasingPresenter.updateTotal(kind, purchasingTotal());
     }
-    function purchasingTotal() { const qty = Number(state.purchasingForm?.Qty); const price = Number(state.purchasingForm?.Harga); return String(state.purchasingForm?.Qty ?? "") && String(state.purchasingForm?.Harga ?? "") && Number.isFinite(qty) && qty > 0 && Number.isFinite(price) && price >= 0 ? qty * price : 0; }
+    function purchasingTotal() { const qty = Number(state.purchasingForm?.Qty); const price = Format.nominalValue(state.purchasingForm?.Harga); return String(state.purchasingForm?.Qty ?? "") && String(state.purchasingForm?.Harga ?? "") && Number.isFinite(qty) && qty > 0 && Number.isFinite(price) && price >= 0 ? qty * price : 0; }
     function purchasingFormView() { return { form: state.purchasingForm, suppliers: state.purchasingSuppliers, products: state.purchasingProducts, total: purchasingTotal() }; }
-    function dateInput(value) { const text = String(value ?? "").trim(); return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : ""; }
+    function dateInput(value) { return Format.dateInput(value); }
     function validDateInput(value) { const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value); if (!match) return false; const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])); return date.getFullYear() === Number(match[1]) && date.getMonth() === Number(match[2]) - 1 && date.getDate() === Number(match[3]); }
     function validatePurchasingForm(kind) {
-      const form = state.purchasingForm || {}; const date = String(form.Tanggal || "").trim(); const supplier = String(form.SupplierID || "").trim(); const product = String(form.ProductID || "").trim(); const qtyText = String(form.Qty ?? "").trim(); const priceText = String(form.Harga ?? "").trim(); const qty = Number(qtyText); const price = Number(priceText);
+      const form = state.purchasingForm || {}; const date = String(form.Tanggal || "").trim(); const supplier = String(form.SupplierID || "").trim(); const product = String(form.ProductID || "").trim(); const qtyText = String(form.Qty ?? "").trim(); const priceText = String(form.Harga ?? "").trim(); const qty = Number(qtyText); const price = Format.nominalValue(priceText);
       const has = (rows, id) => rows.some((row) => String(row?.ID || "") === id);
       if (!validDateInput(date)) return { field: "Tanggal", message: "Date is required." };
       if (!supplier || !has(state.purchasingSuppliers, supplier)) return { field: "SupplierID", message: kind === "create" && !state.purchasingSuppliers.length ? "No active Supplier is available for Purchasing." : "Select an active Supplier." };
@@ -1773,7 +1785,7 @@
     }
 
     function todayExpenseDate() { const date = new Date(); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; }
-    function numericExpenseInput(value) { if (value === null || value === undefined || value === "") return ""; const number = Number(value); return Number.isFinite(number) ? String(number) : ""; }
+    function numericExpenseInput(value) { if (value === null || value === undefined || value === "") return ""; const number = Number(value); return Number.isFinite(number) ? Format.nominalInput(number) : ""; }
     function openCreateExpense() {
       if (state.page !== "expenses" || state.expenseMode !== "active" || state.expenseSubmitting) return false;
       state.expenseFormKind = "create"; state.expenseForm = { Tanggal: todayExpenseDate(), Kategori: "", Keterangan: "", Nominal: "" };
@@ -1816,7 +1828,7 @@
     }
 
     function validateExpenseForm(kind) {
-      const form = state.expenseForm || {}; const date = String(form.Tanggal ?? "").trim(); const category = String(form.Kategori ?? "").trim(); const description = String(form.Keterangan ?? "").trim(); const amountText = String(form.Nominal ?? "").trim(); const amount = Number(amountText);
+      const form = state.expenseForm || {}; const date = String(form.Tanggal ?? "").trim(); const category = String(form.Kategori ?? "").trim(); const description = String(form.Keterangan ?? "").trim(); const amountText = String(form.Nominal ?? "").trim(); const amount = Format.nominalValue(amountText);
       const invalid = (field, message, suffix) => ({ valid: false, field, message, element: DOM.$(`inp-expense-${kind}-${suffix}`) });
       if (!date) return invalid("Tanggal", "Date is required.", "date");
       if (!ExpensesPresenter.dateInputValue(date)) return invalid("Tanggal", "Date must use YYYY-MM-DD.", "date");

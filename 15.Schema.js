@@ -348,6 +348,10 @@ const PICKUP_DETAIL_FIELDS = Object.freeze({
 
   QTY: "Qty",
 
+  PRICE: "Harga",
+
+  TOTAL: "Total",
+
   NOTES: "Notes",
 });
 
@@ -387,6 +391,22 @@ const PICKUP_DETAIL_SCHEMA = createSchema({
       numeric: true,
 
       min: 1,
+    },
+
+    [PICKUP_DETAIL_FIELDS.PRICE]: {
+      required: true,
+
+      numeric: true,
+
+      min: 0,
+    },
+
+    [PICKUP_DETAIL_FIELDS.TOTAL]: {
+      required: true,
+
+      numeric: true,
+
+      min: 0,
     },
   },
 
