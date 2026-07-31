@@ -8,6 +8,8 @@
 
 function PurchasingService(options = {}) {
   const base = EntityService.create(PURCHASING_SCHEMA);
+  const getMutationLock = options.getMutationLock || (() => LockService.getScriptLock());
+  const mutationLockTimeoutMs = Number(options.mutationLockTimeoutMs) || 10000;
   const mutableFields = [
     PURCHASING_FIELDS.DATE,
     PURCHASING_FIELDS.SUPPLIER_ID,
@@ -245,28 +247,46 @@ function PurchasingService(options = {}) {
   function restore(id) {
     if (!requireId(id)) return Response.error("ID Purchasing wajib diisi.");
 
-    const current = rawById(PURCHASING_SCHEMA, id);
-    if (!current) return Response.error("Purchase tidak ditemukan.");
-    if (isActiveRow(PURCHASING_SCHEMA, current)) {
-      return Response.error("Purchase sudah aktif.");
-    }
-    if (!isTrue(current[PURCHASING_SCHEMA.SYSTEM.IS_DELETED]) ||
-        !isFalse(current[PURCHASING_SCHEMA.SYSTEM.IS_ACTIVE])) {
-      return Response.error("Purchase tidak dalam status terhapus/nonaktif.");
+    const lock = getMutationLock();
+    const alreadyOwned = typeof lock.hasLock === "function" && lock.hasLock();
+    if (!alreadyOwned && !lock.tryLock(mutationLockTimeoutMs)) {
+      return Response.error("Proses Purchasing sedang digunakan. Silakan coba lagi.");
     }
 
-    const prepared = prepare(current);
-    if (prepared && prepared.success === false) return prepared;
+    try {
+      const current = rawById(PURCHASING_SCHEMA, id);
+      if (!current) return Response.error("Purchase tidak ditemukan.");
+      if (isActiveRow(PURCHASING_SCHEMA, current)) {
+        return Response.error("Purchase sudah aktif.");
+      }
+      if (!isTrue(current[PURCHASING_SCHEMA.SYSTEM.IS_DELETED]) ||
+          !isFalse(current[PURCHASING_SCHEMA.SYSTEM.IS_ACTIVE])) {
+        return Response.error("Purchase tidak dalam status terhapus/nonaktif.");
+      }
 
-    if (!RepositoryWriter.update(PURCHASING_SCHEMA, id, {
-      [PURCHASING_FIELDS.QTY]: prepared[PURCHASING_FIELDS.QTY],
-      [PURCHASING_FIELDS.PRICE]: prepared[PURCHASING_FIELDS.PRICE],
-      [PURCHASING_FIELDS.TOTAL]: prepared[PURCHASING_FIELDS.TOTAL],
-    })) {
-      return Response.error("Purchase tidak ditemukan.");
+      const prepared = prepare(current);
+      if (prepared && prepared.success === false) return prepared;
+      const timestamp = Utils.now();
+      const user = Utils.currentUser();
+
+      if (!RepositoryWriter.update(PURCHASING_SCHEMA, id, {
+        [PURCHASING_FIELDS.QTY]: prepared[PURCHASING_FIELDS.QTY],
+        [PURCHASING_FIELDS.PRICE]: prepared[PURCHASING_FIELDS.PRICE],
+        [PURCHASING_FIELDS.TOTAL]: prepared[PURCHASING_FIELDS.TOTAL],
+        [PURCHASING_SCHEMA.SYSTEM.IS_DELETED]: false,
+        [PURCHASING_SCHEMA.SYSTEM.IS_ACTIVE]: true,
+        [PURCHASING_SCHEMA.SYSTEM.UPDATED_AT]: timestamp,
+        [PURCHASING_SCHEMA.SYSTEM.UPDATED_BY]: user,
+      })) {
+        return Response.error("Purchase tidak ditemukan.");
+      }
+
+      const restored = rawById(PURCHASING_SCHEMA, id);
+      BaseService.auditMutation(PURCHASING_SCHEMA, "RESTORE", id, current, restored);
+      return Response.success(restored, `${PURCHASING_SCHEMA.NAME} berhasil dipulihkan.`);
+    } finally {
+      if (!alreadyOwned) lock.releaseLock();
     }
-
-    return base.restore(id);
   }
 
   return Object.freeze({

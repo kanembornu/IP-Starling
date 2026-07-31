@@ -588,11 +588,13 @@ function testPickupPresenterDateContract() {
   const appSource = HtmlService.createHtmlOutputFromFile(
     "970.View.App",
   ).getContent();
+  const formatSource = HtmlService.createHtmlOutputFromFile(
+    "986.View.Format",
+  ).getContent();
 
   const required = [
     "function calendarDateValue(value)",
     "function dateInputValue(value)",
-    "return calendarDateValue(value);",
     "function formatPickupDate(value)",
     "formatPickupDate(row[FIELD.DATE])",
     'detailField("Tanggal",formatPickupDate(header.Tanggal))',
@@ -606,6 +608,32 @@ function testPickupPresenterDateContract() {
       throw new Error(`Pickup presenter date contract is missing: ${contract}`);
     }
   });
+
+  const dateInputSection = source.slice(
+    source.indexOf("function dateInputValue(value)"),
+    source.indexOf("function formatPickupDate(value)"),
+  );
+  const sharedDateInputSection = formatSource.slice(
+    formatSource.indexOf("function dateInput(value)"),
+    formatSource.indexOf("function percent(value"),
+  );
+  if (!/^function dateInputValue\(value\)\s*\{\s*return Format\.dateInput\(value\);\s*\}$/m.test(dateInputSection.trim())) {
+    throw new Error("Pickup date input must delegate directly to canonical Format.dateInput normalization.");
+  }
+  [
+    "value instanceof Date ? value : new Date(value)",
+    "Number.isNaN(parsed.getTime())",
+    "parsed.getFullYear()",
+    "parsed.getMonth() + 1",
+    "parsed.getDate()",
+  ].forEach((contract) => {
+    if (sharedDateInputSection.indexOf(contract) === -1) {
+      throw new Error(`Shared date input contract is missing: ${contract}`);
+    }
+  });
+  if (/return\s+value\s*;/.test(dateInputSection) || /return\s+String\(value/.test(dateInputSection)) {
+    throw new Error("Pickup date input leaks or directly passes through an unnormalized value.");
+  }
 
   if (/\.slice\(0,\s*10\)/.test(source)) {
     throw new Error("Pickup presenter must not slice ISO date prefixes.");
@@ -2873,14 +2901,14 @@ function testReturnDeletedBatchEligibilityReads() {
 }
 
 function testPickupReturnAggregatePhaseRegistration() {
-  const pickup = runPickupModuleAcceptance.toString();
+  const pickup = PICKUP_ACCEPTANCE_PHASES().map((phase) => phase.runner)
+    .concat("runPickupAcceptanceMetaTests");
   const returns = runReturnModuleAcceptance.toString();
-  const expectedPickup = ["runCoreRegressionTests", "runTransactionReadTests", "runPickupCreateValidationTests", "runPickupCreateWriteTests", "runPickupPresenterDateTests", "runPickupUpdateValidationTests", "runPickupUpdateWriteTests", "runPickupRemoveRestoreTests", "runPickupRestoreEligibilityTests", "runPickupTrashReadTests", "runPickupControllerTests"];
+  const expectedPickup = ["runPickupReadAcceptance", "runPickupValidationAcceptance", "runPickupMutationAcceptance", "runPickupRestoreAcceptance", "runPickupAcceptanceMetaTests"];
   const expectedReturn = ["runReturnSchemaTests", "runReturnValidationTests", "runReturnControllerTests", "runReturnDisplayEnrichmentTests", "runReturnDeletedListTests", "runReturnRestoreValidationTests", "runReturnWriteTests", "runReturnConcurrencyGuardTests", "runPickupReturnIntegrityGuardTests", "runPickupReturnIntegrityDiagnosticTests"];
 
-  expectedPickup.forEach((name) => {
-    if ((pickup.match(new RegExp(`${name}\\(\\)`, "g")) || []).length !== 1) throw new Error(`${name} must be registered once in Pickup acceptance.`);
-  });
+  if (pickup.join("|") !== expectedPickup.join("|")) throw new Error(`Pickup acceptance registration/order mismatch: ${pickup.join(", ")}.`);
+  if (new Set(pickup).size !== pickup.length) throw new Error("Pickup acceptance contains duplicate phase registration.");
   expectedReturn.forEach((name) => {
     if ((returns.match(new RegExp(`${name}\\(\\)`, "g")) || []).length !== 1) throw new Error(`${name} must be registered once in Return acceptance.`);
   });
@@ -5344,6 +5372,13 @@ function testReturnConcurrencyLockStructure() {
     source.indexOf("function withReturnMutationLock"),
     source.indexOf("function createLocked"),
   );
+  const create = source.slice(source.indexOf("function create(document)"), source.indexOf("function update(id, document)"));
+  const update = source.slice(source.indexOf("function update(id, document)"), source.indexOf("function remove(id)"));
+  const remove = source.slice(source.indexOf("function remove(id)"), source.indexOf("function restore(id)"));
+  const restore = source.slice(source.indexOf("function restore(id)"), source.indexOf("return Object.freeze", source.indexOf("function restore(id)")));
+  const createLocked = source.slice(source.indexOf("function createLocked"), source.indexOf("const base ="));
+  const updateValidation = source.slice(source.indexOf("beforeUpdate(id, data)"), source.indexOf("afterUpdate(data)"));
+  const restoreValidation = source.slice(source.indexOf("beforeRestore(id)"), source.indexOf("afterRestore(id)"));
 
   if (
     !/tryLock\(RETURN_MUTATION_LOCK_TIMEOUT_MS\)/.test(helper) ||
@@ -5354,12 +5389,36 @@ function testReturnConcurrencyLockStructure() {
     throw new Error("Return mutation lock structure is invalid.");
   }
 
-  if (
-    !/withReturnMutationLock\(\(\) => createLocked/.test(source) ||
-    !/withReturnMutationLock\(\(\) => \{[\s\S]*base\.update/.test(source) ||
-    !/withReturnMutationLock\(\(\) => base\.restore/.test(source)
-  ) {
+  const paths = [
+    { name: "create", source: create, reread: /createLocked\(/, mutation: /createLocked\(/ },
+    { name: "update", source: update, reread: /activeReturn\(id\)/, mutation: /base\.update\(/ },
+    { name: "delete", source: remove, reread: /activeReturn\(id\)/, mutation: /base\.remove\(id\)/ },
+    { name: "restore", source: restore, reread: /deletedReturn\(id\)/, mutation: /base\.restore\(id\)/ },
+  ];
+  const unlocked = paths.filter((path) => {
+    const lockIndex = path.source.indexOf("withReturnMutationLock(() => {");
+    const reread = path.source.search(path.reread);
+    const mutation = path.source.search(path.mutation);
+    return lockIndex < 0 || reread < lockIndex || mutation < reread;
+  });
+
+  if (unlocked.length) {
     throw new Error("Return quantity mutation paths are not all locked.");
+  }
+
+  function precedes(section, validation, mutation) {
+    const validationIndex = section.indexOf(validation);
+    const mutationIndex = section.indexOf(mutation);
+    return validationIndex >= 0 && mutationIndex >= 0 && validationIndex < mutationIndex;
+  }
+
+  if (
+    !precedes(createLocked, "resolvePickup(", "RepositoryWriter.insert(") ||
+    !precedes(createLocked, "validateAvailableQty(", "RepositoryWriter.insert(") ||
+    !precedes(updateValidation, "activeReturn(id)", "validateAvailableQty(") ||
+    !precedes(restoreValidation, "deletedReturn(id)", "validateAvailableQty(")
+  ) {
+    throw new Error("Return quantity validation is not based on authoritative in-lock state.");
   }
 }
 

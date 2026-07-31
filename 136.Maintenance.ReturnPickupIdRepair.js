@@ -1,11 +1,5 @@
-/** Controlled one-time repair for the approved blank Return.PickupID rows. */
+/** Fail-closed repair for Return rows whose PickupID is blank or invalid. */
 const ReturnPickupIdMaintenance = (() => {
-  const TARGET_IDS = Object.freeze([
-    "RT26072000003", "RT26072000010", "RT26072100003",
-    "RT26072100018", "RT26072100027", "RT26072200011",
-    "RT26072300007", "RT26072300016", "RT26072400013",
-    "RT26072400020", "RT26072400027", "RT26072400034",
-  ]);
   const LOCK_TIMEOUT_MS = 30000;
 
   function text(value) { return String(value == null ? "" : value).trim(); }
@@ -43,6 +37,16 @@ const ReturnPickupIdMaintenance = (() => {
           headers: readSchema(PICKUP_HEADER_SCHEMA),
         };
       },
+      createBackup(plans) {
+        return {
+          createdAt: new Date().toISOString(),
+          rows: plans.map((plan) => ({
+            id: plan.id,
+            rowNumber: plan.rowNumber,
+            pickupId: plan.currentPickupId,
+          })),
+        };
+      },
       writePickupIds(changes) {
         if (!changes.length) return;
         const sheet = RepositoryBase.sheet(RETURN_SCHEMA);
@@ -58,9 +62,9 @@ const ReturnPickupIdMaintenance = (() => {
         return LogsService.record({
           level: "INFO", category: "SYSTEM", action: "MIGRATION", status: "SUCCESS",
           module: "ReturnPickupIdMaintenance", entityType: "ReturnMaintenance",
-          entityId: "BLANK_RETURN_PICKUP_ID_REPAIR",
-          message: `Repaired blank PickupID for ${ids.length} approved Return rows.`,
-          context: { maintenance: "BLANK_RETURN_PICKUP_ID_REPAIR", affectedIds: ids.slice(), count: ids.length },
+          entityId: "RETURN_PICKUP_ID_REPAIR",
+          message: `Repaired PickupID for ${ids.length} dynamically discovered Return rows.`,
+          context: { maintenance: "RETURN_PICKUP_ID_REPAIR", affectedIds: ids.slice(), count: ids.length },
           source: "MAINTENANCE",
         });
       },
@@ -78,77 +82,128 @@ const ReturnPickupIdMaintenance = (() => {
       rowNumber: returnRow ? returnRow.rowNumber : null,
       currentPickupId: returnRow ? text(returnRow.data[RETURN_FIELDS.PICKUP_ID]) : "",
       proposedPickupId: proposedPickupId || "",
+      changedFields: status === "ELIGIBLE" ? [RETURN_FIELDS.PICKUP_ID] : [],
       status,
       message,
     };
   }
 
-  function analyze(snapshot) {
-    const plans = [];
-    const results = TARGET_IDS.map((id) => {
-      const foundReturns = matches(snapshot.returns, RETURN_SCHEMA.PRIMARY_KEY, id);
-      if (!foundReturns.length) return result(id, "MISSING_RETURN", "Return row was not found.", null, "");
-      if (foundReturns.length !== 1) return result(id, "DUPLICATE_RETURN", "Return ID is not unique.", foundReturns[0], "");
-      const returnRow = foundReturns[0];
-      const detailId = text(returnRow.data[RETURN_FIELDS.PICKUP_DETAIL_ID]);
-      if (!detailId) return result(id, "BLANK_PICKUP_DETAIL_ID", "PickupDetailID is blank.", returnRow, "");
-      const foundDetails = matches(snapshot.details, PICKUP_DETAIL_SCHEMA.PRIMARY_KEY, detailId);
-      if (!foundDetails.length) return result(id, "MISSING_PICKUP_DETAIL", "Pickup Detail was not found.", returnRow, "");
-      if (foundDetails.length !== 1) return result(id, "DUPLICATE_PICKUP_DETAIL", "PickupDetailID is not unique.", returnRow, "");
-      const detail = foundDetails[0];
-      const proposedPickupId = text(detail.data[PICKUP_DETAIL_FIELDS.PICKUP_ID]);
-      if (!proposedPickupId) return result(id, "MISSING_PICKUP_HEADER", "Pickup Detail has no owning PickupID.", returnRow, "");
-      const foundHeaders = matches(snapshot.headers, PICKUP_HEADER_SCHEMA.PRIMARY_KEY, proposedPickupId);
-      if (!foundHeaders.length) return result(id, "MISSING_PICKUP_HEADER", "Owning Pickup Header was not found.", returnRow, proposedPickupId);
-      if (foundHeaders.length !== 1) return result(id, "DUPLICATE_PICKUP_HEADER", "Pickup Header ID is not unique.", returnRow, proposedPickupId);
-      const header = foundHeaders[0];
-      if (String(detail.data[PICKUP_DETAIL_FIELDS.PICKUP_ID] == null ? "" : detail.data[PICKUP_DETAIL_FIELDS.PICKUP_ID]) !== proposedPickupId ||
-          String(header.data[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] == null ? "" : header.data[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]) !== proposedPickupId) {
-        return result(id, "OWNERSHIP_MISMATCH", "Pickup Detail ownership does not exactly match Pickup Header ID.", returnRow, proposedPickupId);
-      }
-      const currentPickupId = text(returnRow.data[RETURN_FIELDS.PICKUP_ID]);
-      if (currentPickupId && currentPickupId !== proposedPickupId) {
-        return result(id, "CONFLICTING_PICKUP_ID", "Existing PickupID conflicts with derived ownership.", returnRow, proposedPickupId);
-      }
-      const status = currentPickupId === proposedPickupId ? "ALREADY_REPAIRED" : "READY";
-      plans.push({ id, rowNumber: returnRow.rowNumber, proposedPickupId, original: Object.assign({}, returnRow.data) });
-      return result(id, status, status === "READY" ? "Validated for repair." : "PickupID already matches derived ownership.", returnRow, proposedPickupId);
-    });
-    return { valid: results.every((item) => item.status === "READY" || item.status === "ALREADY_REPAIRED"), results, plans };
+  function classify(snapshot, returnRow) {
+    if (!returnRow || !returnRow.data) return result("", "INVALID_RETURN", "Return row is invalid.", returnRow, "");
+    const id = text(returnRow.data[RETURN_SCHEMA.PRIMARY_KEY]);
+    if (!id || matches(snapshot.returns, RETURN_SCHEMA.PRIMARY_KEY, id).length !== 1) {
+      return result(id, "INVALID_RETURN", "Return ID is blank or not unique.", returnRow, "");
+    }
+    const detailId = text(returnRow.data[RETURN_FIELDS.PICKUP_DETAIL_ID]);
+    if (!detailId) return result(id, "MISSING_DETAIL", "PickupDetailID is blank.", returnRow, "");
+    const details = matches(snapshot.details, PICKUP_DETAIL_SCHEMA.PRIMARY_KEY, detailId);
+    if (!details.length) return result(id, "MISSING_DETAIL", "Pickup Detail was not found.", returnRow, "");
+    if (details.length !== 1) return result(id, "DUPLICATE_DETAIL", "PickupDetailID is not unique.", returnRow, "");
+    const detail = details[0];
+    const proposedPickupId = text(detail.data[PICKUP_DETAIL_FIELDS.PICKUP_ID]);
+    if (!proposedPickupId) return result(id, "MISSING_HEADER", "Pickup Detail has no owning PickupID.", returnRow, "");
+    const headers = matches(snapshot.headers, PICKUP_HEADER_SCHEMA.PRIMARY_KEY, proposedPickupId);
+    if (!headers.length) return result(id, "MISSING_HEADER", "Owning Pickup Header was not found.", returnRow, proposedPickupId);
+    if (headers.length !== 1) return result(id, "DUPLICATE_HEADER", "Pickup Header ID is not unique.", returnRow, proposedPickupId);
+    if (
+      String(detail.data[PICKUP_DETAIL_FIELDS.PICKUP_ID] == null ? "" : detail.data[PICKUP_DETAIL_FIELDS.PICKUP_ID]) !== proposedPickupId ||
+      String(headers[0].data[PICKUP_HEADER_SCHEMA.PRIMARY_KEY] == null ? "" : headers[0].data[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]) !== proposedPickupId
+    ) {
+      return result(id, "OWNERSHIP_MISMATCH", "Pickup Detail ownership does not exactly match Pickup Header ID.", returnRow, proposedPickupId);
+    }
+    const currentPickupId = text(returnRow.data[RETURN_FIELDS.PICKUP_ID]);
+    if (currentPickupId === proposedPickupId) {
+      return result(id, "ALREADY_VALID", "PickupID already matches derived ownership.", returnRow, proposedPickupId);
+    }
+    return result(id, "ELIGIBLE", "Validated for PickupID-only repair.", returnRow, proposedPickupId);
   }
 
-  function preview(dependencies) {
-    const checked = analyze(dependencies.readSnapshot());
-    return { success: checked.valid, status: checked.valid ? "VALID" : "INVALID", targetCount: TARGET_IDS.length, results: checked.results };
+  function analyze(snapshot, targetIds) {
+    const source = snapshot || { returns: [], details: [], headers: [] };
+    const explicit = Array.isArray(targetIds);
+    const ids = explicit
+      ? Array.from(new Set(targetIds.map(text))).filter(Boolean).sort()
+      : null;
+    let results;
+    if (explicit) {
+      results = ids.map((id) => {
+        const rows = matches(source.returns || [], RETURN_SCHEMA.PRIMARY_KEY, id);
+        if (rows.length !== 1) return result(id, "INVALID_RETURN", rows.length ? "Return ID is not unique." : "Return row was not found.", rows[0] || null, "");
+        return classify(source, rows[0]);
+      });
+    } else {
+      results = (source.returns || []).map((row) => classify(source, row))
+        .filter((item) => item.status !== "ALREADY_VALID")
+        .sort((left, right) => left.id.localeCompare(right.id) || left.rowNumber - right.rowNumber);
+    }
+    const valid = results.every((item) => item.status === "ELIGIBLE" || item.status === "ALREADY_VALID");
+    const plans = results.filter((item) => item.status === "ELIGIBLE").map((item) => ({
+      id: item.id,
+      rowNumber: item.rowNumber,
+      currentPickupId: item.currentPickupId,
+      proposedPickupId: item.proposedPickupId,
+    }));
+    return { valid, results, plans, targetCount: results.length, eligibleCount: plans.length };
   }
 
-  function repair(dependencies) {
+  function report(checked) {
+    return {
+      success: checked.valid,
+      status: checked.valid ? "VALID" : "INVALID",
+      targetCount: checked.targetCount,
+      eligibleCount: checked.eligibleCount,
+      results: checked.results,
+    };
+  }
+
+  function preview(dependencies, targetIds) {
+    return report(analyze(dependencies.readSnapshot(), targetIds));
+  }
+
+  function repair(dependencies, targetIds) {
     const lock = dependencies.getLock();
     let locked = false;
     try {
       lock.waitLock(LOCK_TIMEOUT_MS);
       locked = true;
-      const checked = analyze(dependencies.readSnapshot());
-      if (!checked.valid) return { success: false, status: "PREVALIDATION_FAILED", targetCount: TARGET_IDS.length, results: checked.results };
-      const pending = checked.plans.filter((plan) => !text(plan.original[RETURN_FIELDS.PICKUP_ID]));
-      if (!pending.length) return { success: true, status: "ALREADY_REPAIRED", repairedCount: 0, results: checked.results };
+      const checked = analyze(dependencies.readSnapshot(), targetIds);
+      if (!checked.valid) return Object.assign(report(checked), { status: "PREVALIDATION_FAILED", repairedCount: 0 });
+      if (!checked.plans.length) return Object.assign(report(checked), { status: "ALREADY_VALID", repairedCount: 0 });
+      const pending = checked.plans.slice().sort((left, right) => left.id.localeCompare(right.id) || left.rowNumber - right.rowNumber);
+      const backup = dependencies.createBackup(pending);
       const apply = pending.map((plan) => ({ id: plan.id, rowNumber: plan.rowNumber, value: plan.proposedPickupId }));
-      const restore = pending.map((plan) => ({ id: plan.id, rowNumber: plan.rowNumber, value: plan.original[RETURN_FIELDS.PICKUP_ID] }));
+      const restore = pending.map((plan) => ({ id: plan.id, rowNumber: plan.rowNumber, value: plan.currentPickupId }));
       try {
         dependencies.writePickupIds(apply, "APPLY");
         dependencies.clearReturnCache();
+        const verification = analyze(dependencies.readSnapshot(), pending.map((plan) => plan.id));
+        if (!verification.valid || verification.results.some((item) => item.status !== "ALREADY_VALID")) {
+          throw new Error("Persisted PickupID verification failed.");
+        }
         dependencies.maintenanceLog(pending.map((plan) => plan.id));
-        return { success: true, status: "REPAIRED", repairedCount: pending.length, results: checked.results };
+        return {
+          success: true,
+          status: "REPAIRED",
+          targetCount: checked.targetCount,
+          eligibleCount: checked.eligibleCount,
+          repairedCount: pending.length,
+          affectedIds: pending.map((plan) => plan.id),
+          backup: { created: true, rowCount: backup.rows.length, createdAt: backup.createdAt },
+          results: verification.results,
+        };
       } catch (error) {
         let rollbackError = null;
-        try { dependencies.writePickupIds(restore, "ROLLBACK"); dependencies.clearReturnCache(); }
-        catch (restoreError) { rollbackError = restoreError; }
+        try {
+          dependencies.writePickupIds(restore, "ROLLBACK");
+          dependencies.clearReturnCache();
+        } catch (restoreError) { rollbackError = restoreError; }
         return {
           success: false,
           status: rollbackError ? "ROLLBACK_FAILED" : "ROLLED_BACK",
           error: String(error && error.message || error),
           rollbackError: rollbackError ? String(rollbackError.message || rollbackError) : "",
           repairedCount: 0,
+          backup: { created: true, rowCount: backup.rows.length, createdAt: backup.createdAt },
         };
       }
     } finally {
@@ -156,12 +211,16 @@ const ReturnPickupIdMaintenance = (() => {
     }
   }
 
-  function create(dependencies) {
+  function create(dependencies, options = {}) {
     const resolved = dependencies || productionDependencies();
-    return Object.freeze({ preview: () => preview(resolved), repair: () => repair(resolved) });
+    const targetIds = Array.isArray(options.targetIds) ? options.targetIds.slice() : undefined;
+    return Object.freeze({
+      preview: () => preview(resolved, targetIds),
+      repair: () => repair(resolved, targetIds),
+    });
   }
 
-  return Object.freeze({ TARGET_IDS, create, analyze });
+  return Object.freeze({ create, analyze });
 })();
 
 function previewRepairBlankReturnPickupIds() {
