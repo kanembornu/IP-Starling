@@ -234,6 +234,40 @@ function testReleaseApiControllerResponseEnvelopeCompatibility() {
   releaseAssert(/reject\(error\)/.test(api), "API failure transport does not preserve a readable rejection.");
 }
 
+function testReleasePublicErrorBoundaryContract() {
+  const secret = "controlled internal failure";
+  const failure = _controllerResponse(
+    () => { throw new Error(secret); },
+    "Sanitized public failure.",
+    "ReleaseTest",
+  );
+  const expected = Response.error("Expected validation failure.", [
+    { field: "name", message: "name wajib diisi." },
+  ]);
+  const preserved = _expenseControllerResponse(() => expected);
+  const bootstrap = doGet.toString();
+
+  releaseAssert(
+    failure.success === false && failure.message === "Sanitized public failure." &&
+      failure.data === null && Array.isArray(failure.errors) && failure.meta,
+    "Unexpected Controller failures do not use the stable public error envelope.",
+  );
+  releaseAssert(
+    JSON.stringify(failure).indexOf(secret) < 0 && JSON.stringify(failure).indexOf("stack") < 0,
+    "Unexpected Controller failures leak internal error details.",
+  );
+  releaseAssert(
+    preserved === expected,
+    "Expected validation or business failures are changed by the Controller boundary.",
+  );
+  releaseAssert(
+    /AppLogger\.error\("Application bootstrap failed\."/.test(bootstrap) &&
+      /Router\.error\("Terjadi kesalahan saat memuat aplikasi\."\)/.test(bootstrap) &&
+      !/\.stack\b/.test(bootstrap),
+    "Application bootstrap errors are not logged and sanitized.",
+  );
+}
+
 function testReleaseDependencyEligibilityContracts() {
   const app = releaseIntegrationSources().app;
   releaseAssert(/pickupSelectable\(products\.data\)/.test(releaseFunctionSource(app, "ensurePickupDependencies")) && /pickupSelectable\(partners\.data\)/.test(releaseFunctionSource(app, "ensurePickupDependencies")), "Pickup dependencies bypass eligibility filtering.");
@@ -299,7 +333,7 @@ function testReleaseTestRegistrationExactlyOnce() {
   const registries = [getReleaseFrontendIntegrationTests(), getReleaseBackendContractTests(), getReleaseMutationIntegrityTests()];
   const tests = registries.reduce((all, registry) => all.concat(registry), []);
   const names = tests.map((test) => test.name);
-  releaseAssert(tests.length === 24, `Expected 24 release integration tests; found ${tests.length}.`);
+  releaseAssert(tests.length === 25, `Expected 25 release integration tests; found ${tests.length}.`);
   releaseAssert(new Set(names).size === names.length, "A release integration test is registered more than once.");
   [runReleaseFrontendIntegrationTests, runReleaseBackendContractTests, runReleaseMutationIntegrityTests].forEach((runner) => {
     const source = runner.toString();

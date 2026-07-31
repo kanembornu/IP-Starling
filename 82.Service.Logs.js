@@ -143,43 +143,35 @@ const LogsService = (() => {
   }
 
   function list(filters = {}, pagination = {}) {
-    try {
-      const rows = filteredRows(filters);
-      const requested = pagination.pageSize == null || pagination.pageSize === "" ? null : Number(pagination.pageSize);
-      const pageSize = requested === null ? null : Math.max(1, Math.min(PAGINATION_CONFIG.MAX_LIMIT, Math.floor(requested) || PAGINATION_CONFIG.DEFAULT_LIMIT));
-      return Response.success(RepositoryQuery.paginate(rows, Math.max(1, Number(pagination.page) || 1), pageSize));
-    } catch (error) { return Response.error(error.message); }
+    const rows = filteredRows(filters);
+    const requested = pagination.pageSize == null || pagination.pageSize === "" ? null : Number(pagination.pageSize);
+    const pageSize = requested === null ? null : Math.max(1, Math.min(PAGINATION_CONFIG.MAX_LIMIT, Math.floor(requested) || PAGINATION_CONFIG.DEFAULT_LIMIT));
+    return Response.success(RepositoryQuery.paginate(rows, Math.max(1, Number(pagination.page) || 1), pageSize));
   }
 
   function getById(logId) {
-    try {
-      const row = RepositoryBase.mapRows(LOG_SCHEMA, RepositoryBase.rows(LOG_SCHEMA)).find((item) => String(item.ID) === String(logId));
-      return row ? Response.success(row) : Response.error("Log not found.");
-    } catch (error) { return Response.error(error.message); }
+    const row = RepositoryBase.mapRows(LOG_SCHEMA, RepositoryBase.rows(LOG_SCHEMA)).find((item) => String(item.ID) === String(logId));
+    return row ? Response.success(row) : Response.error("Log not found.");
   }
 
   function summary(filters = {}) {
-    try {
-      const rows = filteredRows(filters);
-      return Response.success({ total: rows.length, errors: rows.filter((r) => r.Level === "ERROR").length, warnings: rows.filter((r) => r.Level === "WARN").length, audit: rows.filter((r) => r.Category === "AUDIT").length });
-    } catch (error) { return Response.error(error.message); }
+    const rows = filteredRows(filters);
+    return Response.success({ total: rows.length, errors: rows.filter((r) => r.Level === "ERROR").length, warnings: rows.filter((r) => r.Level === "WARN").length, audit: rows.filter((r) => r.Category === "AUDIT").length });
   }
 
   function page(filters = {}, pagination = {}) {
-    try {
-      const rows = filteredRows(filters);
-      const requested = pagination.pageSize == null || pagination.pageSize === "" ? null : Number(pagination.pageSize);
-      const pageSize = requested === null ? null : Math.max(1, Math.min(PAGINATION_CONFIG.MAX_LIMIT, Math.floor(requested) || PAGINATION_CONFIG.DEFAULT_LIMIT));
-      return Response.success({
-        list: RepositoryQuery.paginate(rows, Math.max(1, Number(pagination.page) || 1), pageSize),
-        summary: {
-          total: rows.length,
-          errors: rows.filter((row) => row.Level === "ERROR").length,
-          warnings: rows.filter((row) => row.Level === "WARN").length,
-          audit: rows.filter((row) => row.Category === "AUDIT").length,
-        },
-      });
-    } catch (error) { return Response.error(error.message); }
+    const rows = filteredRows(filters);
+    const requested = pagination.pageSize == null || pagination.pageSize === "" ? null : Number(pagination.pageSize);
+    const pageSize = requested === null ? null : Math.max(1, Math.min(PAGINATION_CONFIG.MAX_LIMIT, Math.floor(requested) || PAGINATION_CONFIG.DEFAULT_LIMIT));
+    return Response.success({
+      list: RepositoryQuery.paginate(rows, Math.max(1, Number(pagination.page) || 1), pageSize),
+      summary: {
+        total: rows.length,
+        errors: rows.filter((row) => row.Level === "ERROR").length,
+        warnings: rows.filter((row) => row.Level === "WARN").length,
+        audit: rows.filter((row) => row.Category === "AUDIT").length,
+      },
+    });
   }
 
   function audit() {

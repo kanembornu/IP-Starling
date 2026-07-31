@@ -17,17 +17,39 @@
  */
 
 //=============================================================================
+// Public response boundary
+//=============================================================================
+
+function _controllerResponse(operation, publicMessage, context, preserveFailure = false) {
+  try {
+    const result = operation();
+
+    if (preserveFailure && result && result.success === false) {
+      return result;
+    }
+
+    return JSON.parse(JSON.stringify(result));
+  } catch (error) {
+    AppLogger.error(`${context} Controller failed.`, {
+      error: String(error && error.message ? error.message : error),
+    });
+
+    return JSON.parse(
+      JSON.stringify(Response.error(publicMessage)),
+    );
+  }
+}
+
+//=============================================================================
 // Dashboard
 //=============================================================================
 
 function _dashboardControllerResponse(operation) {
-  try {
-    return JSON.parse(JSON.stringify(operation()));
-  } catch (error) {
-    return JSON.parse(
-      JSON.stringify(Response.error("Terjadi kesalahan saat memproses dashboard.")),
-    );
-  }
+  return _controllerResponse(
+    operation,
+    "Terjadi kesalahan saat memproses dashboard.",
+    "Dashboard",
+  );
 }
 
 function getDashboard(range) {
@@ -39,11 +61,11 @@ function getDashboard(range) {
 //=============================================================================
 
 function _settingsControllerResponse(operation) {
-  try {
-    return JSON.parse(JSON.stringify(operation()));
-  } catch (error) {
-    return JSON.parse(JSON.stringify(Response.error("Terjadi kesalahan saat memproses settings.")));
-  }
+  return _controllerResponse(
+    operation,
+    "Terjadi kesalahan saat memproses settings.",
+    "Settings",
+  );
 }
 
 function getSettings() {
@@ -63,8 +85,7 @@ function resetSettingValue(key) {
 //=============================================================================
 
 function _logsControllerResponse(operation) {
-  try { return JSON.parse(JSON.stringify(operation())); }
-  catch (error) { return JSON.parse(JSON.stringify(Response.error("Logs could not be processed."))); }
+  return _controllerResponse(operation, "Logs could not be processed.", "Logs");
 }
 
 function listLogs(filters, pagination) {
@@ -88,31 +109,65 @@ function getLogsSummary(filters) {
 //=============================================================================
 
 function getProducts() {
-  return JSON.parse(JSON.stringify(ProductService().findAll()));
+  return _controllerResponse(
+    () => ProductService().findAll(),
+    "Terjadi kesalahan saat memproses product.",
+    "Product",
+  );
 }
 
 function getDeletedProducts() {
-  return JSON.parse(JSON.stringify(ProductService().listDeleted()));
+  return _controllerResponse(
+    () => ProductService().listDeleted(),
+    "Terjadi kesalahan saat memproses product.",
+    "Product",
+  );
 }
 
 function getProduct(id) {
-  return JSON.parse(JSON.stringify(ProductService().findById(id)));
+  return _controllerResponse(
+    () => ProductService().findById(id),
+    "Terjadi kesalahan saat memproses product.",
+    "Product",
+  );
 }
 
 function createProduct(data) {
-  return JSON.parse(JSON.stringify(ProductService().create(data)));
+  return _controllerResponse(
+    () => ProductService().create(data),
+    "Terjadi kesalahan saat memproses product.",
+    "Product",
+  );
 }
 
 function updateProduct(id, data) {
-  return JSON.parse(JSON.stringify(ProductService().update(id, data)));
+  return _controllerResponse(
+    () => ProductService().update(id, data),
+    "Terjadi kesalahan saat memproses product.",
+    "Product",
+  );
 }
 
 function deleteProduct(id) {
-  return ProductService().remove(id);
+  return _controllerResponse(
+    () => ProductService().remove(id),
+    "Terjadi kesalahan saat memproses product.",
+    "Product",
+  );
 }
 
 function restoreProduct(id) {
-  return JSON.parse(JSON.stringify(ProductService().restore(id)));
+  try {
+    return JSON.parse(JSON.stringify(ProductService().restore(id)));
+  } catch (error) {
+    AppLogger.error("Product Controller failed.", {
+      error: String(error && error.message ? error.message : error),
+    });
+
+    return JSON.parse(
+      JSON.stringify(Response.error("Terjadi kesalahan saat memproses product.")),
+    );
+  }
 }
 
 //=============================================================================
@@ -120,31 +175,59 @@ function restoreProduct(id) {
 //=============================================================================
 
 function getPartners() {
-  return JSON.parse(JSON.stringify(PartnerService().findAll()));
+  return _controllerResponse(
+    () => PartnerService().findAll(),
+    "Terjadi kesalahan saat memproses partner.",
+    "Partner",
+  );
 }
 
 function getDeletedPartners() {
-  return JSON.parse(JSON.stringify(PartnerService().listDeleted()));
+  return _controllerResponse(
+    () => PartnerService().listDeleted(),
+    "Terjadi kesalahan saat memproses partner.",
+    "Partner",
+  );
 }
 
 function getPartner(id) {
-  return JSON.parse(JSON.stringify(PartnerService().findById(id)));
+  return _controllerResponse(
+    () => PartnerService().findById(id),
+    "Terjadi kesalahan saat memproses partner.",
+    "Partner",
+  );
 }
 
 function createPartner(data) {
-  return JSON.parse(JSON.stringify(PartnerService().create(data)));
+  return _controllerResponse(
+    () => PartnerService().create(data),
+    "Terjadi kesalahan saat memproses partner.",
+    "Partner",
+  );
 }
 
 function updatePartner(id, data) {
-  return JSON.parse(JSON.stringify(PartnerService().update(id, data)));
+  return _controllerResponse(
+    () => PartnerService().update(id, data),
+    "Terjadi kesalahan saat memproses partner.",
+    "Partner",
+  );
 }
 
 function deletePartner(id) {
-  return JSON.parse(JSON.stringify(PartnerService().remove(id)));
+  return _controllerResponse(
+    () => PartnerService().remove(id),
+    "Terjadi kesalahan saat memproses partner.",
+    "Partner",
+  );
 }
 
 function restorePartner(id) {
-  return JSON.parse(JSON.stringify(PartnerService().restore(id)));
+  return _controllerResponse(
+    () => PartnerService().restore(id),
+    "Terjadi kesalahan saat memproses partner.",
+    "Partner",
+  );
 }
 
 //=============================================================================
@@ -152,13 +235,11 @@ function restorePartner(id) {
 //=============================================================================
 
 function _pickupControllerResponse(operation) {
-  try {
-    return JSON.parse(JSON.stringify(operation()));
-  } catch (error) {
-    return JSON.parse(
-      JSON.stringify(Response.error("Terjadi kesalahan saat memproses pickup.")),
-    );
-  }
+  return _controllerResponse(
+    operation,
+    "Terjadi kesalahan saat memproses pickup.",
+    "Pickup",
+  );
 }
 
 function getPickups() {
@@ -197,13 +278,11 @@ function restorePickup(id) {
 //=============================================================================
 
 function _returnControllerResponse(operation) {
-  try {
-    return JSON.parse(JSON.stringify(operation()));
-  } catch (error) {
-    return JSON.parse(
-      JSON.stringify(Response.error("Terjadi kesalahan saat memproses retur.")),
-    );
-  }
+  return _controllerResponse(
+    operation,
+    "Terjadi kesalahan saat memproses retur.",
+    "Return",
+  );
 }
 
 function getReturns() {
@@ -242,14 +321,11 @@ function restoreReturn(id) {
 //=============================================================================
 
 function _purchasingControllerResponse(operation) {
-  try {
-    return JSON.parse(JSON.stringify(operation()));
-  } catch (error) {
-    Logger.log(`Purchasing Controller error: ${error.message}`);
-    return JSON.parse(
-      JSON.stringify(Response.error("Terjadi kesalahan saat memproses purchasing.")),
-    );
-  }
+  return _controllerResponse(
+    operation,
+    "Terjadi kesalahan saat memproses purchasing.",
+    "Purchasing",
+  );
 }
 
 function getPurchasing() {
@@ -285,20 +361,12 @@ function restorePurchasing(id) {
 //=============================================================================
 
 function _expenseControllerResponse(operation) {
-  try {
-    const result = operation();
-
-    if (result && result.success === false) {
-      return result;
-    }
-
-    return JSON.parse(JSON.stringify(result));
-  } catch (error) {
-    Logger.log(`Expense Controller error: ${error.message}`);
-    return JSON.parse(
-      JSON.stringify(Response.error("Terjadi kesalahan saat memproses expense.")),
-    );
-  }
+  return _controllerResponse(
+    operation,
+    "Terjadi kesalahan saat memproses expense.",
+    "Expense",
+    true,
+  );
 }
 
 function getExpenses() {

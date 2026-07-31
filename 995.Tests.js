@@ -146,6 +146,7 @@ function getReleaseBackendContractTests() {
   testReleaseApiCalledControllerEndpointsExist,
   testReleaseApiControllerArgumentCompatibility,
   testReleaseApiControllerResponseEnvelopeCompatibility,
+  testReleasePublicErrorBoundaryContract,
   testReleaseDependencyEligibilityContracts,
   testReleaseDeletedDependenciesExcluded,
   testReleaseRestoredDependenciesBecomeEligible,

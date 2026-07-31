@@ -30,9 +30,11 @@ function doGet(e) {
 
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   } catch (err) {
-    return HtmlService.createHtmlOutput(
-      "<pre>" + String(err.stack || err) + "</pre>",
-    );
+    AppLogger.error("Application bootstrap failed.", {
+      error: String(err && err.message ? err.message : err),
+    });
+
+    return Router.error("Terjadi kesalahan saat memuat aplikasi.");
   }
 }
 

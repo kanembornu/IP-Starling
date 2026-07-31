@@ -160,20 +160,16 @@ function SettingsService(dependencies = {}) {
   }
 
   function listResolved() {
-    try {
-      return Response.success(remember(`${cachePrefix}:list`, () => {
-        const rows = physicalRows();
-        return registry.map((def) => resolved(def, rows));
-      }));
-    }
-    catch (error) { return Response.error(error.message); }
+    return Response.success(remember(`${cachePrefix}:list`, () => {
+      const rows = physicalRows();
+      return registry.map((def) => resolved(def, rows));
+    }));
   }
 
   function getResolved(key) {
     const def = findDefinition(key);
     if (!def) return Response.error("Unknown setting key.");
-    try { return Response.success(remember(`${cachePrefix}:key:${def.key}`, () => resolved(def))); }
-    catch (error) { return Response.error(error.message); }
+    return Response.success(remember(`${cachePrefix}:key:${def.key}`, () => resolved(def)));
   }
 
   function clearCache() {
