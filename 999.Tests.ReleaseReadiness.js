@@ -33,8 +33,9 @@ function testReleaseReadinessReleaseMetadataWarningAbsent() {
 }
 
 function testReleaseReadinessApplicationMetadataSuite() {
-  releaseReadinessAssert(Array.isArray(APPLICATION_METADATA_TESTS) && APPLICATION_METADATA_TESTS.length > 0, "Application metadata suite is unavailable.");
-  APPLICATION_METADATA_TESTS.forEach((test) => test());
+  const tests = getApplicationMetadataTests();
+  releaseReadinessAssert(Array.isArray(tests) && tests.length > 0, "Application metadata suite is unavailable.");
+  tests.forEach((test) => test());
 }
 
 function testReleaseReadinessSmokeRunnerAvailable() {
@@ -56,11 +57,13 @@ function testReleaseReadinessProductionEntriesAvailable() {
   });
 }
 
-const RELEASE_READINESS_TESTS = Object.freeze([
+function getReleaseReadinessTests() {
+  return Object.freeze([
   testReleaseReadinessCanonicalMetadata,
   testReleaseReadinessApplicationHealthHasNoFailures,
   testReleaseReadinessReleaseMetadataWarningAbsent,
   testReleaseReadinessApplicationMetadataSuite,
   testReleaseReadinessSmokeRunnerAvailable,
   testReleaseReadinessProductionEntriesAvailable,
-]);
+  ]);
+}

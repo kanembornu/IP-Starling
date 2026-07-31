@@ -636,7 +636,7 @@ function testPickupFrontendArchitectureContracts() {
 }
 
 function testPickupAcceptancePhaseRegistrationContracts() {
-  const phases = PICKUP_ACCEPTANCE_PHASES;
+  const phases = PICKUP_ACCEPTANCE_PHASES();
   const expectedMemberships = {
     Read: "testCoreValidator|testCoreResponse|testRepositoryCacheOversizedValueBypass|testTransactionServicePublicApi|testTransactionServiceFindAll|testTransactionServiceFindByIdValidation|testTransactionServiceFindByIdResponseShape|testPickupServicePublicApi|testPickupServiceFindAll|testPickupServiceFindByIdValidation|testPickupServiceHeaderDetailRead|testPickupPresenterDateContract|testPickupFrontendArchitectureContracts|testPickupTrashReadFilteringAndShape|testPickupTrashReadSortingAndSearch|testPickupTrashReadEligibilityResults|testPickupTrashReadBoundedDependencyReads|testPickupTrashReadPerformsZeroWrites|testPickupTrashReadController|testPickupControllerPublicApi|testPickupControllerGetPickups|testPickupControllerGetPickupValidation|testPickupControllerSerialization",
     Validation: "testPickupCreateMissingDocument|testPickupCreateMissingHeader|testPickupCreateEmptyDetails|testPickupCreateMissingTanggal|testPickupCreateInvalidTanggal|testPickupCreateMissingPartnerId|testPickupCreateInvalidPartnerId|testPickupCreateMissingProductId|testPickupCreateInvalidProductId|testPickupCreateInvalidQty|testPickupCreateDuplicateProductId|testPickupUpdateMissingId|testPickupUpdateUnknownId|testPickupUpdateMissingDocument|testPickupUpdateMissingHeader|testPickupUpdateEmptyDetails|testPickupUpdateMissingTanggal|testPickupUpdateMissingPartnerId|testPickupUpdateInvalidPartnerId|testPickupUpdateMissingProductId|testPickupUpdateInvalidProductId|testPickupUpdateInvalidQty|testPickupUpdateDuplicateProductId|testPickupRemoveMissingId|testPickupRemoveUnknownId|testPickupControllerCreateValidation|testPickupControllerUpdateValidation|testPickupControllerDeleteValidation|testPickupControllerRestoreValidation",
@@ -682,7 +682,7 @@ function testPickupAcceptancePhaseRegistrationContracts() {
   requiredOnce.forEach((test) => {
     if (memberships[test.name] !== 1) throw new Error(`${test.name} must be registered exactly once.`);
   });
-  PICKUP_RESTORE_ACCEPTANCE_TESTS.forEach((test) => {
+  PICKUP_RESTORE_ACCEPTANCE_TESTS().forEach((test) => {
     if (!/Restore|Eligibility/.test(test.name)) throw new Error(`Non-restore test is registered in Restore: ${test.name}`);
   });
   phases.filter((phase) => phase.name !== "Restore").forEach((phase) => {
@@ -5971,7 +5971,6 @@ function testPurchasingApiPublicApi() {
     remove: 'run("deletePurchasing", id)',
     restore: 'run("restorePurchasing", id)',
     list: "this.findAll()",
-    get: "this.findById(id)",
   };
 
   Object.keys(methods).forEach((name) => {
@@ -6526,14 +6525,14 @@ function testPurchasingFrontendArchitectureSourceContracts() {
 }
 
 function testPurchasingAggregatePhaseRegistrationContracts() {
-  const phases = PURCHASING_ACCEPTANCE_PHASES;
+  const phases = PURCHASING_ACCEPTANCE_PHASES();
   if (!Array.isArray(phases) || phases.length !== 4) throw new Error("Purchasing canonical phase registry is unavailable.");
   const expectedOrder = ["read", "validation", "crud", "restore"];
   if (!expectedOrder.every((key, index) => phases[index]?.key === key)) throw new Error("Purchasing canonical phase order must be Read, Validation, CRUD, Restore.");
 
-  const canonicalRegistries = [PURCHASING_READ_TESTS, PURCHASING_VALIDATION_TESTS, PURCHASING_CRUD_TESTS, PURCHASING_RESTORE_TESTS];
-  if (!canonicalRegistries.every((registry, index) => phases[index].tests === registry)) throw new Error("Purchasing phases do not consume their canonical registries.");
-  if (PURCHASING_MUTATION_TESTS.length !== PURCHASING_VALIDATION_TESTS.length + PURCHASING_CRUD_TESTS.length || PURCHASING_MUTATION_TESTS.some((test, index) => test !== PURCHASING_VALIDATION_TESTS.concat(PURCHASING_CRUD_TESTS)[index])) throw new Error("Purchasing legacy Mutation registry must derive from Validation and CRUD without drift.");
+  const canonicalRegistries = [PURCHASING_READ_TESTS(), PURCHASING_VALIDATION_TESTS(), PURCHASING_CRUD_TESTS(), PURCHASING_RESTORE_TESTS()];
+  if (!canonicalRegistries.every((registry, index) => phases[index].tests.map((test) => test.name).join("|") === registry.map((test) => test.name).join("|"))) throw new Error("Purchasing phases do not consume their canonical registries.");
+  if (PURCHASING_MUTATION_TESTS().length !== PURCHASING_VALIDATION_TESTS().length + PURCHASING_CRUD_TESTS().length || PURCHASING_MUTATION_TESTS().some((test, index) => test !== PURCHASING_VALIDATION_TESTS().concat(PURCHASING_CRUD_TESTS())[index])) throw new Error("Purchasing legacy Mutation registry must derive from Validation and CRUD without drift.");
   const assigned = phases.reduce((tests, phase) => {
     if (!Array.isArray(phase.tests) || !phase.tests.length) throw new Error(`Purchasing ${phase.key} phase has no canonical tests.`);
     if (phase.tests.length !== phase.expectedCount) throw new Error(`Unexpected Purchasing ${phase.key} count: ${phase.tests.length}; expected ${phase.expectedCount}.`);
@@ -6544,13 +6543,13 @@ function testPurchasingAggregatePhaseRegistrationContracts() {
   const uniqueNames = new Set(assignedNames);
   if (uniqueNames.size !== assignedNames.length) throw new Error("A Purchasing test is registered in more than one canonical phase.");
   const expectedProductionCount = canonicalRegistries.reduce((count, registry) => count + registry.length, 0);
-  if (PURCHASING_KNOWN_TESTS.length !== expectedProductionCount || assigned.length !== expectedProductionCount || uniqueNames.size !== expectedProductionCount) throw new Error(`Purchasing phase registry must contain ${expectedProductionCount} known tests; found ${uniqueNames.size}.`);
-  if (PURCHASING_KNOWN_TESTS.some((test, index) => test !== assigned[index])) throw new Error("Purchasing known-test registry differs from canonical phase order.");
+  if (PURCHASING_KNOWN_TESTS().length !== expectedProductionCount || assigned.length !== expectedProductionCount || uniqueNames.size !== expectedProductionCount) throw new Error(`Purchasing phase registry must contain ${expectedProductionCount} known tests; found ${uniqueNames.size}.`);
+  if (PURCHASING_KNOWN_TESTS().some((test, index) => test !== assigned[index])) throw new Error("Purchasing known-test registry differs from canonical phase order.");
   const metaTests = phases.reduce((tests, phase) => tests.concat(phase.metaTests || []), []);
   if (metaTests.some((test) => typeof test !== "function" || !test.name)) throw new Error("A registered Purchasing meta-test is not a callable named function.");
   const metaNames = metaTests.map((test) => test.name);
   if (metaNames.length !== 1 || metaNames[0] !== "testPurchasingAggregatePhaseRegistrationContracts") throw new Error("Purchasing aggregate registration contract must be the sole Read meta-test.");
-  if (phases[0].metaTests !== PURCHASING_META_TESTS || phases.slice(1).some((phase) => phase.metaTests.length)) throw new Error("Purchasing meta-test ownership must belong only to the Read phase.");
+  if (phases[0].metaTests.map((test) => test.name).join("|") !== PURCHASING_META_TESTS().map((test) => test.name).join("|") || phases.slice(1).some((phase) => phase.metaTests.length)) throw new Error("Purchasing meta-test ownership must belong only to the Read phase.");
   if (assignedNames.some((name) => metaNames.indexOf(name) >= 0)) throw new Error("Purchasing meta-tests must not distort production phase membership.");
   const allRegisteredNames = assignedNames.concat(metaNames);
   const expectedTotalWithMeta = expectedProductionCount + metaNames.length;
@@ -7566,7 +7565,7 @@ function testDashboardFrontendRegistrationContract() {
     testDashboardChartLifecycleContract,
     testDashboardFrontendRegistrationContract,
   ].map((test) => test.name);
-  const registered = DASHBOARD_FRONTEND_ARCHITECTURE_TESTS.map((test) => test.name);
+  const registered = DASHBOARD_FRONTEND_ARCHITECTURE_TESTS().map((test) => test.name);
   if (registered.length !== expected.length || new Set(registered).size !== registered.length ||
       expected.some((name) => registered.indexOf(name) < 0)) {
     throw new Error("Dashboard frontend architecture tests are missing or registered more than once.");

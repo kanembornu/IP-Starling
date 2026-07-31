@@ -86,7 +86,8 @@ function testReturnPickupRepairIdempotentSecondExecution() {
   returnPickupRepairAssert(fixture.state.writes.length === 1 && fixture.state.logs.length === 1, "Idempotent execution duplicated writes or maintenance logs.");
 }
 
-const RETURN_PICKUP_ID_MAINTENANCE_TESTS = Object.freeze([
+function getReturnPickupIdMaintenanceTests() {
+  return Object.freeze([
   testReturnPickupRepairValidDerivation,
   testReturnPickupRepairMissingReturn,
   testReturnPickupRepairBlankPickupDetailId,
@@ -99,4 +100,5 @@ const RETURN_PICKUP_ID_MAINTENANCE_TESTS = Object.freeze([
   testReturnPickupRepairAllOrNothingPrevalidation,
   testReturnPickupRepairRollbackAfterWriteFailure,
   testReturnPickupRepairIdempotentSecondExecution,
-]);
+  ]);
+}

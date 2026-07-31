@@ -223,9 +223,10 @@ function testApplicationHealthFrontendBackendMethodResolution() {
 }
 
 function testApplicationHealthNoDuplicateTestRegistration() {
-  const names = APPLICATION_HEALTH_TESTS.map((test) => test.name);
+  const tests = getApplicationHealthTests();
+  const names = tests.map((test) => test.name);
   applicationHealthAssert(new Set(names).size === names.length, "Application health test registry contains duplicates.");
-  applicationHealthAssert(APPLICATION_HEALTH_TESTS.length === 40, "Application health test registry must contain the preserved 36 tests plus 4 Settings audit tests.");
+  applicationHealthAssert(tests.length === 42, "Application health test registry must contain all 42 registered tests.");
 }
 
 function testApplicationHealthSeverityAggregation() {
@@ -380,7 +381,8 @@ function testApplicationHealthCanonicalSequenceSourceContract() {
   applicationHealthAssert(/IDGenerator\.current/.test(capture) && !/SEQ_/.test(capture), "Application Health bypasses canonical IDGenerator sequence access.");
 }
 
-const APPLICATION_HEALTH_TESTS = Object.freeze([
+function getApplicationHealthTests() {
+  return Object.freeze([
   testApplicationHealthRunnerReadOnly,
   testApplicationHealthMissingSheetDetection,
   testApplicationHealthHeaderMismatchDetection,
@@ -423,4 +425,5 @@ const APPLICATION_HEALTH_TESTS = Object.freeze([
   testApplicationHealthDiagnosticRunnersNoCacheMutation,
   testApplicationHealthDiagnosticRunnerRegistration,
   testApplicationHealthCanonicalSequenceSourceContract,
-]);
+  ]);
+}

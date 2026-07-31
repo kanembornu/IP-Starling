@@ -273,7 +273,18 @@ function assertCanonicalPaginationSourceContracts(source) {
   if (!/setting\.key !== "ROWS_PER_PAGE"/.test(source.settingsPresenter)) throw new Error("Legacy ROWS_PER_PAGE is exposed in Settings UI.");
   if (/pageSize\s*[:=]\s*20|requestedSize\s*=\s*20|fallback\s*=\s*20/.test(browserSource)) throw new Error("Hardcoded page-size default 20 is active.");
   if (/SpreadsheetApp|RepositoryWriter|AuditLogService|AppLogService/.test(browserSource)) throw new Error("Pagination UI introduced spreadsheet or manual audit access.");
-  if (!/flex flex-wrap items-center justify-end gap-2/.test(source.app) || !/disabled:cursor-not-allowed/.test(source.app)) throw new Error("Shared responsive or disabled pagination control markup is missing.");
+  const controlsSource = masterDataNamedFunctionSource(source.helper, "controls");
+  if ((browserSource.match(/function controls\(/g) || []).length !== 1 ||
+      (browserSource.match(/Baris per halaman/g) || []).length !== 1 ||
+      !/Pagination\.controls/.test(source.app)) throw new Error("Pagination controls are not owned by one shared implementation.");
+  if (!/flex w-full flex-col[^"]*sm:flex-row[^"]*sm:flex-wrap/.test(controlsSource) ||
+      !/grid grid-cols-2 gap-2 sm:flex/.test(controlsSource)) throw new Error("Shared responsive pagination control layout is missing.");
+  if (!/previousDisabled = config\.hasPrevious \? "" : "disabled"/.test(controlsSource) ||
+      !/nextDisabled = config\.hasNext \? "" : "disabled"/.test(controlsSource) ||
+      !/\$\{previousAttribute\} \$\{previousDisabled\}/.test(controlsSource) ||
+      !/\$\{nextAttribute\} \$\{nextDisabled\}/.test(controlsSource) ||
+      !/disabled:cursor-not-allowed/.test(controlsSource) ||
+      !/aria-live="polite"/.test(controlsSource)) throw new Error("Shared accessible disabled pagination semantics are missing.");
 }
 
 function testCanonicalPaginationSourceContracts() {

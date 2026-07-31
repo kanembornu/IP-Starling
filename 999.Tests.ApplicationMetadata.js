@@ -54,7 +54,8 @@ function testApplicationMetadataNoRawGoogleScriptRunOutsideApi() {
   });
 }
 
-const APPLICATION_METADATA_TESTS = Object.freeze([
+function getApplicationMetadataTests() {
+  return Object.freeze([
   testApplicationMetadataCanonicalRelease,
   testApplicationMetadataBootstrapResponse,
   testApplicationMetadataSidebarVersionFlow,
@@ -62,8 +63,9 @@ const APPLICATION_METADATA_TESTS = Object.freeze([
   testApplicationMetadataSidebarHasNoSemanticVersionLiteral,
   testApplicationMetadataHealthContract,
   testApplicationMetadataNoRawGoogleScriptRunOutsideApi,
-]);
+  ]);
+}
 
 function runApplicationMetadataTests() {
-  return runTestSuite("Application metadata tests", APPLICATION_METADATA_TESTS, { reportTiming: true });
+  return runTestSuite("Application metadata tests", getApplicationMetadataTests(), { reportTiming: true });
 }

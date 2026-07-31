@@ -87,7 +87,8 @@ function testDevelopmentSeedCurrentDateCollisionSafetyContract() {
   DevelopmentSeed.SEQUENTIAL_SEED_KEYS.forEach((key) => developmentSeedAssert(report.checks[key] && report.checks[key].safe, `${key} current-date collision safety failed.`));
 }
 
-const DEVELOPMENT_SEED_CONTRACT_TESTS = Object.freeze([
+function getDevelopmentSeedContractTests() {
+  return Object.freeze([
   testDevelopmentSeedSchemaHeaderContract,
   testDevelopmentSeedForeignKeyIntegrityContract,
   testDevelopmentSeedQuantityAndTotalIntegrityContract,
@@ -97,11 +98,12 @@ const DEVELOPMENT_SEED_CONTRACT_TESTS = Object.freeze([
   testDevelopmentSeedSafetySourceContract,
   testDevelopmentSeedSequenceSynchronizationContract,
   testDevelopmentSeedCurrentDateCollisionSafetyContract,
-]);
+  ]);
+}
 
 function runDevelopmentSeedContractTests() {
   const startedAt = Date.now(); const results = [];
-  DEVELOPMENT_SEED_CONTRACT_TESTS.forEach((test) => {
+  getDevelopmentSeedContractTests().forEach((test) => {
     const testStartedAt = Date.now();
     try { test(); results.push({ name: test.name, status: "PASS", durationMs: Date.now() - testStartedAt }); }
     catch (error) { results.push({ name: test.name, status: "FAIL", error: error.message, durationMs: Date.now() - testStartedAt }); }

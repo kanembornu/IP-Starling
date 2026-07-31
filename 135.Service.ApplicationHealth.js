@@ -1436,8 +1436,8 @@ const ApplicationHealth = (() => {
       ),
     );
     const replayContract =
-      typeof IDEMPOTENCY_CONTRACT_TESTS !== "undefined" &&
-      IDEMPOTENCY_CONTRACT_TESTS.some(
+      typeof getIdempotencyContractTests === "function" &&
+      getIdempotencyContractTests().some(
         (test) => test.name === "testIdempotencyCommittedReplaySkipsMutation",
       );
     result.Cache.push(
@@ -1915,23 +1915,26 @@ const ApplicationHealth = (() => {
         startedAt,
       ),
     );
-    const tests =
-      typeof APPLICATION_HEALTH_TESTS === "undefined"
-        ? []
-        : APPLICATION_HEALTH_TESTS;
-    const names = tests.map((test) => test.name);
+    const registryAvailable = typeof getApplicationHealthTests === "function";
+    const tests = registryAvailable ? getApplicationHealthTests() : null;
+    const names = tests ? tests.map((test) => test.name) : [];
     const duplicates = names.filter(
       (name, index) => names.indexOf(name) !== index,
     );
+    const registrationIssues = registryAvailable
+      ? duplicates
+      : ["getApplicationHealthTests"];
     result.Tests.push(
       check(
         "Health test registration uniqueness",
-        duplicates.length ? STATUS.FAIL : STATUS.PASS,
+        registrationIssues.length ? STATUS.FAIL : STATUS.PASS,
         names.length,
-        duplicates.length
-          ? "Health tests are registered more than once."
+        registrationIssues.length
+          ? registryAvailable
+            ? "Health tests are registered more than once."
+            : "Required health test registry accessor is missing."
           : "Health tests are registered exactly once within the health suite.",
-        duplicates,
+        registrationIssues,
         startedAt,
       ),
     );

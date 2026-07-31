@@ -296,7 +296,7 @@ function testReleaseCreateIdempotencyContract() {
 }
 
 function testReleaseTestRegistrationExactlyOnce() {
-  const registries = [RELEASE_FRONTEND_INTEGRATION_TESTS, RELEASE_BACKEND_CONTRACT_TESTS, RELEASE_MUTATION_INTEGRITY_TESTS];
+  const registries = [getReleaseFrontendIntegrationTests(), getReleaseBackendContractTests(), getReleaseMutationIntegrityTests()];
   const tests = registries.reduce((all, registry) => all.concat(registry), []);
   const names = tests.map((test) => test.name);
   releaseAssert(tests.length === 24, `Expected 24 release integration tests; found ${tests.length}.`);

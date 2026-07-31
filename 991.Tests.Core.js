@@ -81,7 +81,7 @@ function testIDGeneratorPersistedReadBackContract() {
 }
 
 function testIDGeneratorRuntimeStorageAdapterContract() {
-  const source = expenseFrontendSource("85.Framework.IDGenerator");
+  const source = String(IDGenerator.createForTesting);
   if (!/PropertiesService\.getScriptProperties\(\)/.test(source) ||
       !/properties\.getProperty\(counterKey\(prefix, date\)\)/.test(source) ||
       !/properties\.setProperty\(counterKey\(prefix, date\), String\(sequence\)\)/.test(source) ||

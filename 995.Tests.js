@@ -110,19 +110,20 @@ function runFrontendArchitectureHardeningTests() {
 }
 
 function runApplicationHealthCheckTests() {
-  runTestSuite("Application health check tests", APPLICATION_HEALTH_TESTS, { reportTiming: true });
+  runTestSuite("Application health check tests", getApplicationHealthTests(), { reportTiming: true });
 }
 
 function runReleaseReadinessTests() {
   releaseReadinessHealthReport = null;
-  return runTestSuite("Release readiness tests", RELEASE_READINESS_TESTS, { reportTiming: true });
+  return runTestSuite("Release readiness tests", getReleaseReadinessTests(), { reportTiming: true });
 }
 
 function runReturnPickupIdMaintenanceTests() {
-  runTestSuite("Return PickupID maintenance tests", RETURN_PICKUP_ID_MAINTENANCE_TESTS, { reportTiming: true });
+  runTestSuite("Return PickupID maintenance tests", getReturnPickupIdMaintenanceTests(), { reportTiming: true });
 }
 
-const RELEASE_FRONTEND_INTEGRATION_TESTS = Object.freeze([
+function getReleaseFrontendIntegrationTests() {
+  return Object.freeze([
   testReleaseRouteInitializationOnce,
   testReleaseEventBindingOnce,
   testReleaseNavigationInvalidatesStaleResponses,
@@ -137,37 +138,43 @@ const RELEASE_FRONTEND_INTEGRATION_TESTS = Object.freeze([
   testReleaseSettingsConfigNotRedundantlyFetched,
   testReleaseChartLifecycleSafe,
   testReleaseTestRegistrationExactlyOnce,
-]);
+  ]);
+}
 
-const RELEASE_BACKEND_CONTRACT_TESTS = Object.freeze([
+function getReleaseBackendContractTests() {
+  return Object.freeze([
   testReleaseApiCalledControllerEndpointsExist,
   testReleaseApiControllerArgumentCompatibility,
   testReleaseApiControllerResponseEnvelopeCompatibility,
   testReleaseDependencyEligibilityContracts,
   testReleaseDeletedDependenciesExcluded,
   testReleaseRestoredDependenciesBecomeEligible,
-]);
+  ]);
+}
 
-const RELEASE_MUTATION_INTEGRITY_TESTS = Object.freeze([
+function getReleaseMutationIntegrityTests() {
+  return Object.freeze([
   testReleaseOneMutationPathPerAction,
   testReleaseOneRefreshPerSuccessfulMutation,
   testReleaseOneAuditEventPerMutationContract,
   testReleaseCreateIdempotencyContract,
-]);
+  ]);
+}
 
 function runReleaseFrontendIntegrationTests() {
-  runTestSuite("Release frontend integration tests", RELEASE_FRONTEND_INTEGRATION_TESTS, { reportTiming: true });
+  runTestSuite("Release frontend integration tests", getReleaseFrontendIntegrationTests(), { reportTiming: true });
 }
 
 function runReleaseBackendContractTests() {
-  runTestSuite("Release backend contract tests", RELEASE_BACKEND_CONTRACT_TESTS, { reportTiming: true });
+  runTestSuite("Release backend contract tests", getReleaseBackendContractTests(), { reportTiming: true });
 }
 
 function runReleaseMutationIntegrityTests() {
-  runTestSuite("Release mutation integrity tests", RELEASE_MUTATION_INTEGRITY_TESTS, { reportTiming: true });
+  runTestSuite("Release mutation integrity tests", getReleaseMutationIntegrityTests(), { reportTiming: true });
 }
 
-const IDEMPOTENCY_CONTRACT_TESTS = Object.freeze([
+function getIdempotencyContractTests() {
+  return Object.freeze([
   testIdempotencyKeyGeneratorFormatAndOwnership,
   testIdempotencyCanonicalPayloadNormalizationContracts,
   testIdempotencyStableHashForEquivalentObjects,
@@ -178,13 +185,15 @@ const IDEMPOTENCY_CONTRACT_TESTS = Object.freeze([
   testIdempotencyConcurrentLikeSameKeyCreatesOnce,
   testIdempotencySeparateKeysAllowIdenticalPayloads,
   testIdempotencyPendingAndRetentionPolicy,
-]);
-
-function runIdempotencyContractTests() {
-  runTestSuite("Idempotency contract tests", IDEMPOTENCY_CONTRACT_TESTS, { reportTiming: true });
+  ]);
 }
 
-const TRANSACTION_SERVICE_CONTRACT_TESTS = Object.freeze([
+function runIdempotencyContractTests() {
+  runTestSuite("Idempotency contract tests", getIdempotencyContractTests(), { reportTiming: true });
+}
+
+function getTransactionServiceContractTests() {
+  return Object.freeze([
   testTransactionContractSuccessExecutesEachStepOnce,
   testTransactionContractFailureStopsForwardActions,
   testTransactionContractRollbackIsReverseOrder,
@@ -196,9 +205,11 @@ const TRANSACTION_SERVICE_CONTRACT_TESTS = Object.freeze([
   testTransactionContractLockReleasesAfterFailure,
   testTransactionContractCompletionAuditOnce,
   testTransactionContractRollbackInvalidatesCaches,
-]);
+  ]);
+}
 
-const PICKUP_ATOMICITY_TESTS = Object.freeze([
+function getPickupAtomicityTests() {
+  return Object.freeze([
   testPickupAtomicCreateSuccess,
   testPickupAtomicCreateAfterHeaderFailure,
   testPickupAtomicCreateDetailFailure,
@@ -212,9 +223,11 @@ const PICKUP_ATOMICITY_TESTS = Object.freeze([
   testPickupAtomicZeroAuditOnRollback,
   testAtomicPickupRollbackPreservesReturnEligibility,
   testAtomicCachesCorrectAfterSuccess,
-]);
+  ]);
+}
 
-const RETURN_ATOMICITY_TESTS = Object.freeze([
+function getReturnAtomicityTests() {
+  return Object.freeze([
   testReturnAtomicCreateSuccess,
   testReturnAtomicCreateRollback,
   testReturnAtomicUpdateRollback,
@@ -232,18 +245,19 @@ const RETURN_ATOMICITY_TESTS = Object.freeze([
   testAtomicReturnRollbackPreservesPickupAvailability,
   testAtomicCachesCorrectAfterRollback,
   testAtomicFixturesAndInjectionAreIsolated,
-]);
+  ]);
+}
 
 function runTransactionServiceContractTests() {
-  runTestSuite("TransactionService contract tests", TRANSACTION_SERVICE_CONTRACT_TESTS, { reportTiming: true });
+  runTestSuite("TransactionService contract tests", getTransactionServiceContractTests(), { reportTiming: true });
 }
 
 function runPickupAtomicityTests() {
-  runTestSuite("Pickup atomicity tests", PICKUP_ATOMICITY_TESTS, { reportTiming: true });
+  runTestSuite("Pickup atomicity tests", getPickupAtomicityTests(), { reportTiming: true });
 }
 
 function runReturnAtomicityTests() {
-  runTestSuite("Return atomicity tests", RETURN_ATOMICITY_TESTS, { reportTiming: true });
+  runTestSuite("Return atomicity tests", getReturnAtomicityTests(), { reportTiming: true });
 }
 
 function runTransactionReadTests() {
@@ -513,7 +527,7 @@ function runPickupReturnIntegrityDiagnosticTests() {
   ]);
 }
 
-const PURCHASING_READ_SERVICE_TESTS = [
+const PURCHASING_READ_SERVICE_TESTS = () => [
     testPurchasingServicePublicApi,
     testPurchasingStatisticsEmpty,
     testPurchasingStatisticsResponseShape,
@@ -522,7 +536,7 @@ const PURCHASING_READ_SERVICE_TESTS = [
     testPurchasingFindByIdValidation,
 ];
 
-const PURCHASING_MUTATION_VALIDATION_TESTS = [
+const PURCHASING_MUTATION_VALIDATION_TESTS = () => [
     testPurchasingCreateRequiresTanggal,
     testPurchasingCreateRequiresSupplier,
     testPurchasingCreateRequiresProduct,
@@ -537,7 +551,7 @@ const PURCHASING_MUTATION_VALIDATION_TESTS = [
 ];
 
 function runPurchasingValidationTests() {
-  runTestSuite("Purchasing validation tests", PURCHASING_READ_SERVICE_TESTS.concat(PURCHASING_MUTATION_VALIDATION_TESTS));
+  runTestSuite("Purchasing validation tests", PURCHASING_READ_SERVICE_TESTS().concat(PURCHASING_MUTATION_VALIDATION_TESTS()));
 }
 
 function runExpenseValidationTests() {
@@ -717,7 +731,7 @@ function runFinalUiUxContractTests() {
   ]);
 }
 
-const DASHBOARD_FRONTEND_ARCHITECTURE_TESTS = [
+const DASHBOARD_FRONTEND_ARCHITECTURE_TESTS = () => [
   testDashboardViewDeclarativeContract,
   testDashboardEventDelegationContract,
   testDashboardAppOrchestrationContract,
@@ -730,7 +744,7 @@ const DASHBOARD_FRONTEND_ARCHITECTURE_TESTS = [
 function runDashboardFrontendArchitectureTests() {
   runTestSuite(
     "Dashboard frontend architecture tests",
-    DASHBOARD_FRONTEND_ARCHITECTURE_TESTS,
+    DASHBOARD_FRONTEND_ARCHITECTURE_TESTS(),
   );
 }
 
@@ -798,7 +812,7 @@ function runDashboardModuleAcceptance() {
   }
 }
 
-const PURCHASING_DELETED_LIST_TESTS = [
+const PURCHASING_DELETED_LIST_TESTS = () => [
     testPurchasingFindDeletedEmpty,
     testPurchasingFindDeletedFiltering,
     testPurchasingFindDeletedResponseShape,
@@ -806,10 +820,10 @@ const PURCHASING_DELETED_LIST_TESTS = [
 ];
 
 function runPurchasingDeletedListTests() {
-  runTestSuite("Purchasing deleted-list tests", PURCHASING_DELETED_LIST_TESTS);
+  runTestSuite("Purchasing deleted-list tests", PURCHASING_DELETED_LIST_TESTS());
 }
 
-const PURCHASING_WRITE_TESTS = [
+const PURCHASING_WRITE_TESTS = () => [
     testPurchasingStatisticsActiveOnly,
     testPurchasingCreateValid,
     testPurchasingCreateDerivesTotal,
@@ -825,10 +839,10 @@ const PURCHASING_WRITE_TESTS = [
 ];
 
 function runPurchasingWriteTests() {
-  runTestSuite("Purchasing write tests", PURCHASING_WRITE_TESTS);
+  runTestSuite("Purchasing write tests", PURCHASING_WRITE_TESTS());
 }
 
-const PURCHASING_RESTORE_TESTS = Object.freeze([
+const PURCHASING_RESTORE_TESTS = () => Object.freeze([
     testPurchasingRestoreValid,
     testPurchasingRestoreAlreadyActive,
     testPurchasingRestoreRejectsInactiveNonDeleted,
@@ -839,10 +853,10 @@ const PURCHASING_RESTORE_TESTS = Object.freeze([
 ]);
 
 function runPurchasingRestoreTests() {
-  runTestSuite("Purchasing restore tests", PURCHASING_RESTORE_TESTS);
+  runTestSuite("Purchasing restore tests", PURCHASING_RESTORE_TESTS());
 }
 
-const PURCHASING_CONTROLLER_TESTS = [
+const PURCHASING_CONTROLLER_TESTS = () => [
     testPurchasingControllerPublicApi,
     testPurchasingDeletedControllerPublicApi,
     testPurchasingControllerGetAll,
@@ -856,86 +870,86 @@ const PURCHASING_CONTROLLER_TESTS = [
 ];
 
 function runPurchasingControllerTests() {
-  runTestSuite("Purchasing controller tests", PURCHASING_CONTROLLER_TESTS);
+  runTestSuite("Purchasing controller tests", PURCHASING_CONTROLLER_TESTS());
 }
 
-const PURCHASING_API_TESTS = [
+const PURCHASING_API_TESTS = () => [
     testPurchasingApiPublicApi,
     testPurchasingApiPromiseTransportBoundary,
     testPurchasingUxConsistencySourceContracts,
     testPurchasingFrontendArchitectureSourceContracts,
 ];
 
-const PURCHASING_META_TESTS = Object.freeze([
+const PURCHASING_META_TESTS = () => Object.freeze([
     testPurchasingAggregatePhaseRegistrationContracts,
 ]);
 
-const PURCHASING_READ_TESTS = Object.freeze(
-  PURCHASING_CONTROLLER_TESTS
-    .concat(PURCHASING_API_TESTS)
-    .concat(PURCHASING_READ_SERVICE_TESTS)
-    .concat(PURCHASING_DELETED_LIST_TESTS),
+const PURCHASING_READ_TESTS = () => Object.freeze(
+  PURCHASING_CONTROLLER_TESTS()
+    .concat(PURCHASING_API_TESTS())
+    .concat(PURCHASING_READ_SERVICE_TESTS())
+    .concat(PURCHASING_DELETED_LIST_TESTS()),
 );
 
-const PURCHASING_VALIDATION_TESTS = Object.freeze(
-  PURCHASING_MUTATION_VALIDATION_TESTS.slice(),
+const PURCHASING_VALIDATION_TESTS = () => Object.freeze(
+  PURCHASING_MUTATION_VALIDATION_TESTS().slice(),
 );
 
-const PURCHASING_CRUD_TESTS = Object.freeze(
-  PURCHASING_WRITE_TESTS.slice(),
+const PURCHASING_CRUD_TESTS = () => Object.freeze(
+  PURCHASING_WRITE_TESTS().slice(),
 );
 
-const PURCHASING_MUTATION_TESTS = Object.freeze(
-  PURCHASING_VALIDATION_TESTS.concat(PURCHASING_CRUD_TESTS),
+const PURCHASING_MUTATION_TESTS = () => Object.freeze(
+  PURCHASING_VALIDATION_TESTS().concat(PURCHASING_CRUD_TESTS()),
 );
 
-const PURCHASING_KNOWN_TESTS = Object.freeze(
-  PURCHASING_READ_TESTS
-    .concat(PURCHASING_VALIDATION_TESTS)
-    .concat(PURCHASING_CRUD_TESTS)
-    .concat(PURCHASING_RESTORE_TESTS),
+const PURCHASING_KNOWN_TESTS = () => Object.freeze(
+  PURCHASING_READ_TESTS()
+    .concat(PURCHASING_VALIDATION_TESTS())
+    .concat(PURCHASING_CRUD_TESTS())
+    .concat(PURCHASING_RESTORE_TESTS()),
 );
 
 function runPurchasingApiTests() {
-  runTestSuite("Purchasing browser API tests", PURCHASING_API_TESTS);
+  runTestSuite("Purchasing browser API tests", PURCHASING_API_TESTS());
 }
 
-const PURCHASING_ACCEPTANCE_PHASES = Object.freeze([
+const PURCHASING_ACCEPTANCE_PHASES = () => Object.freeze([
   Object.freeze({
     key: "read",
     name: "READ",
     runner: "runPurchasingReadAcceptance",
-    expectedCount: PURCHASING_READ_TESTS.length,
+    expectedCount: PURCHASING_READ_TESTS().length,
     audit: true,
-    metaTests: PURCHASING_META_TESTS,
-    tests: PURCHASING_READ_TESTS,
+    metaTests: PURCHASING_META_TESTS(),
+    tests: PURCHASING_READ_TESTS(),
   }),
   Object.freeze({
     key: "validation",
     name: "VALIDATION",
     runner: "runPurchasingValidationAcceptance",
-    expectedCount: PURCHASING_VALIDATION_TESTS.length,
+    expectedCount: PURCHASING_VALIDATION_TESTS().length,
     audit: false,
     metaTests: Object.freeze([]),
-    tests: PURCHASING_VALIDATION_TESTS,
+    tests: PURCHASING_VALIDATION_TESTS(),
   }),
   Object.freeze({
     key: "crud",
     name: "CRUD",
     runner: "runPurchasingCrudAcceptance",
-    expectedCount: PURCHASING_CRUD_TESTS.length,
+    expectedCount: PURCHASING_CRUD_TESTS().length,
     audit: false,
     metaTests: Object.freeze([]),
-    tests: PURCHASING_CRUD_TESTS,
+    tests: PURCHASING_CRUD_TESTS(),
   }),
   Object.freeze({
     key: "restore",
     name: "RESTORE",
     runner: "runPurchasingRestoreAcceptance",
-    expectedCount: PURCHASING_RESTORE_TESTS.length,
+    expectedCount: PURCHASING_RESTORE_TESTS().length,
     audit: false,
     metaTests: Object.freeze([]),
-    tests: PURCHASING_RESTORE_TESTS,
+    tests: PURCHASING_RESTORE_TESTS(),
   }),
 ]);
 
@@ -970,7 +984,7 @@ function completePurchasingAcceptancePhase(name) {
 
 /** Canonical order: READ, VALIDATION, CRUD, then RESTORE in separate executions. */
 function runPurchasingAcceptancePhase(key) {
-  const phase = PURCHASING_ACCEPTANCE_PHASES.find((entry) => entry.key === key);
+  const phase = PURCHASING_ACCEPTANCE_PHASES().find((entry) => entry.key === key);
   if (!phase) throw new Error(`Unknown Purchasing acceptance phase: ${key}`);
   beginPurchasingAcceptancePhase(phase.name);
   try {
@@ -1086,7 +1100,7 @@ function runPickupModuleAcceptance() {
   );
 }
 
-const PICKUP_READ_ACCEPTANCE_TESTS = Object.freeze([
+const PICKUP_READ_ACCEPTANCE_TESTS = () => Object.freeze([
   testCoreValidator,
   testCoreResponse,
   testRepositoryCacheOversizedValueBypass,
@@ -1112,7 +1126,7 @@ const PICKUP_READ_ACCEPTANCE_TESTS = Object.freeze([
   testPickupControllerSerialization,
 ]);
 
-const PICKUP_VALIDATION_ACCEPTANCE_TESTS = Object.freeze([
+const PICKUP_VALIDATION_ACCEPTANCE_TESTS = () => Object.freeze([
   testPickupCreateMissingDocument,
   testPickupCreateMissingHeader,
   testPickupCreateEmptyDetails,
@@ -1144,7 +1158,7 @@ const PICKUP_VALIDATION_ACCEPTANCE_TESTS = Object.freeze([
   testPickupControllerRestoreValidation,
 ]);
 
-const PICKUP_MUTATION_ACCEPTANCE_TESTS = Object.freeze([
+const PICKUP_MUTATION_ACCEPTANCE_TESTS = () => Object.freeze([
   testPickupCreateValidSingleItem,
   testPickupCreateValidMultiItem,
   testPickupDateNormalization,
@@ -1159,7 +1173,7 @@ const PICKUP_MUTATION_ACCEPTANCE_TESTS = Object.freeze([
   testPickupRemoveAlreadyDeleted,
 ]);
 
-const PICKUP_RESTORE_ACCEPTANCE_TESTS = Object.freeze([
+const PICKUP_RESTORE_ACCEPTANCE_TESTS = () => Object.freeze([
   testPickupRestoreMissingId,
   testPickupRestoreUnknownId,
   testPickupIntegrityRestorePreflight,
@@ -1174,14 +1188,14 @@ const PICKUP_RESTORE_ACCEPTANCE_TESTS = Object.freeze([
   testPickupRestoreEligibilityIsDeterministic,
 ]);
 
-const PICKUP_ACCEPTANCE_PHASES = Object.freeze([
-  Object.freeze({ name: "Read", runner: "runPickupReadAcceptance", expectedCount: PICKUP_READ_ACCEPTANCE_TESTS.length, tests: PICKUP_READ_ACCEPTANCE_TESTS }),
-  Object.freeze({ name: "Validation", runner: "runPickupValidationAcceptance", expectedCount: PICKUP_VALIDATION_ACCEPTANCE_TESTS.length, tests: PICKUP_VALIDATION_ACCEPTANCE_TESTS }),
-  Object.freeze({ name: "Mutation", runner: "runPickupMutationAcceptance", expectedCount: PICKUP_MUTATION_ACCEPTANCE_TESTS.length, tests: PICKUP_MUTATION_ACCEPTANCE_TESTS }),
-  Object.freeze({ name: "Restore", runner: "runPickupRestoreAcceptance", expectedCount: PICKUP_RESTORE_ACCEPTANCE_TESTS.length, tests: PICKUP_RESTORE_ACCEPTANCE_TESTS }),
+const PICKUP_ACCEPTANCE_PHASES = () => Object.freeze([
+  Object.freeze({ name: "Read", runner: "runPickupReadAcceptance", expectedCount: PICKUP_READ_ACCEPTANCE_TESTS().length, tests: PICKUP_READ_ACCEPTANCE_TESTS() }),
+  Object.freeze({ name: "Validation", runner: "runPickupValidationAcceptance", expectedCount: PICKUP_VALIDATION_ACCEPTANCE_TESTS().length, tests: PICKUP_VALIDATION_ACCEPTANCE_TESTS() }),
+  Object.freeze({ name: "Mutation", runner: "runPickupMutationAcceptance", expectedCount: PICKUP_MUTATION_ACCEPTANCE_TESTS().length, tests: PICKUP_MUTATION_ACCEPTANCE_TESTS() }),
+  Object.freeze({ name: "Restore", runner: "runPickupRestoreAcceptance", expectedCount: PICKUP_RESTORE_ACCEPTANCE_TESTS().length, tests: PICKUP_RESTORE_ACCEPTANCE_TESTS() }),
 ]);
 
-const PICKUP_ACCEPTANCE_META_TESTS = Object.freeze([
+const PICKUP_ACCEPTANCE_META_TESTS = () => Object.freeze([
   testPickupAcceptancePhaseRegistrationContracts,
 ]);
 
@@ -1203,11 +1217,11 @@ function runPickupAcceptancePhase(name, tests) {
   }
 }
 
-function runPickupReadAcceptance() { return runPickupAcceptancePhase("Read", PICKUP_READ_ACCEPTANCE_TESTS); }
-function runPickupValidationAcceptance() { return runPickupAcceptancePhase("Validation", PICKUP_VALIDATION_ACCEPTANCE_TESTS); }
-function runPickupMutationAcceptance() { return runPickupAcceptancePhase("Mutation", PICKUP_MUTATION_ACCEPTANCE_TESTS); }
-function runPickupRestoreAcceptance() { return runPickupAcceptancePhase("Restore", PICKUP_RESTORE_ACCEPTANCE_TESTS); }
-function runPickupAcceptanceMetaTests() { return runTestSuite("Pickup acceptance registration meta-tests", PICKUP_ACCEPTANCE_META_TESTS, { reportTiming: true }); }
+function runPickupReadAcceptance() { return runPickupAcceptancePhase("Read", PICKUP_READ_ACCEPTANCE_TESTS()); }
+function runPickupValidationAcceptance() { return runPickupAcceptancePhase("Validation", PICKUP_VALIDATION_ACCEPTANCE_TESTS()); }
+function runPickupMutationAcceptance() { return runPickupAcceptancePhase("Mutation", PICKUP_MUTATION_ACCEPTANCE_TESTS()); }
+function runPickupRestoreAcceptance() { return runPickupAcceptancePhase("Restore", PICKUP_RESTORE_ACCEPTANCE_TESTS()); }
+function runPickupAcceptanceMetaTests() { return runTestSuite("Pickup acceptance registration meta-tests", PICKUP_ACCEPTANCE_META_TESTS(), { reportTiming: true }); }
 
 function runReturnModuleAcceptance() {
   if (activeTestRegistry) {
