@@ -116,10 +116,21 @@ const RepositoryReader = (() => {
   });
   }
 
-  const repositoryReader = create(RepositoryCache, RepositoryBase);
+  let repositoryReader = null;
+
+  function runtime() {
+    if (!repositoryReader) repositoryReader = create(RepositoryCache, RepositoryBase);
+    return repositoryReader;
+  }
 
   return Object.freeze({
-    ...repositoryReader,
+    raw(schema) { return runtime().raw(schema); },
+    findAll(schema) { return runtime().findAll(schema); },
+    findById(schema, id) { return runtime().findById(schema, id); },
+    find(schema, criteria = {}) { return runtime().find(schema, criteria); },
+    findOne(schema, criteria = {}) { return runtime().findOne(schema, criteria); },
+    exists(schema, criteria = {}) { return runtime().exists(schema, criteria); },
+    count(schema) { return runtime().count(schema); },
     createForTesting: create,
   });
 })();

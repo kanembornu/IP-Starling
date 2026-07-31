@@ -11,7 +11,9 @@
  * Application Information
  * ---------------------------------------------------------------------------
  */
-const APP_CONFIG = Object.freeze({
+const APP_CONFIG = (() => {
+  let timezone;
+  return Object.freeze({
   NAME: "IP-Starling",
 
   VERSION: "1.0.0-rc.1",
@@ -20,19 +22,31 @@ const APP_CONFIG = Object.freeze({
 
   AUTHOR: "Linzi",
 
-  TIMEZONE: Session.getScriptTimeZone(),
+  get TIMEZONE() {
+    if (typeof timezone === "undefined") timezone = Session.getScriptTimeZone();
+    return timezone;
+  },
 
   LOCALE: "id_ID",
-});
+  });
+})();
 
 /**
  * ---------------------------------------------------------------------------
  * Spreadsheet Configuration
  * ---------------------------------------------------------------------------
  */
-const DATABASE_CONFIG = Object.freeze({
-  SPREADSHEET_ID: SpreadsheetApp.getActiveSpreadsheet().getId(),
-});
+const DATABASE_CONFIG = (() => {
+  let spreadsheetId;
+  return Object.freeze({
+    get SPREADSHEET_ID() {
+      if (typeof spreadsheetId === "undefined") {
+        spreadsheetId = SpreadsheetApp.getActiveSpreadsheet().getId();
+      }
+      return spreadsheetId;
+    },
+  });
+})();
 
 /**
  * ---------------------------------------------------------------------------

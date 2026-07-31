@@ -187,6 +187,31 @@ const IDGenerator = (() => {
     });
   }
 
-  const generator = create();
-  return Object.freeze({ ...generator, createForTesting: create });
+  let generator = null;
+
+  function runtime() {
+    if (!generator) generator = create();
+    return generator;
+  }
+
+  return Object.freeze({
+    generate(schema) { return runtime().generate(schema); },
+    current(prefix, date = undefined) { return runtime().current(prefix, date); },
+    ensureAtLeast(prefix, minimum, date = undefined) {
+      return runtime().ensureAtLeast(prefix, minimum, date);
+    },
+    maximumExisting(schema, date = undefined) {
+      return runtime().maximumExisting(schema, date);
+    },
+    counterKey(prefix, date = undefined) { return runtime().counterKey(prefix, date); },
+    readSequence(prefix, date = undefined) { return runtime().readSequence(prefix, date); },
+    writeSequence(prefix, value, date = undefined) {
+      return runtime().writeSequence(prefix, value, date);
+    },
+    repairSequence(schema, date = undefined) {
+      return runtime().repairSequence(schema, date);
+    },
+    reset(prefix, date = undefined) { return runtime().reset(prefix, date); },
+    createForTesting: create,
+  });
 })();

@@ -23,7 +23,6 @@ const ApplicationHealth = (() => {
     "Tests",
     "Release",
   ]);
-  const BUSINESS_SCHEMA_KEYS = ID_GENERATOR_SCHEMA_KEYS;
   const INTERNAL_SCHEMA_KEYS = Object.freeze(["IDEMPOTENCY", "LOGS"]);
   const SUPPORTED_IDEMPOTENCY_OPERATIONS = Object.freeze({
     PICKUP_CREATE: "PICKUP_HEADER",
@@ -115,6 +114,13 @@ const ApplicationHealth = (() => {
 
   function schemas() {
     return Object.keys(SCHEMA).map((key) => ({ key, schema: SCHEMA[key] }));
+  }
+
+  function businessSchemaKeys() {
+    if (typeof ID_GENERATOR_SCHEMA_KEYS === "undefined") {
+      throw new Error("ID_GENERATOR_SCHEMA_KEYS is required by ApplicationHealth.");
+    }
+    return ID_GENERATOR_SCHEMA_KEYS;
   }
 
   function elapsed(startedAt) {
@@ -748,7 +754,7 @@ const ApplicationHealth = (() => {
         ),
       );
 
-      if (BUSINESS_SCHEMA_KEYS.indexOf(key) >= 0) {
+      if (businessSchemaKeys().indexOf(key) >= 0) {
         const todayCode = snapshot.todayCode || "";
         const prefix = String(schema.ID_PREFIX);
         const expression = new RegExp(`^${prefix}${todayCode}(\\d{5})$`);
@@ -1369,7 +1375,7 @@ const ApplicationHealth = (() => {
     const transactionSource = String(TransactionService.create);
     const returnSource = String(ReturnService);
     const canonicalKey = /IPS:\$\{schema\.TABLE\}:v1/.test(
-      String(RepositoryCache.key),
+      String(RepositoryCache.createForTesting),
     );
     result.Cache.push(
       check(
@@ -2111,7 +2117,7 @@ const ApplicationHealth = (() => {
       snapshot.sheetReadCount += 1;
       snapshot.getValuesCount += 1;
     });
-    BUSINESS_SCHEMA_KEYS.forEach((key) => {
+    businessSchemaKeys().forEach((key) => {
       snapshot.sequences[SCHEMA[key].ID_PREFIX] = IDGenerator.current(
         SCHEMA[key].ID_PREFIX,
       );
@@ -2444,7 +2450,7 @@ const ApplicationHealth = (() => {
   return Object.freeze({
     STATUS,
     SECTIONS,
-    BUSINESS_SCHEMA_KEYS,
+    get BUSINESS_SCHEMA_KEYS() { return businessSchemaKeys(); },
     INTERNAL_SCHEMA_KEYS,
     SUPPORTED_IDEMPOTENCY_OPERATIONS,
     CONTROLLER_ENDPOINTS,

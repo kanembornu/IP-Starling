@@ -77,14 +77,44 @@ function createSchema(options) {
   return Object.freeze(schema);
 }
 
+function createFields(fields) {
+  const result = {};
+  Object.defineProperty(result, "ID", {
+    enumerable: true,
+    get() { return SYSTEM_COLUMNS.PRIMARY_KEY; },
+  });
+  Object.keys(fields).forEach((key) => { result[key] = fields[key]; });
+  return Object.freeze(result);
+}
+
+function createLazyFrozenObject(keys, factory) {
+  let value = null;
+  function resolve() {
+    if (!value) value = factory();
+    return value;
+  }
+  const result = {};
+  keys.forEach((key) => {
+    Object.defineProperty(result, key, {
+      enumerable: true,
+      get() { return resolve()[key]; },
+    });
+  });
+  return Object.freeze(result);
+}
+
+const ENTITY_SCHEMA_KEYS = Object.freeze([
+  "NAME", "TABLE", "PRIMARY_KEY", "DISPLAY_FIELD", "ID_PREFIX", "FIELDS",
+  "SYSTEM", "HEADERS", "DEFAULT", "VALIDATION", "READONLY", "SEARCHABLE", "UI",
+]);
+
 /**
  * =============================================================================
  * PRODUCT
  * =============================================================================
  */
 
-const PRODUCT_FIELDS = Object.freeze({
-  ID: SYSTEM_COLUMNS.PRIMARY_KEY,
+const PRODUCT_FIELDS = createFields({
 
   NAME: "Nama",
 
@@ -95,7 +125,7 @@ const PRODUCT_FIELDS = Object.freeze({
   PRICE: "Harga",
 });
 
-const PRODUCT_SCHEMA = createSchema({
+const PRODUCT_SCHEMA = createLazyFrozenObject(ENTITY_SCHEMA_KEYS, () => createSchema({
   NAME: "Product",
 
   TABLE: SHEET_NAMES.PRODUCTS,
@@ -161,7 +191,7 @@ const PRODUCT_SCHEMA = createSchema({
 
     SEARCH_PLACEHOLDER: "Cari produk...",
   },
-});
+}));
 
 /**
  * =============================================================================
@@ -169,8 +199,7 @@ const PRODUCT_SCHEMA = createSchema({
  * =============================================================================
  */
 
-const PARTNER_FIELDS = Object.freeze({
-  ID: SYSTEM_COLUMNS.PRIMARY_KEY,
+const PARTNER_FIELDS = createFields({
 
   NAME: "Nama",
 
@@ -181,7 +210,7 @@ const PARTNER_FIELDS = Object.freeze({
   TYPE: "Jenis",
 });
 
-const PARTNER_SCHEMA = createSchema({
+const PARTNER_SCHEMA = createLazyFrozenObject(ENTITY_SCHEMA_KEYS, () => createSchema({
   NAME: "Partner",
 
   TABLE: SHEET_NAMES.PARTNERS,
@@ -245,7 +274,7 @@ const PARTNER_SCHEMA = createSchema({
 
     SEARCH_PLACEHOLDER: "Cari mitra...",
   },
-});
+}));
 
 /**
  * =============================================================================
@@ -253,8 +282,7 @@ const PARTNER_SCHEMA = createSchema({
  * =============================================================================
  */
 
-const PICKUP_HEADER_FIELDS = Object.freeze({
-  ID: SYSTEM_COLUMNS.PRIMARY_KEY,
+const PICKUP_HEADER_FIELDS = createFields({
 
   NUMBER: "PickupNo",
 
@@ -271,7 +299,7 @@ const PICKUP_HEADER_FIELDS = Object.freeze({
   NOTES: "Notes",
 });
 
-const PICKUP_HEADER_SCHEMA = createSchema({
+const PICKUP_HEADER_SCHEMA = createLazyFrozenObject(ENTITY_SCHEMA_KEYS, () => createSchema({
   NAME: "PickupHeader",
 
   TABLE: SHEET_NAMES.PICKUP_HEADERS,
@@ -331,7 +359,7 @@ const PICKUP_HEADER_SCHEMA = createSchema({
 
     SEARCH_PLACEHOLDER: "Cari pickup...",
   },
-});
+}));
 
 /**
  * =============================================================================
@@ -339,8 +367,7 @@ const PICKUP_HEADER_SCHEMA = createSchema({
  * =============================================================================
  */
 
-const PICKUP_DETAIL_FIELDS = Object.freeze({
-  ID: SYSTEM_COLUMNS.PRIMARY_KEY,
+const PICKUP_DETAIL_FIELDS = createFields({
 
   PICKUP_ID: "PickupID",
 
@@ -355,7 +382,7 @@ const PICKUP_DETAIL_FIELDS = Object.freeze({
   NOTES: "Notes",
 });
 
-const PICKUP_DETAIL_SCHEMA = createSchema({
+const PICKUP_DETAIL_SCHEMA = createLazyFrozenObject(ENTITY_SCHEMA_KEYS, () => createSchema({
   NAME: "PickupDetail",
 
   TABLE: SHEET_NAMES.PICKUP_DETAILS,
@@ -429,7 +456,7 @@ const PICKUP_DETAIL_SCHEMA = createSchema({
 
     SEARCH_PLACEHOLDER: "Cari detail pickup...",
   },
-});
+}));
 
 /**
  * =============================================================================
@@ -437,8 +464,7 @@ const PICKUP_DETAIL_SCHEMA = createSchema({
  * =============================================================================
  */
 
-const RETURN_FIELDS = Object.freeze({
-  ID: SYSTEM_COLUMNS.PRIMARY_KEY,
+const RETURN_FIELDS = createFields({
 
   PICKUP_ID: "PickupID",
 
@@ -451,7 +477,7 @@ const RETURN_FIELDS = Object.freeze({
   NOTE: "Keterangan",
 });
 
-const RETURN_SCHEMA = createSchema({
+const RETURN_SCHEMA = createLazyFrozenObject(ENTITY_SCHEMA_KEYS, () => createSchema({
   NAME: "Return",
 
   TABLE: SHEET_NAMES.RETURNS,
@@ -527,7 +553,7 @@ const RETURN_SCHEMA = createSchema({
 
     SEARCH_PLACEHOLDER: "Cari retur...",
   },
-});
+}));
 
 /**
  * =============================================================================
@@ -535,8 +561,7 @@ const RETURN_SCHEMA = createSchema({
  * =============================================================================
  */
 
-const PURCHASING_FIELDS = Object.freeze({
-  ID: SYSTEM_COLUMNS.PRIMARY_KEY,
+const PURCHASING_FIELDS = createFields({
 
   DATE: "Tanggal",
 
@@ -551,7 +576,7 @@ const PURCHASING_FIELDS = Object.freeze({
   TOTAL: "Total",
 });
 
-const PURCHASING_SCHEMA = createSchema({
+const PURCHASING_SCHEMA = createLazyFrozenObject(ENTITY_SCHEMA_KEYS, () => createSchema({
   NAME: "Purchase",
 
   TABLE: SHEET_NAMES.PURCHASES,
@@ -627,7 +652,7 @@ const PURCHASING_SCHEMA = createSchema({
 
     SEARCH_PLACEHOLDER: "Cari purchasing...",
   },
-});
+}));
 
 /**
  * =============================================================================
@@ -635,8 +660,7 @@ const PURCHASING_SCHEMA = createSchema({
  * =============================================================================
  */
 
-const EXPENSE_FIELDS = Object.freeze({
-  ID: SYSTEM_COLUMNS.PRIMARY_KEY,
+const EXPENSE_FIELDS = createFields({
 
   DATE: "Tanggal",
 
@@ -647,7 +671,7 @@ const EXPENSE_FIELDS = Object.freeze({
   AMOUNT: "Nominal",
 });
 
-const EXPENSE_SCHEMA = createSchema({
+const EXPENSE_SCHEMA = createLazyFrozenObject(ENTITY_SCHEMA_KEYS, () => createSchema({
   NAME: "Expense",
 
   TABLE: SHEET_NAMES.EXPENSES,
@@ -711,7 +735,7 @@ const EXPENSE_SCHEMA = createSchema({
 
     SEARCH_PLACEHOLDER: "Cari expense...",
   },
-});
+}));
 
 /**
  * =============================================================================
@@ -719,8 +743,7 @@ const EXPENSE_SCHEMA = createSchema({
  * =============================================================================
  */
 
-const SETTINGS_FIELDS = Object.freeze({
-  ID: SYSTEM_COLUMNS.PRIMARY_KEY,
+const SETTINGS_FIELDS = createFields({
   KEY: "Key",
   VALUE: "Value",
   TYPE: "Type",
@@ -730,7 +753,7 @@ const SETTINGS_FIELDS = Object.freeze({
   IS_EDITABLE: "IsEditable",
 });
 
-const SETTINGS_SCHEMA = createSchema({
+const SETTINGS_SCHEMA = createLazyFrozenObject(ENTITY_SCHEMA_KEYS, () => createSchema({
   NAME: "Setting",
   TABLE: SHEET_NAMES.SETTINGS,
   PRIMARY_KEY: SETTINGS_FIELDS.ID,
@@ -757,7 +780,7 @@ const SETTINGS_SCHEMA = createSchema({
     COLOR: "slate",
     SEARCH_PLACEHOLDER: "Search settings...",
   },
-});
+}));
 
 /** Internal durable create-request reservation store. */
 const IDEMPOTENCY_FIELDS = Object.freeze({
@@ -770,7 +793,7 @@ const IDEMPOTENCY_FIELDS = Object.freeze({
   EXPIRES_AT: "ExpiresAt",
 });
 
-const IDEMPOTENCY_SCHEMA = createSchema({
+const IDEMPOTENCY_SCHEMA = createLazyFrozenObject(ENTITY_SCHEMA_KEYS, () => createSchema({
   NAME: "IdempotencyRequest",
   TABLE: SHEET_NAMES.IDEMPOTENCY_REQUESTS,
   PRIMARY_KEY: IDEMPOTENCY_FIELDS.KEY,
@@ -800,7 +823,7 @@ const IDEMPOTENCY_SCHEMA = createSchema({
     COLOR: "slate",
     SEARCH_PLACEHOLDER: "Search request key...",
   },
-});
+}));
 
 /** Canonical append-only operational and audit log. */
 const LOG_FIELDS = Object.freeze({
@@ -813,11 +836,14 @@ const LOG_FIELDS = Object.freeze({
   CREATED_AT: "CreatedAt",
 });
 
-const LOG_SCHEMA = Object.freeze({
+const LOG_SCHEMA = createLazyFrozenObject(
+  ["NAME", "TABLE", "PRIMARY_KEY", "ID_PREFIX", "FIELDS", "HEADERS"],
+  () => Object.freeze({
   NAME: "Log", TABLE: SHEET_NAMES.LOGS, PRIMARY_KEY: LOG_FIELDS.ID,
   ID_PREFIX: ID_PREFIX.LOG, FIELDS: LOG_FIELDS,
   HEADERS: Object.freeze(Object.values(LOG_FIELDS)),
-});
+  }),
+);
 
 /**
  * =============================================================================

@@ -19,9 +19,21 @@ const DevelopmentSeed = (() => {
     "IDEMPOTENCY",
     "LOGS",
   ]);
-  const SEQUENTIAL_SEED_KEYS = Object.freeze(
-    ID_GENERATOR_SCHEMA_KEYS.filter((key) => RESET_SCHEMA_KEYS.indexOf(key) >= 0),
-  );
+  let sequentialSeedKeys = null;
+
+  function getSequentialSeedKeys() {
+    if (!sequentialSeedKeys) {
+      if (typeof ID_GENERATOR_SCHEMA_KEYS === "undefined") {
+        throw new Error("ID_GENERATOR_SCHEMA_KEYS is required by DevelopmentSeed.");
+      }
+      sequentialSeedKeys = Object.freeze(
+        ID_GENERATOR_SCHEMA_KEYS.filter(
+          (key) => RESET_SCHEMA_KEYS.indexOf(key) >= 0,
+        ),
+      );
+    }
+    return sequentialSeedKeys;
+  }
 
   function seededRandom(seed) {
     let state = seed >>> 0;
@@ -582,7 +594,7 @@ const DevelopmentSeed = (() => {
   }
   function sequenceTargets(dataset, todayCode) {
     const targets = {};
-    SEQUENTIAL_SEED_KEYS.forEach((key) => {
+    getSequentialSeedKeys().forEach((key) => {
       const schema = SCHEMA[key];
       const expression = new RegExp(
         `^${schema.ID_PREFIX}${todayCode}(\\d{5})$`,
@@ -856,7 +868,7 @@ const DevelopmentSeed = (() => {
     CONFIRMATION_TOKEN,
     PERIOD,
     RESET_SCHEMA_KEYS,
-    SEQUENTIAL_SEED_KEYS,
+    get SEQUENTIAL_SEED_KEYS() { return getSequentialSeedKeys(); },
     generate,
     integrity,
     volumes,

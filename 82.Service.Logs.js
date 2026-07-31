@@ -49,7 +49,9 @@ const LogsService = (() => {
   const CATEGORIES = Object.freeze(["AUDIT", "APPLICATION", "VALIDATION", "ERROR", "SYSTEM"]);
   const ACTIONS = Object.freeze(["CREATE", "UPDATE", "DELETE", "RESTORE", "READ", "SETTINGS_UPDATE", "SETTINGS_RESET", "MIGRATION", "SYSTEM"]);
   const STATUSES = Object.freeze(["SUCCESS", "FAILURE", "WARNING"]);
-  const JSON_FIELDS = Object.freeze([LOG_FIELDS.BEFORE_DATA, LOG_FIELDS.AFTER_DATA, LOG_FIELDS.CONTEXT]);
+  function jsonFields() {
+    return [LOG_FIELDS.BEFORE_DATA, LOG_FIELDS.AFTER_DATA, LOG_FIELDS.CONTEXT];
+  }
 
   function timestamp(value) {
     const date = value instanceof Date ? value : new Date(value || new Date());
@@ -209,7 +211,7 @@ const LogsService = (() => {
       if (CATEGORIES.indexOf(String(row.Category)) < 0) findings.push({ code: "INVALID_CATEGORY", row: physicalRow });
       if (ACTIONS.indexOf(String(row.Action)) < 0) findings.push({ code: "INVALID_ACTION", row: physicalRow });
       if (STATUSES.indexOf(String(row.Status)) < 0) findings.push({ code: "INVALID_STATUS", row: physicalRow });
-      JSON_FIELDS.forEach((field) => { const text = String(row[field] || ""); if (text.length > LogSanitizer.MAX_LENGTH) findings.push({ code: "OVERSIZED_JSON", row: physicalRow, field }); else if (text) { try { JSON.parse(text); } catch (error) { findings.push({ code: "MALFORMED_JSON", row: physicalRow, field }); } } });
+      jsonFields().forEach((field) => { const text = String(row[field] || ""); if (text.length > LogSanitizer.MAX_LENGTH) findings.push({ code: "OVERSIZED_JSON", row: physicalRow, field }); else if (text) { try { JSON.parse(text); } catch (error) { findings.push({ code: "MALFORMED_JSON", row: physicalRow, field }); } } });
       LOG_SCHEMA.HEADERS.forEach((field) => { if (/^[=+\-@]/.test(String(row[field] || ""))) findings.push({ code: "FORMULA_BEARING_TEXT", row: physicalRow, field }); });
       formulas[index].forEach((formula, column) => { if (formula) findings.push({ code: "FORMULA_CELL", row: physicalRow, field: headers[column] }); });
     });

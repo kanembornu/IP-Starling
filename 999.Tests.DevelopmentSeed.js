@@ -74,7 +74,10 @@ function testDevelopmentSeedSequenceSynchronizationContract() {
     developmentSeedAssert(target.maximum === expected, `${key} sequence target was not derived from generated IDs.`);
   });
   developmentSeedAssert(targets.PICKUP_HEADER.maximum > 0 && targets.PICKUP_DETAIL.maximum > 0, "Current-date Pickup Header/Detail allocations are missing from the sequence target.");
-  const synchronize = DevelopmentSeed.synchronizeSequences.toString(); const generator = IDGenerator.ensureAtLeast.toString();
+  const synchronize = DevelopmentSeed.synchronizeSequences.toString();
+  const generatorFactory = IDGenerator.createForTesting.toString();
+  const generatorMatch = generatorFactory.match(/function ensureAtLeast\([\s\S]*?\n    function reset\(/);
+  const generator = generatorMatch ? generatorMatch[0] : "";
   developmentSeedAssert(/IDGenerator\.ensureAtLeast\([\s\S]*target\.prefix,[\s\S]*target\.maximum,[\s\S]*synchronizationDate/.test(synchronize), "Seed execution does not advance each derived sequence target with the canonical date.");
   developmentSeedAssert(/IDGenerator\.current\(target\.prefix,\s*synchronizationDate\)/.test(synchronize) && /verified = true/.test(synchronize), "Seed execution does not verify persisted sequence read-back.");
   developmentSeedAssert(/Math\.max\(before,\s*target\)/.test(generator) && !/deleteProperty/.test(generator), "Sequence synchronization can move a counter backward.");

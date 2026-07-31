@@ -141,10 +141,22 @@ const RepositoryCache = (() => {
   });
   }
 
-  const repositoryCache = create(CacheService.getScriptCache());
+  let repositoryCache = null;
+
+  function runtime() {
+    if (!repositoryCache) repositoryCache = create(CacheService.getScriptCache());
+    return repositoryCache;
+  }
 
   return Object.freeze({
-    ...repositoryCache,
+    key(schema) { return runtime().key(schema); },
+    get(schema) { return runtime().get(schema); },
+    put(schema, value) { return runtime().put(schema, value); },
+    remove(schema) { return runtime().remove(schema); },
+    clear(schema) { return runtime().clear(schema); },
+    remember(schema, callback, validator = null) {
+      return runtime().remember(schema, callback, validator);
+    },
     createForTesting: create,
   });
 })();
