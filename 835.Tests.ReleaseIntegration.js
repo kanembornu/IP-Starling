@@ -25,8 +25,8 @@ function releaseIntegrationSources() {
     sidebar: releaseHtml("910.View.Sidebar"),
     api: releaseHtml("965.View.API"),
     pagination: releaseHtml("969.View.Pagination"),
-    app: releaseHtml("970.View.App"),
-    events: releaseHtml("980.View.Event"),
+    app: releaseHtml("994.View.App.Runtime"),
+    events: releaseHtml("993.View.Events.Runtime"),
     dashboardPresenter: releaseHtml("971.View.Dashboard.Presenter"),
     presenters: Object.freeze({
       ProductsPresenter: releaseHtml("972.View.Products.Presenter"),

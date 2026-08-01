@@ -40,7 +40,7 @@ Dependencies move only downward through this flow. A repository must not call a 
 
 `35.Code.js#doGet()` evaluates `900.View.Index.html`. The index explicitly includes the browser modules; HTML load order is therefore defined by those includes, not inferred from numeric prefixes.
 
-`970.View.App.html` owns state and workflows. Module presenters render their own views. `976.View.Shared.Presenter.html`, `975.View.Render.html`, and `987.View.Components.html` provide reusable presentation capabilities. `980.View.Event.html` delegates browser events into App actions and does not render business data. Compatibility facades such as `Render` and the shared frontend framework files retain stable call sites while delegating to the current implementation.
+`994.View.App.Runtime.html` owns state and workflows. Module presenters render their own views. `976.View.Shared.Presenter.html`, `975.View.Render.html`, and `987.View.Components.html` provide reusable presentation capabilities. `993.View.Events.Runtime.html` delegates browser events into App actions and does not render business data. Compatibility facades such as `Render` and the shared frontend framework files retain stable call sites while delegating to the current implementation.
 
 ## Server architecture
 

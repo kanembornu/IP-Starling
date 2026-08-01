@@ -16,7 +16,7 @@ function runLogsFocusedTests() {
   _logsAssert(first.indexOf("fn") < 0 && first.indexOf("'=SUM") >= 0, "Function omission or formula safety failed.");
   const deep = { a: { b: { c: { d: { e: { f: { g: true } } } } } } }; _logsAssert(LogSanitizer.serialize(deep).indexOf("[MAX_DEPTH]") >= 0, "Maximum depth marker missing.");
   const long = LogSanitizer.serialize({ value: "x".repeat(LogSanitizer.MAX_LENGTH + 100) }); _logsAssert(long.indexOf("[TRUNCATED:") >= 0, "Truncation marker missing.");
-  const app = HtmlService.createHtmlOutputFromFile("970.View.App").getContent();
+  const app = HtmlService.createHtmlOutputFromFile("994.View.App.Runtime").getContent();
   const api = HtmlService.createHtmlOutputFromFile("965.View.API").getContent();
   const loadStart = app.indexOf("async function loadLogs()");
   const loadEnd = app.indexOf("function bindLogsActions()", loadStart);

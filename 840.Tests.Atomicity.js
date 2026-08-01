@@ -47,8 +47,8 @@ function idempotencyControlled(options) {
 }
 
 function testIdempotencyKeyGeneratorFormatAndOwnership() {
-  const app = HtmlService.createHtmlOutputFromFile("970.View.App").getContent();
-  const events = HtmlService.createHtmlOutputFromFile("980.View.Event").getContent();
+  const app = HtmlService.createHtmlOutputFromFile("994.View.App.Runtime").getContent();
+  const events = HtmlService.createHtmlOutputFromFile("993.View.Events.Runtime").getContent();
   atomicAssert(/function createRequestKey\(\)/.test(app) && /crypto\.randomUUID/.test(app) && /ips_/.test(app), "App lacks a collision-resistant request-key generator.");
   atomicAssert(!/IdempotencyKey|createRequestKey|pickupCreateRequestKey|returnCreateRequestKey/.test(events), "Event owns idempotency identity.");
   atomicAssert(IdempotencyService.validateKey("ips_123e4567-e89b-42d3-a456-426614174000") === "ips_123e4567-e89b-42d3-a456-426614174000" && IdempotencyService.validateKey("bad-key").success === false, "Server idempotency-key validation is invalid.");

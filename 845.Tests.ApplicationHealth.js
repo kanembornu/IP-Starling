@@ -29,8 +29,8 @@ function applicationHealthContractSources(overrides = {}) {
   Object.keys(ROUTES).forEach((key) => { sources[ROUTES[key]] = "<section></section>"; });
   Object.assign(sources, {
     "965.View.API": "<script>const Api = (() => { return Object.freeze({}); })();</script>",
-    "970.View.App": "<script>const App = (() => { return Object.freeze({}); })();</script>",
-    "980.View.Event": "<script>const Events = (() => { return Object.freeze({}); })();</script>",
+    "994.View.App.Runtime": "<script>const App = (() => { return Object.freeze({}); })();</script>",
+    "993.View.Events.Runtime": "<script>const Events = (() => { return Object.freeze({}); })();</script>",
   }, overrides);
   return sources;
 }
@@ -215,8 +215,8 @@ function testApplicationHealthRouteContractValidation() {
 
 function testApplicationHealthFrontendBackendMethodResolution() {
   const snapshot = applicationHealthFixture({}, [], { contractSources: {
-    "970.View.App": "<script>const App = (() => { return Object.freeze({}); })();</script>",
-    "980.View.Event": "<script>function bind() { App.missing(); } const Events = (() => { return Object.freeze({ bind }); })();</script>",
+    "994.View.App.Runtime": "<script>const App = (() => { return Object.freeze({}); })();</script>",
+    "993.View.Events.Runtime": "<script>function bind() { App.missing(); } const Events = (() => { return Object.freeze({ bind }); })();</script>",
   } });
   const report = applicationHealthEvaluate(snapshot);
   applicationHealthAssert(applicationHealthCheck(report, "Contracts", "Frontend/backend method resolution").status === "FAIL", "Missing Event-called App method was not detected.");

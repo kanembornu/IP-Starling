@@ -22,14 +22,14 @@ function testApplicationMetadataBootstrapResponse() {
 
 function testApplicationMetadataSidebarVersionFlow() {
   const bootstrap = applicationMetadataSource("900.View.Index");
-  const app = applicationMetadataSource("970.View.App");
+  const app = applicationMetadataSource("994.View.App.Runtime");
   applicationMetadataAssert(/version:\s*"<\?= appVersion \?>"/.test(bootstrap), "Bootstrap state no longer receives the templated application version.");
   applicationMetadataAssert(/metadata:\s*\{[\s\S]*?version:\s*window\.APP\?\.version\s*\|\|\s*""/.test(app), "App state no longer stores bootstrap version metadata.");
   applicationMetadataAssert(/versionElement\.textContent\s*=\s*version\s*\?\s*`v\$\{version\}`\s*:\s*"v—"/.test(app), "Sidebar version is not rendered from App metadata state.");
 }
 
 function testApplicationMetadataMissingVersionFallback() {
-  const app = applicationMetadataSource("970.View.App");
+  const app = applicationMetadataSource("994.View.App.Runtime");
   applicationMetadataAssert(/typeof state\.metadata\.version === "string"/.test(app), "Sidebar version does not validate metadata availability.");
   applicationMetadataAssert(/:\s*"v—"/.test(app), "Missing version metadata does not render the safe v— fallback.");
 }
@@ -49,7 +49,7 @@ function testApplicationMetadataHealthContract() {
 }
 
 function testApplicationMetadataNoRawGoogleScriptRunOutsideApi() {
-  ["900.View.Index", "910.View.Sidebar", "970.View.App"].forEach((fileName) => {
+  ["900.View.Index", "910.View.Sidebar", "994.View.App.Runtime"].forEach((fileName) => {
     applicationMetadataAssert(!/google\.script\.run/.test(applicationMetadataSource(fileName)), `${fileName} contains raw google.script.run.`);
   });
 }

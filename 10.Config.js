@@ -187,7 +187,7 @@ const ENV = Object.freeze({
  * ---------------------------------------------------------------------------
  */
 const ROUTES = Object.freeze({
-  DASHBOARD: "950.View.Dashboard",
+  DASHBOARD: "915.View.Dashboard",
 
   PRODUCTS: "920.View.Products",
 

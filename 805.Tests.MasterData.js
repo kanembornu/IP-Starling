@@ -59,7 +59,7 @@ function testProductDeletedListAndRestoreGuards() {
 
 function testProductRestoreSourceContracts() {
   const presenter = HtmlService.createHtmlOutputFromFile("972.View.Products.Presenter").getContent();
-  const app = HtmlService.createHtmlOutputFromFile("970.View.App").getContent();
+  const app = HtmlService.createHtmlOutputFromFile("994.View.App.Runtime").getContent();
   const api = HtmlService.createHtmlOutputFromFile("965.View.API").getContent();
   const view = HtmlService.createHtmlOutputFromFile("920.View.Products").getContent();
   const controller = restoreProduct.toString();
@@ -92,9 +92,9 @@ function testPartnerDeletedListAndRestoreGuards() {
 function testMasterDataPresenterArchitectureContracts() {
   const product = HtmlService.createHtmlOutputFromFile("972.View.Products.Presenter").getContent();
   const partner = HtmlService.createHtmlOutputFromFile("973.View.Partners.Presenter").getContent();
-  const app = HtmlService.createHtmlOutputFromFile("970.View.App").getContent();
+  const app = HtmlService.createHtmlOutputFromFile("994.View.App.Runtime").getContent();
   const api = HtmlService.createHtmlOutputFromFile("965.View.API").getContent();
-  const events = HtmlService.createHtmlOutputFromFile("980.View.Event").getContent();
+  const events = HtmlService.createHtmlOutputFromFile("993.View.Events.Runtime").getContent();
   const views = `${HtmlService.createHtmlOutputFromFile("920.View.Products").getContent()}\n${HtmlService.createHtmlOutputFromFile("925.View.Partners").getContent()}`;
   const forbiddenPresenter = /\bApp\.|\bApi\.|google\.script\.run|\bPromise\b|\basync\b|\bawait\b|addEventListener|\bToast\.|Dialog\.confirm|\bService\b|Controller|Repository|SpreadsheetApp|request(Token|Sequence)?/;
   [product, partner].forEach((source, index) => {
@@ -138,8 +138,8 @@ function canonicalPaginationSourceFixture() {
   return {
     helper: html("969.View.Pagination"),
     index: html("900.View.Index"),
-    app: html("970.View.App"),
-    events: html("980.View.Event"),
+    app: html("994.View.App.Runtime"),
+    events: html("993.View.Events.Runtime"),
     settingsPresenter: html("980.View.Settings.Presenter"),
     logsView: html("948.View.Logs"),
     logsService: LogsService.page.toString(),
@@ -351,8 +351,8 @@ function frontendArchitectureSourceFixture() {
   return {
     index: html("900.View.Index"),
     api: html("965.View.API"),
-    app: html("970.View.App"),
-    events: html("980.View.Event"),
+    app: html("994.View.App.Runtime"),
+    events: html("993.View.Events.Runtime"),
     render: html("975.View.Render"),
     shared: html("976.View.Shared.Presenter"),
     views: ["920.View.Products", "925.View.Partners", "930.View.Pickups", "935.View.Returns", "940.View.Purchasing", "945.View.Expenses"].map(html),

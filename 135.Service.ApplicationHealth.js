@@ -1683,8 +1683,8 @@ const ApplicationHealth = (() => {
     );
 
     const api = sources["965.View.API"] || "";
-    const app = sources["970.View.App"] || "";
-    const events = sources["980.View.Event"] || "";
+    const app = sources["994.View.App.Runtime"] || "";
+    const events = sources["993.View.Events.Runtime"] || "";
     const frontendMissing = [];
     const appPublic = publicNames(app);
     Array.from(events.matchAll(/\bApp\.([A-Za-z_$][\w$]*)\s*\(/g)).forEach(
@@ -2061,10 +2061,10 @@ const ApplicationHealth = (() => {
           "900.View.Index",
           "905.View.Layout",
           "910.View.Sidebar",
-          "955.View.Modal",
+          "955.View.Modal.Template",
           "965.View.API",
           "969.View.Pagination",
-          "970.View.App",
+          "994.View.App.Runtime",
           "971.View.Dashboard.Presenter",
           "972.View.Products.Presenter",
           "973.View.Partners.Presenter",
@@ -2074,19 +2074,19 @@ const ApplicationHealth = (() => {
           "977.View.Expenses.Presenter",
           "978.View.Purchasing.Presenter",
           "979.View.Returns.Presenter",
-          "980.View.Event",
+          "993.View.Events.Runtime",
           "980.View.Settings.Presenter",
           "981.View.Logs.Presenter",
-          "985.View.DOM",
+          "970.View.DOM",
           "986.View.Format",
           "989.View.Utils",
-          "981.View.Products.Form",
-          "982.View.Products.Validator",
+          "982.View.Products.Form",
+          "983.View.Products.Validator",
           "984.View.Partners.Form",
           "985.View.Partners.Validator",
           "987.View.Components",
-          "988.View.Modal",
-          "990.Framework.CrudState",
+          "988.View.Modal.Runtime",
+          "990.View.CrudState.Runtime",
           "991.View.Dialog",
           "992.View.Toast",
         ]),

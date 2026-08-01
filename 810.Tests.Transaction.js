@@ -587,7 +587,7 @@ function testPickupPresenterDateContract() {
     "974.View.Pickups.Presenter",
   ).getContent();
   const appSource = HtmlService.createHtmlOutputFromFile(
-    "970.View.App",
+    "994.View.App.Runtime",
   ).getContent();
   const formatSource = HtmlService.createHtmlOutputFromFile(
     "986.View.Format",
@@ -651,8 +651,8 @@ function testPickupPresenterDateContract() {
 
 function testPickupFrontendArchitectureContracts() {
   const presenter = HtmlService.createHtmlOutputFromFile("974.View.Pickups.Presenter").getContent();
-  const app = HtmlService.createHtmlOutputFromFile("970.View.App").getContent();
-  const events = HtmlService.createHtmlOutputFromFile("980.View.Event").getContent();
+  const app = HtmlService.createHtmlOutputFromFile("994.View.App.Runtime").getContent();
+  const events = HtmlService.createHtmlOutputFromFile("993.View.Events.Runtime").getContent();
   const api = HtmlService.createHtmlOutputFromFile("965.View.API").getContent();
   const view = HtmlService.createHtmlOutputFromFile("930.View.Pickups").getContent();
   ["render","renderLoading","renderError","renderEmpty","renderDetail","renderForm","renderFormDetail","renderFormFooter"].forEach((name)=>{if(presenter.indexOf(name)===-1)throw new Error(`PickupPresenter is missing ${name}.`);});
@@ -4902,8 +4902,8 @@ function testPurchasingRestoreRecalculatesTotal() {
 function testReturnUxConsistencySourceContracts() {
   const view = HtmlService.createHtmlOutputFromFile("935.View.Returns").getContent();
   const presenter = HtmlService.createHtmlOutputFromFile("979.View.Returns.Presenter").getContent();
-  const app = HtmlService.createHtmlOutputFromFile("970.View.App").getContent();
-  const events = HtmlService.createHtmlOutputFromFile("980.View.Event").getContent();
+  const app = HtmlService.createHtmlOutputFromFile("994.View.App.Runtime").getContent();
+  const events = HtmlService.createHtmlOutputFromFile("993.View.Events.Runtime").getContent();
   const ui = `${view}\n${presenter}\n${app}\n${events}`;
 
   ["btn-return-add", "inp-return-search", "btn-return-refresh", "tbl-returns", "return-pagination"].forEach((id) => {
@@ -4935,8 +4935,8 @@ function testReturnUxConsistencySourceContracts() {
 function testPurchasingUxConsistencySourceContracts() {
   const view = HtmlService.createHtmlOutputFromFile("940.View.Purchasing").getContent();
   const presenter = HtmlService.createHtmlOutputFromFile("978.View.Purchasing.Presenter").getContent();
-  const app = HtmlService.createHtmlOutputFromFile("970.View.App").getContent();
-  const events = HtmlService.createHtmlOutputFromFile("980.View.Event").getContent();
+  const app = HtmlService.createHtmlOutputFromFile("994.View.App.Runtime").getContent();
+  const events = HtmlService.createHtmlOutputFromFile("993.View.Events.Runtime").getContent();
   const ui = `${view}\n${presenter}\n${app}\n${events}`;
 
   ["btn-purchasing-add", "inp-purchasing-search", "btn-purchasing-refresh", "tbl-purchasing", "purchasing-pagination"].forEach((id) => {
@@ -4969,9 +4969,9 @@ function testPurchasingUxConsistencySourceContracts() {
 
 function testPurchasingFrontendArchitectureSourceContracts() {
   const presenter = HtmlService.createHtmlOutputFromFile("978.View.Purchasing.Presenter").getContent();
-  const app = HtmlService.createHtmlOutputFromFile("970.View.App").getContent();
+  const app = HtmlService.createHtmlOutputFromFile("994.View.App.Runtime").getContent();
   const api = HtmlService.createHtmlOutputFromFile("965.View.API").getContent();
-  const events = HtmlService.createHtmlOutputFromFile("980.View.Event").getContent();
+  const events = HtmlService.createHtmlOutputFromFile("993.View.Events.Runtime").getContent();
   const view = HtmlService.createHtmlOutputFromFile("940.View.Purchasing").getContent();
 
   ["render", "renderLoading", "renderError", "renderCreateForm", "renderEditForm", "renderDetail"].forEach((method) => {
@@ -5287,9 +5287,9 @@ function expenseFrontendSource(file) {
 }
 
 function testExpenseFrontendArchitectureAndSearchContract() {
-  const app = expenseFrontendSource("970.View.App");
+  const app = expenseFrontendSource("994.View.App.Runtime");
   const presenter = expenseFrontendSource("977.View.Expenses.Presenter");
-  const events = expenseFrontendSource("980.View.Event");
+  const events = expenseFrontendSource("993.View.Events.Runtime");
   const forbiddenPresenter = /\bApi\b|google\.script\.run|\bPromise\b|\basync\b|\bawait\b|\bApp\b|addEventListener|\bToast\b|\bDialog\b|\bModal\b|SpreadsheetApp|Repository|Controller|Service|AuditLogService|requestToken|requestSequence/;
   if (forbiddenPresenter.test(presenter)) throw new Error("ExpensePresenter is not render-only.");
   ["render", "renderLoading", "renderError", "renderCreateForm", "renderEditForm", "renderFormFooter", "renderDetail", "renderDeleteMessage", "renderRestoreMessage"].forEach((name) => {
@@ -5304,9 +5304,9 @@ function testExpenseFrontendArchitectureAndSearchContract() {
 }
 
 function testExpenseFrontendCrudAndTrashContract() {
-  const app = expenseFrontendSource("970.View.App");
+  const app = expenseFrontendSource("994.View.App.Runtime");
   const presenter = expenseFrontendSource("977.View.Expenses.Presenter");
-  const events = expenseFrontendSource("980.View.Event");
+  const events = expenseFrontendSource("993.View.Events.Runtime");
   ["create", "get", "update", "remove", "restore"].forEach((method) => {
     if (!new RegExp(`Api\\.Expense\\.${method}\\(`).test(app)) throw new Error(`App Expense ${method} workflow is missing.`);
   });
@@ -5319,7 +5319,7 @@ function testExpenseFrontendCrudAndTrashContract() {
 }
 
 function testExpenseFrontendValidationAndDisplayContract() {
-  const app = expenseFrontendSource("970.View.App");
+  const app = expenseFrontendSource("994.View.App.Runtime");
   const presenter = expenseFrontendSource("977.View.Expenses.Presenter");
   const messages = [
     "Category is required.",
@@ -5345,7 +5345,7 @@ function testExpenseFrontendValidationAndDisplayContract() {
   ) {
     throw new Error("Expense display formatting contract is invalid.");
   }
-  if (!/DEFAULT_PAGE_SIZE/.test(expenseFrontendSource("970.View.App")) || /permanently erase[\s\S]*Api\.Expense/.test(presenter)) throw new Error("Expense pagination or soft-delete behavior regressed.");
+  if (!/DEFAULT_PAGE_SIZE/.test(expenseFrontendSource("994.View.App.Runtime")) || /permanently erase[\s\S]*Api\.Expense/.test(presenter)) throw new Error("Expense pagination or soft-delete behavior regressed.");
 }
 
 function testExpenseDashboardCompatibility() {
@@ -5637,7 +5637,7 @@ function testDashboardCategoryAggregationContract() {
 
 function testDashboardChartFormattingContract() {
   const presenter = expenseFrontendSource("971.View.Dashboard.Presenter");
-  const view = expenseFrontendSource("950.View.Dashboard");
+  const view = expenseFrontendSource("915.View.Dashboard");
   if (!view.includes("Revenue Trend") || !/Net Pickup Value/.test(presenter) ||
       !/beginAtZero:\s*true,\s*min:\s*0/.test(presenter) ||
       !/labels:\s*trend\.labels/.test(presenter) ||
@@ -5667,7 +5667,7 @@ function testDashboardResponsiveOutsideDonutContract() {
 function testApplicationThemeSwitchingAndPersistenceContract() {
   const index = expenseFrontendSource("900.View.Index");
   const settings = expenseFrontendSource("947.View.Settings");
-  const app = expenseFrontendSource("970.View.App");
+  const app = expenseFrontendSource("994.View.App.Runtime");
   const settingsPresenter = expenseFrontendSource("980.View.Settings.Presenter");
   if (!/data-theme="light"/.test(index) || !/ip-starling-theme/.test(index) ||
       !/localStorage\.getItem\(STORAGE_KEY\)/.test(index) || !/localStorage\.setItem\(STORAGE_KEY, theme\)/.test(index) ||
@@ -5736,8 +5736,8 @@ function testDashboardKpiAndRecentActivityLayoutContract() {
 
 function testGlobalNominalFormatterParserContract() {
   const format = expenseFrontendSource("986.View.Format");
-  const events = expenseFrontendSource("980.View.Event");
-  const product = expenseFrontendSource("981.View.Products.Form");
+  const events = expenseFrontendSource("993.View.Events.Runtime");
+  const product = expenseFrontendSource("982.View.Products.Form");
   const purchasing = expenseFrontendSource("978.View.Purchasing.Presenter");
   const expenses = expenseFrontendSource("977.View.Expenses.Presenter");
   if (!/function nominalInput\(value\)/.test(format) ||
@@ -5755,8 +5755,8 @@ function testGlobalNominalFormatterParserContract() {
 }
 
 function testMonetaryPayloadNumericContract() {
-  const app = expenseFrontendSource("970.View.App");
-  const product = expenseFrontendSource("981.View.Products.Form");
+  const app = expenseFrontendSource("994.View.App.Runtime");
+  const product = expenseFrontendSource("982.View.Products.Form");
   if (!/Harga:\s*Format\.nominalValue/.test(product) ||
       !/const price = Format\.nominalValue\(priceText\)/.test(app) ||
       !/const amount = Format\.nominalValue\(amountText\)/.test(app) ||
@@ -5767,7 +5767,7 @@ function testMonetaryPayloadNumericContract() {
 }
 
 function testPickupSuccessfulSaveModalCloseContract() {
-  const app = expenseFrontendSource("970.View.App");
+  const app = expenseFrontendSource("994.View.App.Runtime");
   const submit = dashboardFrontendBlock(app, "async function submitPickupForm()", "async function deletePickup");
   if (!/closePickupModal\(true\)/.test(submit) ||
       (submit.match(/await loadPickups\(\)/g) || []).length !== 1 ||
@@ -5780,7 +5780,7 @@ function testPickupSuccessfulSaveModalCloseContract() {
 }
 
 function testPickupQtyRecalculationContract() {
-  const app = expenseFrontendSource("970.View.App");
+  const app = expenseFrontendSource("994.View.App.Runtime");
   const presenter = expenseFrontendSource("974.View.Pickups.Presenter");
   if (!/function pickupTotals\(form=state\.pickupForm\)/.test(app) ||
       !/Number\.isFinite\(qty\)&&qty>0\?qty:0/.test(app) ||
@@ -5806,7 +5806,7 @@ function testPickupHeaderDetailQtyConsistencyContract() {
 
 function testPurchaseDateOnlyRoundTripContract() {
   const format = expenseFrontendSource("986.View.Format");
-  const app = expenseFrontendSource("970.View.App");
+  const app = expenseFrontendSource("994.View.App.Runtime");
   const purchasing = expenseFrontendSource("978.View.Purchasing.Presenter");
   const expenses = expenseFrontendSource("977.View.Expenses.Presenter");
   const pickups = expenseFrontendSource("974.View.Pickups.Presenter");
@@ -5821,7 +5821,7 @@ function testPurchaseDateOnlyRoundTripContract() {
 function testSettingsHeaderThemeAndRefreshCleanupContract() {
   const view = expenseFrontendSource("947.View.Settings");
   const presenter = expenseFrontendSource("980.View.Settings.Presenter");
-  const app = expenseFrontendSource("970.View.App");
+  const app = expenseFrontendSource("994.View.App.Runtime");
   if (!/text-2xl font-bold text-slate-800">Settings/.test(view) ||
       !/text-sm text-slate-500/.test(view) || /settings-hero/.test(view) ||
       /data-settings-action="refresh"/.test(view) || /action === "refresh"/.test(app) ||
@@ -5887,7 +5887,7 @@ function testDashboardControllerAndFrontendContracts() {
   }
 
   const api = expenseFrontendSource("965.View.API");
-  const app = expenseFrontendSource("970.View.App");
+  const app = expenseFrontendSource("994.View.App.Runtime");
   const presenter = expenseFrontendSource("971.View.Dashboard.Presenter");
   if (
     !/return run\("getDashboard", range\)/.test(api) ||
@@ -5909,7 +5909,7 @@ function dashboardFrontendBlock(source, start, end) {
 }
 
 function testDashboardViewDeclarativeContract() {
-  const view = expenseFrontendSource("950.View.Dashboard");
+  const view = expenseFrontendSource("915.View.Dashboard");
   const required = [
     "dashboard-preset", "dashboard-start", "dashboard-end", "dashboard-kpi",
     "chart-overview", "chart-distribution", "dashboard-activities", "dashboard-statistics",
@@ -5923,7 +5923,7 @@ function testDashboardViewDeclarativeContract() {
 }
 
 function testDashboardEventDelegationContract() {
-  const events = expenseFrontendSource("980.View.Event");
+  const events = expenseFrontendSource("993.View.Events.Runtime");
   const block = dashboardFrontendBlock(events, "function bindDashboard()", "function bindPurchasing()");
   if ((events.match(/function bindDashboard\(/g) || []).length !== 1 ||
       (events.match(/bindDashboard\(\);/g) || []).length !== 1 ||
@@ -5937,7 +5937,7 @@ function testDashboardEventDelegationContract() {
 }
 
 function testDashboardAppOrchestrationContract() {
-  const app = expenseFrontendSource("970.View.App");
+  const app = expenseFrontendSource("994.View.App.Runtime");
   const load = dashboardFrontendBlock(app, "async function loadDashboard()", "function changeDashboardRange()");
   const change = dashboardFrontendBlock(app, "function changeDashboardRange()", "//===========================================================================\n    // Products");
   const navigate = dashboardFrontendBlock(app, "async function navigate(page)", "function currentPage()");
@@ -5988,7 +5988,7 @@ function testDashboardPresenterRenderOnlyContract() {
   ["render", "renderLoading", "renderError", "renderRangeError", "renderRangeControls", "destroyCharts"].forEach((name) => {
     if (!new RegExp(`\\b${name}\\b`).test(presenter)) throw new Error(`DashboardPresenter.${name} is missing.`);
   });
-  const app = expenseFrontendSource("970.View.App");
+  const app = expenseFrontendSource("994.View.App.Runtime");
   ["render", "renderLoading", "renderError", "renderRangeError", "renderRangeControls", "destroyCharts"].forEach((name) => {
     if (app.includes(`DashboardPresenter.${name}(`) && !presenter.includes(`${name},`) && !presenter.includes(`${name} }`)) {
       throw new Error(`App-called DashboardPresenter.${name} is not public.`);

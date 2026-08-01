@@ -178,7 +178,7 @@ function testSettingsCacheFailureBypass() {
 }
 
 function testSettingsFrontendSessionLoadContract() {
-  const app = HtmlService.createHtmlOutputFromFile("970.View.App").getContent();
+  const app = HtmlService.createHtmlOutputFromFile("994.View.App.Runtime").getContent();
   const ensureStart = app.indexOf("function ensureSettingsLoaded");
   const ensureEnd = app.indexOf("function applyLogsFilterControls", ensureStart);
   const ensureSource = app.slice(ensureStart, ensureEnd);
