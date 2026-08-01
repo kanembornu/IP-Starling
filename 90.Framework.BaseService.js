@@ -1,6 +1,6 @@
 /**
  * =============================================================================
- * FILE        : 90.Framework.BaseService.gs
+ * FILE        : 90.Framework.BaseService.js
  * VERSION     : 1.0.0
  * DESCRIPTION : Generic Base Service
  * =============================================================================

@@ -1,6 +1,6 @@
 /**
  * =============================================================================
- * FILE        : 85.Framework.IDGenerator.gs
+ * FILE        : 85.Framework.IDGenerator.js
  * VERSION     : 1.1.0
  * DESCRIPTION : Collision-safe sequential ID generator
  * =============================================================================

@@ -1,6 +1,6 @@
 /**
  * =============================================================================
- * FILE        : 95.Framework.EntityService.gs
+ * FILE        : 95.Framework.EntityService.js
  * VERSION     : 1.0.0
  * DESCRIPTION : Generic Entity Service
  * =============================================================================
