@@ -2,7 +2,7 @@
 
 ## Permanent wrappers
 
-The global wrappers in `995.Tests.Acceptance.js` provide bounded manual Apps Script runs:
+The global wrappers in `825.Tests.Acceptance.js` provide bounded manual Apps Script runs:
 
 | Wrapper | Purpose |
 | --- | --- |
