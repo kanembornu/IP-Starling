@@ -2,7 +2,7 @@
  * =============================================================================
  * FILE        : 10.Config.js
  * DESCRIPTION : Global Application Configuration
- * VERSION     : 1.0.0-rc.1
+ * VERSION     : 1.0.0-dev
  * =============================================================================
  */
 
@@ -16,9 +16,9 @@ const APP_CONFIG = (() => {
   return Object.freeze({
   NAME: "IP-Starling",
 
-  VERSION: "1.0.0-rc.1",
+  VERSION: "1.0.0-dev",
 
-  BUILD: "Release Candidate 1",
+  BUILD: "Development",
 
   AUTHOR: "Linzi",
 

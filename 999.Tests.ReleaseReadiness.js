@@ -1,5 +1,5 @@
 /**
- * Focused release-candidate readiness checks.
+ * Focused release-readiness checks.
  *
  * Existing health and metadata implementations remain authoritative. This
  * suite only composes their public checks with release-entry availability.
@@ -16,8 +16,8 @@ function releaseReadinessHealth() {
 }
 
 function testReleaseReadinessCanonicalMetadata() {
-  releaseReadinessAssert(APP_CONFIG.VERSION === "1.0.0-rc.1", "APP_CONFIG.VERSION must be 1.0.0-rc.1.");
-  releaseReadinessAssert(APP_CONFIG.BUILD === "Release Candidate 1", "APP_CONFIG.BUILD must be Release Candidate 1.");
+  releaseReadinessAssert(APP_CONFIG.VERSION === "1.0.0-dev", "APP_CONFIG.VERSION must be 1.0.0-dev.");
+  releaseReadinessAssert(APP_CONFIG.BUILD === "Development", "APP_CONFIG.BUILD must be Development.");
 }
 
 function testReleaseReadinessApplicationHealthHasNoFailures() {

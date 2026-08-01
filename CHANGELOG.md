@@ -2,12 +2,16 @@
 
 All notable changes to IP-Starling will be documented in this file.
 
-The project follows Semantic Versioning.
+This changelog is the canonical release history. Its format follows Keep a Changelog where practical, and releases follow Semantic Versioning.
 
 ## [Unreleased]
 
 ### Added
 
+- Centralized application metadata for the server bootstrap, browser state, and sidebar version display.
+- Read-only Application Health framework with focused summaries and failure diagnostics.
+- Controlled, idempotent Return `PickupID` maintenance repair with preview and revalidation safeguards.
+- Focused release-readiness verification for health, metadata, smoke-runner availability, production entries, and sidebar version sourcing.
 - Development seed utility with deterministic test data, backup protection, and integrity validation.
 - Runtime ID sequence inspection and repair utility.
 - Application Health checks for schema, IDs, relationships, audit coverage, and release readiness.
@@ -41,3 +45,20 @@ The project follows Semantic Versioning.
 
 - Development reset remains blocked in production environments.
 - Destructive seed operations require explicit confirmation and create backups first.
+
+## [0.1.0] - 2026-07-09
+
+### Added
+
+- Initial project, framework, repository, service, controller, and view layers.
+- Dashboard, Product, Partner, Pickup, Return, Purchasing, and Expense services.
+- Single-page frontend and initial architecture documentation.
+- Git and GitHub repository setup.
+
+### Changed
+
+- Introduced the initial frontend architecture and Presenter pattern.
+
+### Fixed
+
+- Completed the initial repository setup.

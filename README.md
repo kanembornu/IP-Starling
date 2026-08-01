@@ -1,151 +1,113 @@
 # IP-Starling
 
-> Inventory & Purchasing Management System built with Google Apps Script.
+IP-Starling is an inventory, purchasing, and operational management application built on Google Apps Script with Google Sheets as its database. The browser client is a single-page interface backed by layered server-side services.
 
----
+## Current status
 
-## Overview
+The current development version is **1.0.0-dev**. It is not a final `1.0.0` release.
 
-IP-Starling is a modular Inventory & Purchasing Management System developed using Google Apps Script.
+## Core features
 
-The project follows a layered architecture inspired by modern backend frameworks.
+- Inventory and partner master-data management
+- Pickup, return, purchasing, and expense workflows
+- Dashboard summaries and operational activity views
+- Soft-delete and restore flows, audit logging, settings, and diagnostics
+- Application Health and staged acceptance checks
+- Controlled development seed and maintenance utilities
 
-```
-Framework
-Repository
-Service
-Controller
-View
-```
-
-The frontend is designed as a Single Page Application (SPA).
-
----
-
-## Features
+## Current modules
 
 - Dashboard
-- Product Management
-- Partner Management
-- Pickup Management
-- Return Management
-- Purchasing Management
-- Expense Management
-- Dashboard Statistics
-- Responsive UI
-- Repository Pattern
-- Service Layer
-- Clean Architecture
-
----
-
-## Technology
-
-- Google Apps Script
-- HTML
-- JavaScript
-- Tailwind CSS
-- Chart.js
-- Git
-- GitHub
-
----
+- Products
+- Partners
+- Pickups
+- Returns
+- Purchasing
+- Expenses
+- Settings
+- Logs
+- Application Health
 
 ## Architecture
 
-```
-Apps Script
+The primary request flow is:
 
-Framework
-│
-├── Repository
-├── Service
-├── Controller
-└── View
-
-Frontend
-
-App
-↓
-Event
-↓
-Render
-↓
-Presenter
-↓
-UI
-↓
-DOM
+```text
+UI → App → Presenter → API → Controller → Service → Repository → Database
 ```
 
----
+Repositories own spreadsheet access, services own business rules, controllers expose server functions, and presenters own module-specific rendering. See [AGENTS.md](AGENTS.md) for the canonical repository rules and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for additional architecture notes.
 
-## Project Structure
+## Technology stack
 
-```
-00.Project.Spec
+- Google Apps Script (V8 runtime)
+- Google Sheets
+- HTML, CSS, and browser JavaScript
+- Tailwind CSS and Chart.js
+- Git and `clasp`
 
-Framework
+## Repository structure
 
-Repository
+The project uses numbered flat files because Apps Script ordering is filename-based:
 
-Service
+- `00`-`97`: project metadata, configuration, database, repositories, and framework
+- `100`-`150`: services, maintenance utilities, and controllers
+- `900`-`992`: HTML views, presenters, events, components, and browser utilities
+- `991`-`999`: Apps Script test and acceptance runners
+- `docs/`: supporting documentation retained for later consolidation
 
-Controller
+Do not rename numbered files or create source folders without explicit approval.
 
-View
+## Setup prerequisites
 
-Tests
-```
+- A Google account with access to an Apps Script project and its backing spreadsheet
+- Node.js and npm, used to install the Google clasp CLI
+- `clasp` authenticated for the intended Google account
+- A local `.clasp.json` that points to the intended script project
 
----
+This repository does not provide credentials or create the production spreadsheet automatically.
 
-## Branch Strategy
+## Local development with clasp
 
-```
-main
-```
+1. Clone the repository and enter its directory.
+2. Install or make `clasp` available locally.
+3. Authenticate with `clasp login` if needed.
+4. Confirm `.clasp.json` targets the intended Apps Script project.
+5. Review changes and run the relevant static checks before upload.
+6. Use `clasp push` only when you are authorized to update that script project.
 
-Stable Production
+## Apps Script deployment overview
 
-```
-develop
-```
+`clasp push` uploads source; it does not prove runtime acceptance and does not create a release by itself. Web-app deployment and version creation are explicit Apps Script release operations and should be performed only after the acceptance gates pass.
 
-Daily Development
+## Testing and acceptance
 
-```
-feature/*
-```
+Run the following functions manually in Apps Script, in order as appropriate:
 
-Feature Development
+- `runAcceptanceFast()` — focused fast checks
+- `runAcceptanceStandard()` — core, backend, and health contracts
+- `runAcceptanceFrontend()` — frontend integration contracts
+- `runAcceptanceHealth()` — health contracts and live health reports
+- `runAcceptanceRelease()` — returns the manual release acceptance plan; it does not execute the plan
 
----
+Browser smoke testing is still required for user-visible workflows. Before release preparation, Application Health must report `FAIL = 0`.
 
-## Development Workflow
+## Maintenance and seed safety
 
-```
-VS Code
+Maintenance, repair, reset, and seed functions may affect spreadsheet data or Script Properties. Preview first where supported, verify the target environment and scope, preserve backups, and never run destructive functions automatically.
 
-↓
+## Release and versioning
 
-Git Commit
+- [`VERSION`](VERSION) is the canonical release-development version.
+- `APP_CONFIG.VERSION` must match `VERSION` for runtime display.
+- `APP_CONFIG.BUILD` is a descriptive build label.
+- [`CHANGELOG.md`](CHANGELOG.md) is the canonical changelog.
+- Releases follow [Semantic Versioning](https://semver.org/).
 
-↓
+## Contributing
 
-GitHub
-
-↓
-
-clasp push
-
-↓
-
-Apps Script
-```
-
----
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the branch, coding, testing, and release workflow. The canonical repository instructions are in [AGENTS.md](AGENTS.md).
 
 ## License
 
-MIT License
+Licensed under the [MIT License](LICENSE).
