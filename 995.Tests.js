@@ -89,6 +89,13 @@ function runPurchasingDataAudit() {
   return auditPurchasingData();
 }
 
+function runLiveDiagnosticsFocusedTests() {
+  runTestSuite("Live diagnostics maintenance contract tests", [
+    testLiveDiagnosticsMaintenanceContracts,
+    testPickupReturnIntegrityReadOnlyConstruction,
+  ], { reportTiming: true });
+}
+
 function runMasterDataRegressionTests() {
   runTestSuite("Master-data regression tests", [
     testProductService,

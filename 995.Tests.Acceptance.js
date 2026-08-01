@@ -18,6 +18,9 @@ const AcceptanceRunner = (() => {
       stage("SETTINGS", [
         child("runSettingsFocusedTests", () => typeof runSettingsFocusedTests === "function" ? runSettingsFocusedTests : null),
       ]),
+      stage("MAINTENANCE", [
+        child("runLiveDiagnosticsFocusedTests", () => typeof runLiveDiagnosticsFocusedTests === "function" ? runLiveDiagnosticsFocusedTests : null),
+      ]),
       stage("LOGS CONTRACT", [
         child("runLogsRepositoryServiceContractTests", () => typeof runLogsRepositoryServiceContractTests === "function" ? runLogsRepositoryServiceContractTests : null),
       ]),

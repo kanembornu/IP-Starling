@@ -107,6 +107,7 @@ const ApplicationHealth = (() => {
     "runTransactionServiceContractTests",
     "runPickupAtomicityTests",
     "runReturnAtomicityTests",
+    "runLiveDiagnosticsFocusedTests",
     "runReleaseFrontendIntegrationTests",
     "runReleaseBackendContractTests",
     "runReleaseMutationIntegrityTests",
