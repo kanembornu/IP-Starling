@@ -1,4 +1,7 @@
-/** Canonical, append-only Logs service. Browser code receives read methods only. */
+/**
+ * FILE        : 129.Service.Logs.js
+ * DESCRIPTION : Canonical, append-only Logs service. Browser code receives read methods only.
+ */
 const LogSanitizer = (() => {
   const REDACTED = "[REDACTED]";
   const OMIT = "[OMITTED]";
