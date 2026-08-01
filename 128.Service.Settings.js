@@ -21,7 +21,7 @@ function SettingsService(dependencies = {}) {
     definition("CACHE_ENABLED", "BOOLEAN", "System", "Cache enabled", "Canonical cache preference for future runtime migration.", CACHE_CONFIG.ENABLED, true, { required: true }),
     definition("CACHE_TTL_SECONDS", "INTEGER", "System", "Cache TTL", "Cache lifetime in seconds.", CACHE_CONFIG.EXPIRE_SECONDS, true, { min: 30, max: 3600, required: true }),
     definition("DEBUG_MODE", "BOOLEAN", "System", "Debug mode", "Canonical debug preference for future runtime migration.", false, true, { required: true }),
-    definition("LOG_LEVEL", "ENUM", "System", "Log level", "Minimum canonical log level.", "INFO", true, { options: ["ERROR", "WARN", "INFO", "DEBUG"], required: true }),
+    definition(LogLevelProvider.KEY, "ENUM", "System", "Log level", "Minimum canonical log level.", LogLevelProvider.DEFAULT_LEVEL, true, { options: LogLevelProvider.LEVELS, required: true }),
     definition("ROWS_PER_PAGE", "INTEGER", "UI", "Legacy rows per page", "Retained only for legacy Settings schema compatibility; current pagination does not consume this value.", PAGINATION_CONFIG.DEFAULT_LIMIT, true, { min: 5, max: PAGINATION_CONFIG.MAX_LIMIT, required: true }),
     definition("DEFAULT_PAGE_SIZE", "INTEGER", "UI", "Default Baris per Halaman", "Jumlah awal baris yang ditampilkan pada tabel data dan Logs.", PAGINATION_CONFIG.DEFAULT_LIMIT, true, { options: PAGINATION_CONFIG.ALLOWED_LIMITS, required: true }),
     definition("DATE_FORMAT", "ENUM", "UI", "Date format", "Preferred display date format.", "DD/MM/YYYY", true, { options: ["DD/MM/YYYY", "YYYY-MM-DD"], required: true }),

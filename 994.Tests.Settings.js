@@ -30,7 +30,7 @@ function _settingsTestHarness(options = {}) {
     remove: (key) => { delete cacheValues[key]; },
     removeAll: (keys) => keys.forEach((key) => delete cacheValues[key]),
   };
-  const service = SettingsService({ base, reader: {}, writer, cache, repositoryCache: { clear: () => {} }, generateId: () => `ST-TEST-${++sequence}`, now: () => new Date("2026-07-22T00:00:00Z"), currentUser: () => "SETTINGS_TEST" });
+  const service = SettingsService({ base, reader: {}, writer, cache, repositoryCache: { clear: () => {} }, generateId: () => `ST-TEST-${++sequence}`, now: () => new Date("2026-07-22T00:00:00Z"), currentUser: () => "SETTINGS_TEST", auditLog: options.auditLog });
   return { service, rows, headers, cacheValues, physicalReadCount: () => physicalReads };
 }
 
@@ -113,6 +113,26 @@ function testSettingsMutationAndSeeding() {
   _settingsAssert(mapped.success, "Audit response failed.");
 }
 
+function testSettingsMutationAuditContract() {
+  const events = [];
+  const harness = _settingsTestHarness({
+    rows: [_settingsRow("LOG_LEVEL", "INFO", "ENUM")],
+    auditLog: { bestEffort: (event) => { events.push(event); return { recorded: true, id: "LG-TEST" }; } },
+  });
+  _settingsAssert(harness.service.updateValue("LOG_LEVEL", "WARN").success, "Audited Settings update failed.");
+  _settingsAssert(events.length === 1 && events[0].action === "SETTINGS_UPDATE" && events[0].entityType === "Setting" && events[0].entityId === "LOG_LEVEL", "Settings update audit contract differs.");
+  _settingsAssert(events[0].module === "Settings" && events[0].source === "SettingsService" && events[0].status === "SUCCESS", "Settings update audit metadata differs.");
+  _settingsAssert(harness.service.resetToDefault("LOG_LEVEL").success, "Audited Settings reset failed.");
+  _settingsAssert(events.length === 2 && events[1].action === "SETTINGS_RESET" && events[1].entityId === "LOG_LEVEL", "Settings reset audit contract differs.");
+
+  const tolerant = _settingsTestHarness({
+    rows: [_settingsRow("LOG_LEVEL", "INFO", "ENUM")],
+    auditLog: { bestEffort: () => ({ recorded: false, reason: "WRITE_FAILURE" }) },
+  });
+  _settingsAssert(tolerant.service.updateValue("LOG_LEVEL", "DEBUG").success, "Best-effort audit failure became destructive to Settings update.");
+  return true;
+}
+
 function testSettingsSchemaAuditGuard() {
   const harness = _settingsTestHarness({ headers: ["ID", "Key"] });
   const audit = harness.service.audit();
@@ -177,7 +197,7 @@ function testSettingsFrontendSessionLoadContract() {
 }
 
 function runSettingsFocusedTests() {
-  runTestSuite("Settings focused tests", [testSettingsRegistryAndParsing, testSettingsResolutionAndAudit, testSettingsMutationAndSeeding, testSettingsSchemaAuditGuard, testSettingsListResolvedBoundedPhysicalRead, testSettingsCacheFailureBypass, testSettingsFrontendSessionLoadContract, testSettingsSchemaDiagnosticReadOnlyContract, testSettingsLegacyMigrationSourceContract]);
+  runTestSuite("Settings focused tests", [testSettingsRegistryAndParsing, testSettingsResolutionAndAudit, testSettingsMutationAndSeeding, testSettingsMutationAuditContract, testSettingsSchemaAuditGuard, testSettingsListResolvedBoundedPhysicalRead, testSettingsCacheFailureBypass, testSettingsFrontendSessionLoadContract, testSettingsSchemaDiagnosticReadOnlyContract, testSettingsLegacyMigrationSourceContract]);
 }
 
 function _settingsDiagnosticLog(prefix, value) {

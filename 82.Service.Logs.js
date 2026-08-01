@@ -60,10 +60,10 @@ const LogsService = (() => {
   }
 
   function levelEnabled(level) {
-    let minimum = "INFO";
+    let minimum = LogLevelProvider.DEFAULT_LEVEL;
     try {
-      const setting = SettingsService().getResolved("LOG_LEVEL");
-      if (setting.success && setting.data && LEVELS.indexOf(setting.data.value) >= 0) minimum = setting.data.value;
+      const resolved = LogLevelProvider.resolve();
+      if (LEVELS.indexOf(resolved) >= 0) minimum = resolved;
     } catch (error) { /* default without recursive logging */ }
     return LEVELS.indexOf(level) <= LEVELS.indexOf(minimum);
   }

@@ -53,3 +53,36 @@ const LogsRepository = (() => {
 
   return Object.freeze({ rows, append, findById, inspectPhysicalStore });
 })();
+
+/** Read-only persisted log-level adapter. Deliberately independent of SettingsService and LogsService. */
+const LogLevelProvider = (() => {
+  const KEY = "LOG_LEVEL";
+  const DEFAULT_LEVEL = "INFO";
+  const LEVELS = Object.freeze(["ERROR", "WARN", "INFO", "DEBUG"]);
+  const CACHE_KEY = "IPS:Settings:resolved:v1:key:LOG_LEVEL";
+
+  function effectiveValue(row) {
+    if (!row || row[SETTINGS_SCHEMA.SYSTEM.IS_DELETED] === true || row[SETTINGS_SCHEMA.SYSTEM.IS_ACTIVE] === false) return DEFAULT_LEVEL;
+    const value = String(row[SETTINGS_FIELDS.VALUE] == null ? "" : row[SETTINGS_FIELDS.VALUE]);
+    return LEVELS.indexOf(value) >= 0 ? value : DEFAULT_LEVEL;
+  }
+
+  function resolve(dependencies = {}) {
+    const base = dependencies.base || RepositoryBase;
+    const cache = dependencies.cache || CacheService.getScriptCache();
+    let cached = null;
+    try { cached = cache.get(CACHE_KEY); } catch (error) { cached = null; }
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (parsed && LEVELS.indexOf(parsed.value) >= 0) return parsed.value;
+      } catch (error) { /* fall through to the authoritative persisted row */ }
+    }
+    const rows = base.mapRows(SETTINGS_SCHEMA, base.rows(SETTINGS_SCHEMA));
+    const matches = rows.filter((row) => String(row[SETTINGS_FIELDS.KEY] || "").trim() === KEY);
+    if (matches.length > 1) throw new Error(`Duplicate physical setting key: ${KEY}.`);
+    return effectiveValue(matches[0] || null);
+  }
+
+  return Object.freeze({ KEY, DEFAULT_LEVEL, LEVELS, resolve });
+})();

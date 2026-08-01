@@ -41,6 +41,39 @@ function testLogsRepositoryOwnershipContract() {
   return true;
 }
 
+function testLogLevelProviderBehaviorContract() {
+  const row = (value, overrides = {}) => Object.assign({ Key: "LOG_LEVEL", Value: value, Deleted: false, IsActive: true }, overrides);
+  const resolve = (rows, cacheValue) => LogLevelProvider.resolve({
+    base: { rows: () => rows, mapRows: (schema, values) => values },
+    cache: { get: () => cacheValue || null },
+  });
+  _logsAssert(resolve([]) === "INFO", "Missing LOG_LEVEL did not use the canonical default.");
+  _logsAssert(resolve([row("WARN")]) === "WARN", "Valid persisted LOG_LEVEL was not authoritative.");
+  _logsAssert(resolve([row("TRACE")]) === "INFO", "Invalid persisted LOG_LEVEL did not use the canonical fallback.");
+  _logsAssert(resolve([row("DEBUG", { IsActive: false })]) === "INFO", "Inactive LOG_LEVEL did not use the canonical default.");
+  _logsAssert(resolve([], JSON.stringify({ value: "ERROR" })) === "ERROR", "Canonical Settings cache value was not reused.");
+  _logsAssert(resolve([row("DEBUG")], "{bad") === "DEBUG", "Invalid cache blocked authoritative persisted resolution.");
+  let unavailable = false;
+  try { LogLevelProvider.resolve({ base: { rows: () => { throw new Error("Settings unavailable"); }, mapRows: () => [] }, cache: { get: () => null } }); } catch (error) { unavailable = true; }
+  _logsAssert(unavailable, "Provider hid Settings unavailability from LogsService fallback handling.");
+  let duplicate = false;
+  try { resolve([row("INFO"), row("DEBUG")]); } catch (error) { duplicate = true; }
+  _logsAssert(duplicate, "Duplicate LOG_LEVEL rows did not preserve Settings resolution failure behavior.");
+  return true;
+}
+
+function testLogsSettingsCycleRemovalContract() {
+  const logsSource = HtmlService.createHtmlOutputFromFile("82.Service.Logs").getContent();
+  const providerSource = LogLevelProvider.resolve.toString();
+  const settingsSource = SettingsService.toString();
+  _logsAssert(logsSource.indexOf("SettingsService") < 0, "LogsService still references SettingsService.");
+  _logsAssert(providerSource.indexOf("SettingsService") < 0 && providerSource.indexOf("LogsService") < 0 && providerSource.indexOf("AuditLogService") < 0, "LogLevelProvider has a service or audit dependency.");
+  _logsAssert(/LogLevelProvider\.resolve\(\)/.test(logsSource), "LogsService does not lazily resolve its log level through the provider.");
+  _logsAssert(/auditLog\.bestEffort/.test(settingsSource) && /SETTINGS_UPDATE/.test(settingsSource) && /SETTINGS_RESET/.test(settingsSource), "Settings mutation audit path differs.");
+  _logsAssert((logsSource.match(/LogsRepository\.append\(row\)/g) || []).length === 1, "Logs write path can append more than once per record call.");
+  return true;
+}
+
 function testLogsPublicContractAfterRepositoryExtraction() {
   _logsAssert(Object.isFrozen(LogsService) && Object.isFrozen(AuditLogService) && Object.isFrozen(AppLogService), "Logs compatibility facades must remain frozen.");
   _logsAssert(JSON.stringify(Object.keys(LogsService)) === JSON.stringify(["LEVELS", "CATEGORIES", "ACTIONS", "STATUSES", "record", "bestEffort", "list", "page", "getById", "summary", "audit"]), "LogsService public surface differs.");
@@ -69,6 +102,8 @@ function testAcceptanceThreeLevelPublicContract() {
 function runLogsRepositoryServiceContractTests() {
   runTestSuite("Logs repository/service contract tests", [
     testLogsRepositoryOwnershipContract,
+    testLogLevelProviderBehaviorContract,
+    testLogsSettingsCycleRemovalContract,
     testLogsPublicContractAfterRepositoryExtraction,
     testLogsSchemaDiagnosticReadOnlySourceContract,
     testAcceptanceThreeLevelPublicContract,
