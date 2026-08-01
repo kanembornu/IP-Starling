@@ -1,294 +1,90 @@
-# IP-Starling Architecture
+# Architecture
 
-Version : 1.0.0
+## System flow
 
----
+IP-Starling is a Google Apps Script web application backed by Google Sheets. Its primary dependency direction is:
 
-# Overview
-
-IP-Starling adopts a layered architecture inspired by modern enterprise applications.
-
-The application separates Framework, Repository, Business Logic, Controller and Presentation Layer.
-
-This separation keeps the project maintainable and scalable.
-
----
-
-# Backend Architecture
-
-```
-Google Spreadsheet
-        │
-        ▼
-Repository
-        │
-        ▼
-Service
-        │
-        ▼
-Controller
-        │
-        ▼
-Frontend API
-```
-
----
-
-## Framework Layer
-
-Responsible for reusable infrastructure.
-
-```
-Framework
-├── Response
-├── Logger
-├── Validator
-├── BaseService
-├── EntityService
-└── IDGenerator
-```
-
----
-
-## Repository Layer
-
-Responsible for all Spreadsheet access.
-
-```
-Repository
-├── Base
-├── Reader
-├── Writer
-├── Query
-└── Cache
-```
-
-Business Service MUST NOT access Spreadsheet directly.
-
----
-
-## Service Layer
-
-Contains all business logic.
-
-```
-ProductService
-
-PartnerService
-
-PickupService
-
-ReturnService
-
-PurchasingService
-
-ExpenseService
-
-DashboardService
-```
-
----
-
-## Controller Layer
-
-Acts as API endpoint for Frontend.
-
-```
-Frontend
-
-↓
-
-Controller
-
-↓
-
-Business Service
-```
-
-Controllers must never contain business logic.
-
----
-
-# Frontend Architecture
-
-Frontend is implemented as a Single Page Application (SPA).
-
-```
-App
-
-↓
-
-Event
-
-↓
-
-Render
-
-↓
-
-Presenter
-
-↓
-
+```text
 UI
-
-↓
-
-DOM
+  -> App
+  -> Presenter
+  -> Shared Presenter / Render / Components
+  -> API
+  -> Controller
+  -> Service
+  -> Repository
+  -> Database
 ```
 
----
+The browser/server boundary sits between `965.View.API.html` and the public functions in `150.Controller.js`. Browser calls use `google.script.run`; server responses cross the boundary as serializable data.
 
-## App
+## Layer responsibilities
 
-Responsible for
+| Layer | Responsibility |
+| --- | --- |
+| UI | Templates and DOM surfaces presented to the user. |
+| App | Application lifecycle, navigation, client state, asynchronous workflows, filters, pagination, and mutations. |
+| Presenter | Module-specific rendering and presentation transformations. Presenters do not own API calls or application state. |
+| Shared Presenter | Reusable presentation helpers only; no module-specific or business logic. |
+| Render | Shared page mounting and render facades. |
+| Components | Reusable HTML fragments and UI primitives with no business logic. |
+| API | Promise-based browser adapter over `google.script.run`. |
+| Controller | Public Apps Script server functions and the sanitized response boundary. |
+| Service | Business rules, validation, transaction orchestration, and domain-level responses. |
+| Repository | Spreadsheet persistence, row mapping, queries, and physical-store inspection. |
+| Database | Spreadsheet and sheet acquisition/bootstrap primitives. |
 
-- Application lifecycle
-- Navigation
-- State management
+Dependencies move only downward through this flow. A repository must not call a service or browser layer; a service must not access browser HTML; a presenter must not call a repository or service; and the browser must not bypass controllers to access server internals.
 
----
+## Browser architecture
 
-## Event
+`35.Code.js#doGet()` evaluates `900.View.Index.html`. The index explicitly includes the browser modules; HTML load order is therefore defined by those includes, not inferred from numeric prefixes.
 
-Responsible for
+`970.View.App.html` owns state and workflows. Module presenters render their own views. `976.View.Shared.Presenter.html`, `975.View.Render.html`, and `987.View.Components.html` provide reusable presentation capabilities. `980.View.Event.html` delegates browser events into App actions and does not render business data. Compatibility facades such as `Render` and the shared frontend framework files retain stable call sites while delegating to the current implementation.
 
-- Click Event
-- Keyboard Event
-- Search Event
-- Form Event
+## Server architecture
 
----
+Public browser-facing Apps Script functions live in `150.Controller.js`. `_controllerResponse()` serializes successful results, logs internal failures through `AppLogger`, and returns a sanitized public error. Controllers should coordinate calls and protect the public boundary; business rules belong in services.
 
-## Render
+### Controller error boundary
 
-Responsible for
+The controller error boundary keeps internal exception details out of browser response envelopes while preserving structured service failures where the public contract requires them. Internal messages are logged server-side; raw stacks and infrastructure details must not be returned to the browser.
 
-- Layout
-- Sidebar
-- Topbar
-- Page Mounting
+Services own domain validation and orchestration. Repositories own Google Sheets access. `20.Database.js` and repository framework files provide the physical database boundary. Direct spreadsheet access outside repositories is limited to explicit setup, diagnostics, tests, and isolated maintenance utilities.
 
-Render never renders business data.
+### Idempotency
 
----
+Idempotency is intentionally split. `65.Repository.Idempotency.js` owns durable reservation storage. `127.Service.Idempotency.js` owns key validation, payload hashing, reservation state transitions, locking, replay, recovery, and expiry cleanup. Transaction services consume the service contract rather than reproducing storage rules.
 
-## Presenter
+### Logs and settings
 
-Responsible for transforming data into Components.
+`67.Repository.Logs.js` owns persisted log rows and physical-store inspection. `129.Service.Logs.js` owns sanitization, filtering, pagination, summaries, audit classification, and application/audit log adapters.
 
-Example
+Log-level resolution is deliberately decoupled from both `SettingsService` and `LogsService`. `LogLevelProvider` reads the persisted `LOG_LEVEL` setting through repository primitives, preventing a logging-to-settings-to-logging dependency cycle.
 
-```
-DashboardPresenter
+### Maintenance and diagnostics
 
-ProductsPresenter
+Files `136`-`140` isolate development, repair, migration, and live-diagnostic operations from normal request flows. They are editor-run entry points and must never execute at file load or from automatic acceptance. See [Maintenance](MAINTENANCE.md).
 
-PartnersPresenter
-```
+`ApplicationHealth` (Application Health) is a deliberate diagnostic exception: it reads across schemas, registries, repositories, services, source files, and live data to report system integrity. It must remain read-only and must not become a business-service dependency.
 
----
+## Public Apps Script entry points
 
-## UI
+- `doGet(e)` is the web-app HTTP entry point.
+- Functions in `150.Controller.js` are the browser-callable application API.
+- `runAcceptanceFast()`, `runAcceptanceStandard()`, `runAcceptanceFrontend()`, `runAcceptanceHealth()`, and `runAcceptanceRelease()` are manual acceptance entry points.
+- Application Health and maintenance functions are manual editor entry points documented in [Testing and Acceptance](TESTING_AND_ACCEPTANCE.md) and [Maintenance](MAINTENANCE.md).
 
-Reusable UI Components
+Test and maintenance functions are public only because Apps Script editor execution requires global functions; they are not browser APIs.
 
-- Card
-- Badge
-- Table
-- Modal
-- Toast
-- Pagination
+## Prohibited dependencies
 
----
-
-## DOM
-
-Thin wrapper around Browser DOM API.
-
----
-
-# Naming Convention
-
-```
-00-99
-
-Framework
-
-100-199
-
-Service
-
-900+
-
-View
-```
-
----
-
-# Git Strategy
-
-```
-main
-```
-
-Production branch.
-
-```
-develop
-```
-
-Daily development.
-
-```
-feature/*
-```
-
-Feature branches.
-
----
-
-# Coding Standard
-
-- One responsibility per file.
-- Maximum 300 lines per file.
-- No duplicated logic.
-- Repository never contains business rules.
-- Service never accesses HTML.
-- View never accesses Spreadsheet.
-
----
-
-# Deployment Flow
-
-```
-VS Code
-
-↓
-
-Git Commit
-
-↓
-
-GitHub
-
-↓
-
-clasp push
-
-↓
-
-Apps Script Deploy
-```
-
----
-
-# Future Improvements
-
-- Authentication
-- Role Permission
-- Audit Trail
-- Report Engine
-- Notification
-- REST API
-- Unit Testing
+- UI, App, presenters, renderers, and components must not access Google Sheets directly.
+- Browser code must not call repositories or services directly.
+- Controllers must not contain domain rules or spreadsheet logic.
+- Services must not render HTML or manipulate the DOM.
+- Repositories must not own business policy or call services/controllers.
+- Shared Presenter must not contain module-specific behavior.
+- Events must not own rendering or state.
+- Production request paths must not invoke development seed, repair, migration, or diagnostic mutations.
+- Application Health must not mutate application data.

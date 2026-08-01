@@ -36,7 +36,7 @@ The primary request flow is:
 UI → App → Presenter → API → Controller → Service → Repository → Database
 ```
 
-Repositories own spreadsheet access, services own business rules, controllers expose server functions, and presenters own module-specific rendering. See [AGENTS.md](AGENTS.md) for the canonical repository rules and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for additional architecture notes.
+Repositories own spreadsheet access, services own business rules, controllers expose server functions, and presenters own module-specific rendering. See [AGENTS.md](AGENTS.md) for the canonical repository rules and [Architecture](docs/ARCHITECTURE.md) for the detailed current design.
 
 ## Technology stack
 
@@ -50,13 +50,17 @@ Repositories own spreadsheet access, services own business rules, controllers ex
 
 The project uses numbered flat files because Apps Script ordering is filename-based:
 
-- `00`-`97`: project metadata, configuration, database, repositories, and framework
-- `100`-`150`: services, maintenance utilities, and controllers
-- `900`-`992`: HTML views, presenters, events, components, and browser utilities
-- `991`-`999`: Apps Script test and acceptance runners
-- `docs/`: supporting documentation retained for later consolidation
+- `00`-`39`: project metadata, configuration, schema, database, and bootstrap
+- `40`-`69`: repositories
+- `70`-`99`: server framework
+- `100`-`135`: services
+- `136`-`149`: maintenance and development utilities
+- `150`-`199`: controllers and server boundaries
+- `900`-`989`: frontend templates and browser runtime
+- `990`-`999`: retained compatibility zone for frontend shared modules and tests
+- `docs/`: authoritative detailed technical documentation
 
-Do not rename numbered files or create source folders without explicit approval.
+Duplicate prefixes are allowed; full filenames determine order. Do not cosmetically renumber files or create source folders. See [File Numbering](docs/FILE_NUMBERING.md).
 
 ## Setup prerequisites
 
@@ -76,6 +80,8 @@ This repository does not provide credentials or create the production spreadshee
 5. Review changes and run the relevant static checks before upload.
 6. Use `clasp push` only when you are authorized to update that script project.
 
+Detailed workflows: [Development](docs/DEVELOPMENT.md) and [Deployment](docs/DEPLOYMENT.md).
+
 ## Apps Script deployment overview
 
 `clasp push` uploads source; it does not prove runtime acceptance and does not create a release by itself. Web-app deployment and version creation are explicit Apps Script release operations and should be performed only after the acceptance gates pass.
@@ -92,9 +98,13 @@ Run the following functions manually in Apps Script, in order as appropriate:
 
 Browser smoke testing is still required for user-visible workflows. Before release preparation, Application Health must report `FAIL = 0`.
 
+See [Testing and Acceptance](docs/TESTING_AND_ACCEPTANCE.md).
+
 ## Maintenance and seed safety
 
 Maintenance, repair, reset, and seed functions may affect spreadsheet data or Script Properties. Preview first where supported, verify the target environment and scope, preserve backups, and never run destructive functions automatically.
+
+See [Maintenance](docs/MAINTENANCE.md) for the source-grounded function matrix.
 
 ## Release and versioning
 
@@ -103,6 +113,8 @@ Maintenance, repair, reset, and seed functions may affect spreadsheet data or Sc
 - `APP_CONFIG.BUILD` is a descriptive build label.
 - [`CHANGELOG.md`](CHANGELOG.md) is the canonical changelog.
 - Releases follow [Semantic Versioning](https://semver.org/).
+
+The full release checklist is in [Release](docs/RELEASE.md). Current and future project phases are tracked in the [Roadmap](docs/ROADMAP.md).
 
 ## Contributing
 

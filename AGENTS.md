@@ -13,9 +13,9 @@ Do not create folders or rename numbered files unless explicitly requested.
 - Presenter handles module-specific UI behavior.
 - Shared Presenter contains reusable helpers only.
 
-Frontend flow:
+Application flow:
 
-`App -> Presenter -> Shared Presenter -> Render / Components -> API -> Service -> Repository -> Google Apps Script`
+`UI -> App -> Presenter -> Shared Presenter / Render / Components -> API -> Controller -> Service -> Repository -> Database`
 
 - App coordinates application state and workflows.
 - Presenters render module-specific UI.
@@ -53,7 +53,7 @@ Inspect existing implementations in this preferred order when applicable:
 
 ## Workflow
 
-- Read `PROJECT_RULES.md` and the current module before implementing.
+- Read this canonical instruction file and the current module before implementing.
 - Self-review completed changes.
 - Never commit, deploy, or push unless explicitly requested.
 
