@@ -2,35 +2,37 @@
 const AcceptanceRunner = (() => {
   const SEPARATOR = "==============================";
 
-  function child(name, available, run) {
-    return Object.freeze({ name, available, run });
+  function child(name, resolve) {
+    return Object.freeze({ name, resolve });
   }
 
   function stage(name, runners) {
     return Object.freeze({ name, runners: Object.freeze(runners.slice()) });
   }
 
-  function phase5B2Stages() {
+  function fastStages() {
     return Object.freeze([
-      stage("IDEMPOTENCY", [
-        child("runIdempotencyContractTests", () => typeof runIdempotencyContractTests === "function", () => runIdempotencyContractTests()),
-        child("runTransactionServiceContractTests", () => typeof runTransactionServiceContractTests === "function", () => runTransactionServiceContractTests()),
+      stage("LOGS", [
+        child("runLogsFocusedTests", () => typeof runLogsFocusedTests === "function" ? runLogsFocusedTests : null),
       ]),
-      stage("ATOMICITY", [
-        child("runPickupAtomicityTests", () => typeof runPickupAtomicityTests === "function", () => runPickupAtomicityTests()),
-        child("runReturnAtomicityTests", () => typeof runReturnAtomicityTests === "function", () => runReturnAtomicityTests()),
+      stage("LOGS CONTRACT", [
+        child("runLogsRepositoryServiceContractTests", () => typeof runLogsRepositoryServiceContractTests === "function" ? runLogsRepositoryServiceContractTests : null),
       ]),
     ]);
   }
 
-  function backendStages() {
+  function standardStages() {
     return Object.freeze([
       stage("CORE", [
-        child("runCoreRegressionTests", () => typeof runCoreRegressionTests === "function", () => runCoreRegressionTests()),
+        child("runCoreRegressionTests", () => typeof runCoreRegressionTests === "function" ? runCoreRegressionTests : null),
       ]),
       stage("BACKEND CONTRACTS", [
-        child("runReleaseBackendContractTests", () => typeof runReleaseBackendContractTests === "function", () => runReleaseBackendContractTests()),
-        child("runReleaseMutationIntegrityTests", () => typeof runReleaseMutationIntegrityTests === "function", () => runReleaseMutationIntegrityTests()),
+        child("runReleaseBackendContractTests", () => typeof runReleaseBackendContractTests === "function" ? runReleaseBackendContractTests : null),
+        child("runReleaseMutationIntegrityTests", () => typeof runReleaseMutationIntegrityTests === "function" ? runReleaseMutationIntegrityTests : null),
+      ]),
+      stage("HEALTH CONTRACTS", [
+        child("runApplicationHealthCheckTests", () => typeof runApplicationHealthCheckTests === "function" ? runApplicationHealthCheckTests : null),
+        child("runApplicationMetadataTests", () => typeof runApplicationMetadataTests === "function" ? runApplicationMetadataTests : null),
       ]),
     ]);
   }
@@ -38,7 +40,7 @@ const AcceptanceRunner = (() => {
   function frontendStages() {
     return Object.freeze([
       stage("FRONTEND INTEGRATION", [
-        child("runReleaseFrontendIntegrationTests", () => typeof runReleaseFrontendIntegrationTests === "function", () => runReleaseFrontendIntegrationTests()),
+        child("runReleaseFrontendIntegrationTests", () => typeof runReleaseFrontendIntegrationTests === "function" ? runReleaseFrontendIntegrationTests : null),
       ]),
     ]);
   }
@@ -46,25 +48,15 @@ const AcceptanceRunner = (() => {
   function healthStages() {
     return Object.freeze([
       stage("HEALTH CONTRACTS", [
-        child("runApplicationHealthCheckTests", () => typeof runApplicationHealthCheckTests === "function", () => runApplicationHealthCheckTests()),
-        child("runApplicationMetadataTests", () => typeof runApplicationMetadataTests === "function", () => runApplicationMetadataTests()),
-        child("runReleaseReadinessTests", () => typeof runReleaseReadinessTests === "function", () => runReleaseReadinessTests()),
+        child("runApplicationHealthCheckTests", () => typeof runApplicationHealthCheckTests === "function" ? runApplicationHealthCheckTests : null),
+        child("runApplicationMetadataTests", () => typeof runApplicationMetadataTests === "function" ? runApplicationMetadataTests : null),
+        child("runReleaseReadinessTests", () => typeof runReleaseReadinessTests === "function" ? runReleaseReadinessTests : null),
       ]),
       stage("HEALTH RUNTIME", [
-        child("runApplicationHealthCheck", () => typeof runApplicationHealthCheck === "function", () => runApplicationHealthCheck()),
-        child("runApplicationHealthCheckSummary", () => typeof runApplicationHealthCheckSummary === "function", () => runApplicationHealthCheckSummary()),
+        child("runApplicationHealthCheck", () => typeof runApplicationHealthCheck === "function" ? runApplicationHealthCheck : null),
+        child("runApplicationHealthCheckSummary", () => typeof runApplicationHealthCheckSummary === "function" ? runApplicationHealthCheckSummary : null),
       ]),
     ]);
-  }
-
-  function assertAvailable(stages) {
-    stages.forEach((currentStage) => {
-      currentStage.runners.forEach((runner) => {
-        if (!runner.available()) {
-          throw new Error(`Acceptance child runner tidak tersedia: ${runner.name}`);
-        }
-      });
-    });
   }
 
   function assertPassingResult(runnerName, result) {
@@ -78,8 +70,6 @@ const AcceptanceRunner = (() => {
     const stages = stagesFactory();
     const executed = [];
     const stageResults = [];
-    assertAvailable(stages);
-
     Logger.log(SEPARATOR);
     Logger.log(title);
     Logger.log(SEPARATOR);
@@ -89,7 +79,9 @@ const AcceptanceRunner = (() => {
       Logger.log(`[${stageIndex + 1}/${stages.length}] ${currentStage.name}`);
       currentStage.runners.forEach((runner) => {
         try {
-          const result = runner.run();
+          const resolved = runner.resolve();
+          if (typeof resolved !== "function") throw new Error(`Acceptance child runner tidak tersedia: ${runner.name}`);
+          const result = resolved();
           assertPassingResult(runner.name, result);
           executed.push(runner.name);
         } catch (error) {
@@ -121,31 +113,31 @@ const AcceptanceRunner = (() => {
     });
   }
 
-  function fullPlan() {
-    const functions = Object.freeze([
-      "runAcceptanceCurrentPhase",
-      "runAcceptanceBackend",
+  function releasePlan() {
+    const orderedFunctions = Object.freeze([
+      "runAcceptanceFast",
+      "runAcceptanceStandard",
       "runAcceptanceFrontend",
       "runAcceptanceHealth",
     ]);
     Logger.log(SEPARATOR);
-    Logger.log("FULL DEVELOPMENT ACCEPTANCE");
+    Logger.log("RELEASE ACCEPTANCE PLAN");
     Logger.log(SEPARATOR);
-    functions.forEach((name, index) => Logger.log(`${index + 1}. ${name}`));
+    orderedFunctions.forEach((name, index) => Logger.log(`${index + 1}. ${name}`));
     Logger.log("RESULT: MANUAL_SEQUENCE_REQUIRED");
     Logger.log(SEPARATOR);
     return Object.freeze({
       status: "MANUAL_SEQUENCE_REQUIRED",
-      functions,
+      orderedFunctions,
     });
   }
 
-  function runPhase5B2() {
-    return executePipeline("PHASE 5B.2 ACCEPTANCE", phase5B2Stages);
+  function runFast() {
+    return executePipeline("FAST ACCEPTANCE", fastStages);
   }
 
-  function runBackend() {
-    return executePipeline("BACKEND ACCEPTANCE", backendStages);
+  function runStandard() {
+    return executePipeline("STANDARD ACCEPTANCE", standardStages);
   }
 
   function runFrontend() {
@@ -157,24 +149,20 @@ const AcceptanceRunner = (() => {
   }
 
   return Object.freeze({
-    runPhase5B2,
-    runBackend,
+    runFast,
+    runStandard,
     runFrontend,
     runHealth,
-    fullPlan,
+    releasePlan,
   });
 })();
 
-function runPhase5B2Acceptance() {
-  return AcceptanceRunner.runPhase5B2();
+function runAcceptanceFast() {
+  return AcceptanceRunner.runFast();
 }
 
-function runAcceptanceCurrentPhase() {
-  return runPhase5B2Acceptance();
-}
-
-function runAcceptanceBackend() {
-  return AcceptanceRunner.runBackend();
+function runAcceptanceStandard() {
+  return AcceptanceRunner.runStandard();
 }
 
 function runAcceptanceFrontend() {
@@ -185,6 +173,6 @@ function runAcceptanceHealth() {
   return AcceptanceRunner.runHealth();
 }
 
-function runAcceptanceFull() {
-  return AcceptanceRunner.fullPlan();
+function runAcceptanceRelease() {
+  return AcceptanceRunner.releasePlan();
 }

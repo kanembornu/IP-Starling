@@ -28,6 +28,53 @@ function runLogsFocusedTests() {
   _logsAssert((api.match(/page\(filters, pagination\) \{ return run\("listLogsPage"/g) || []).length === 1, "Logs browser API combined endpoint is missing or duplicated.");
 }
 
+function testLogsRepositoryOwnershipContract() {
+  const repository = Object.keys(LogsRepository).map((key) => LogsRepository[key].toString()).join("\n");
+  const service = Object.keys(LogsService).filter((key) => typeof LogsService[key] === "function").map((key) => LogsService[key].toString()).join("\n");
+  _logsAssert(Object.isFrozen(LogsRepository), "LogsRepository must be frozen.");
+  _logsAssert(JSON.stringify(Object.keys(LogsRepository)) === JSON.stringify(["rows", "append", "findById", "inspectPhysicalStore"]), "LogsRepository public surface differs.");
+  ["RepositoryBase.rows", "RepositoryBase.mapRows", "RepositoryWriter.insert", "Database.sheet", "getRange", "getValues", "getFormulas"].forEach((token) => _logsAssert(repository.indexOf(token) >= 0, `LogsRepository missing physical ownership: ${token}.`));
+  ["SpreadsheetApp", "Database.", "RepositoryBase.", "RepositoryWriter.", "getRange", "getValues", "getFormulas"].forEach((token) => _logsAssert(service.indexOf(token) < 0, `LogsService retains physical access: ${token}.`));
+  _logsAssert(/LogsRepository\.append\(row\)/.test(service), "LogsService append does not use LogsRepository.");
+  _logsAssert(/LogsRepository\.findById\(logId\)/.test(service), "LogsService lookup does not use LogsRepository.");
+  _logsAssert(/LogsRepository\.inspectPhysicalStore\(\)/.test(service), "LogsService diagnostics do not use LogsRepository.");
+  return true;
+}
+
+function testLogsPublicContractAfterRepositoryExtraction() {
+  _logsAssert(Object.isFrozen(LogsService) && Object.isFrozen(AuditLogService) && Object.isFrozen(AppLogService), "Logs compatibility facades must remain frozen.");
+  _logsAssert(JSON.stringify(Object.keys(LogsService)) === JSON.stringify(["LEVELS", "CATEGORIES", "ACTIONS", "STATUSES", "record", "bestEffort", "list", "page", "getById", "summary", "audit"]), "LogsService public surface differs.");
+  _logsAssert(LogsService.record.length === 0 && LogsService.bestEffort.length === 1 && LogsService.list.length === 0 && LogsService.page.length === 0 && LogsService.getById.length === 1 && LogsService.summary.length === 0 && LogsService.audit.length === 0, "LogsService method arity differs.");
+  _logsAssert(JSON.stringify(Object.keys(AuditLogService)) === JSON.stringify(["record", "bestEffort"]), "AuditLogService public surface differs.");
+  _logsAssert(JSON.stringify(Object.keys(AppLogService)) === JSON.stringify(["write", "bestEffort"]), "AppLogService public surface differs.");
+  const controller = [listLogs, listLogsPage, getLogById, getLogsSummary].map((fn) => fn.toString()).join("\n");
+  ["LogsService.list", "LogsService.page", "LogsService.getById", "LogsService.summary"].forEach((token) => _logsAssert(controller.indexOf(token) >= 0, `Logs controller contract missing ${token}.`));
+  return true;
+}
+
+function testAcceptanceThreeLevelPublicContract() {
+  _logsAssert(typeof runAcceptanceFast === "function" && typeof runAcceptanceStandard === "function" && typeof runAcceptanceRelease === "function", "Three-level acceptance entry points are incomplete.");
+  _logsAssert(typeof runAcceptanceFrontend === "function" && typeof runAcceptanceHealth === "function", "Permanent Frontend or Health acceptance wrapper is missing.");
+  _logsAssert(typeof runAcceptanceCurrentPhase === "undefined" && typeof runAcceptanceFull === "undefined" && typeof runAcceptanceBackend === "undefined", "Retired acceptance wrapper remains public.");
+  const release = runAcceptanceRelease();
+  _logsAssert(release.status === "MANUAL_SEQUENCE_REQUIRED" && release.status !== "PASS", "Release acceptance must return a manual plan, never PASS.");
+  _logsAssert(JSON.stringify(release.orderedFunctions) === JSON.stringify(["runAcceptanceFast", "runAcceptanceStandard", "runAcceptanceFrontend", "runAcceptanceHealth"]), "Release acceptance order differs.");
+  [runAcceptanceFast, runAcceptanceStandard, runAcceptanceFrontend, runAcceptanceHealth].forEach((runner) => {
+    const source = runner.toString();
+    _logsAssert(!/ScriptProperties|PropertiesService|SpreadsheetApp|Database\.|Repository|CacheService|SettingsService/.test(source), `${runner.name} contains persistent state or data access.`);
+  });
+  return true;
+}
+
+function runLogsRepositoryServiceContractTests() {
+  runTestSuite("Logs repository/service contract tests", [
+    testLogsRepositoryOwnershipContract,
+    testLogsPublicContractAfterRepositoryExtraction,
+    testLogsSchemaDiagnosticReadOnlySourceContract,
+    testAcceptanceThreeLevelPublicContract,
+  ], { reportTiming: true });
+}
+
 function _logsInitializeEmptySheet(audit) {
   if (audit.classification !== "EMPTY_SAFE_TO_INITIALIZE") return;
   let sheet;

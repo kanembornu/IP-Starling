@@ -97,7 +97,7 @@ const LogsService = (() => {
       ErrorMessage: LogSanitizer.formulaSafe(error ? error.message : event.errorMessage || ""),
       ErrorStack: LogSanitizer.formulaSafe(error ? error.stack || "" : event.errorStack || ""), CreatedAt: at,
     };
-    RepositoryWriter.insert(LOG_SCHEMA, row);
+    LogsRepository.append(row);
     return { recorded: true, id: row.ID };
   }
 
@@ -129,7 +129,7 @@ const LogsService = (() => {
 
   function filteredRows(filters = {}) {
       filters = resolvedFilters(filters);
-      let rows = RepositoryBase.mapRows(LOG_SCHEMA, RepositoryBase.rows(LOG_SCHEMA));
+      let rows = LogsRepository.rows();
       const exact = { level: "Level", category: "Category", module: "Module", action: "Action", status: "Status", entityType: "EntityType", entityId: "EntityID", actor: "Actor" };
       Object.keys(exact).forEach((key) => { if (filters[key]) rows = rows.filter((row) => String(row[exact[key]] || "").toLowerCase() === String(filters[key]).toLowerCase()); });
       if (filters.dateFrom) rows = rows.filter((row) => datePart(row.Timestamp) >= filters.dateFrom);
@@ -150,7 +150,7 @@ const LogsService = (() => {
   }
 
   function getById(logId) {
-    const row = RepositoryBase.mapRows(LOG_SCHEMA, RepositoryBase.rows(LOG_SCHEMA)).find((item) => String(item.ID) === String(logId));
+    const row = LogsRepository.findById(logId);
     return row ? Response.success(row) : Response.error("Log not found.");
   }
 
@@ -176,12 +176,11 @@ const LogsService = (() => {
 
   function audit() {
     const findings = [];
-    let sheet;
-    try { sheet = Database.sheet(LOG_SCHEMA.TABLE); } catch (error) { return Response.success({ classification: "EMPTY_SAFE_TO_INITIALIZE", sheetExists: false, rowCount: 0, findings: [{ code: "SHEET_MISSING" }] }); }
-    const lastColumn = sheet.getLastColumn();
-    const headers = lastColumn ? sheet.getRange(1, 1, 1, lastColumn).getValues()[0] : [];
+    const physical = LogsRepository.inspectPhysicalStore();
+    if (!physical.sheetExists) return Response.success({ classification: "EMPTY_SAFE_TO_INITIALIZE", sheetExists: false, rowCount: 0, findings: [{ code: "SHEET_MISSING" }] });
+    const headers = physical.headers;
     const nonBlank = headers.filter((value) => String(value).trim());
-    if (!nonBlank.length && sheet.getLastRow() <= 1) return Response.success({ classification: "EMPTY_SAFE_TO_INITIALIZE", sheetExists: true, rowCount: 0, findings });
+    if (!nonBlank.length && physical.lastRow <= 1) return Response.success({ classification: "EMPTY_SAFE_TO_INITIALIZE", sheetExists: true, rowCount: 0, findings });
     headers.forEach((header, index) => { if (!String(header).trim()) findings.push({ code: "BLANK_HEADER", column: index + 1 }); });
     const counts = {}; headers.forEach((header) => { counts[header] = (counts[header] || 0) + 1; });
     Object.keys(counts).filter((key) => counts[key] > 1).forEach((header) => findings.push({ code: "DUPLICATE_HEADER", header }));
@@ -190,10 +189,10 @@ const LogsService = (() => {
     missing.forEach((header) => findings.push({ code: "MISSING_HEADER", header }));
     unexpected.forEach((header) => findings.push({ code: "UNEXPECTED_HEADER", header }));
     const blockingHeader = findings.some((item) => item.code === "BLANK_HEADER" || item.code === "DUPLICATE_HEADER");
-    if (blockingHeader) return Response.success({ classification: "BLOCKING_SCHEMA_DEFECT", sheetExists: true, rowCount: Math.max(0, sheet.getLastRow() - 1), headers, findings });
-    if (missing.length || unexpected.length) return Response.success({ classification: "LEGACY_SCHEMA_MIGRATION_REQUIRED", sheetExists: true, rowCount: Math.max(0, sheet.getLastRow() - 1), headers, findings });
-    const raw = RepositoryBase.rows(LOG_SCHEMA); const rows = RepositoryBase.mapRows(LOG_SCHEMA, raw); const ids = {};
-    const formulas = rows.length ? sheet.getRange(2, 1, rows.length, headers.length).getFormulas() : [];
+    if (blockingHeader) return Response.success({ classification: "BLOCKING_SCHEMA_DEFECT", sheetExists: true, rowCount: Math.max(0, physical.lastRow - 1), headers, findings });
+    if (missing.length || unexpected.length) return Response.success({ classification: "LEGACY_SCHEMA_MIGRATION_REQUIRED", sheetExists: true, rowCount: Math.max(0, physical.lastRow - 1), headers, findings });
+    const raw = physical.rawRows; const rows = physical.rows; const ids = {};
+    const formulas = physical.formulas;
     rows.forEach((row, index) => {
       const physicalRow = index + 2; const logId = String(row.ID || "").trim();
       if (raw[index].every((value) => value === "")) findings.push({ code: "BLANK_ROW", row: physicalRow });
