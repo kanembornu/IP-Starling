@@ -12,17 +12,8 @@ const AcceptanceRunner = (() => {
 
   function fastStages() {
     return Object.freeze([
-      stage("LOGS", [
-        child("runLogsFocusedTests", () => typeof runLogsFocusedTests === "function" ? runLogsFocusedTests : null),
-      ]),
-      stage("SETTINGS", [
-        child("runSettingsFocusedTests", () => typeof runSettingsFocusedTests === "function" ? runSettingsFocusedTests : null),
-      ]),
-      stage("MAINTENANCE", [
-        child("runLiveDiagnosticsFocusedTests", () => typeof runLiveDiagnosticsFocusedTests === "function" ? runLiveDiagnosticsFocusedTests : null),
-      ]),
-      stage("LOGS CONTRACT", [
-        child("runLogsRepositoryServiceContractTests", () => typeof runLogsRepositoryServiceContractTests === "function" ? runLogsRepositoryServiceContractTests : null),
+      stage("PHASE 5B.6 CREATE INVARIANTS", [
+        child("runPhase5B6Acceptance", () => typeof runPhase5B6Acceptance === "function" ? runPhase5B6Acceptance : null),
       ]),
     ]);
   }

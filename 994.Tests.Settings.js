@@ -201,10 +201,13 @@ function runSettingsFocusedTests() {
 }
 
 function testSettingsMaintenanceOwnershipContract() {
-  const maintenance = HtmlService.createHtmlOutputFromFile("139.Maintenance.SettingsMigration").getContent();
-  const tests = HtmlService.createHtmlOutputFromFile("994.Tests.Settings").getContent();
+  const maintenance = [
+    settingsSchemaCompatibilityDiagnostic,
+    settingsLegacySchemaMigration,
+  ].map((fn) => fn.toString()).join("\n");
+  const tests = runSettingsFocusedTests.toString();
   ["settingsSchemaCompatibilityDiagnostic", "settingsLegacySchemaMigration"].forEach((name) => {
-    _settingsAssert(new RegExp(`function\\s+${name}\\s*\\(`).test(maintenance), `${name} is missing from Settings maintenance.`);
+    _settingsAssert((maintenance.match(new RegExp(`function\\s+${name}\\s*\\(`, "g")) || []).length === 1, `${name} is missing or duplicated in Settings maintenance.`);
     _settingsAssert(!new RegExp(`function\\s+${name}\\s*\\(`).test(tests), `${name} remains implemented in the Settings test file.`);
   });
   _settingsAssert(typeof settingsSchemaCompatibilityDiagnostic === "function" && settingsSchemaCompatibilityDiagnostic.length === 0, "Settings diagnostic public symbol or arity changed.");

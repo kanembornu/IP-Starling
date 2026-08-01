@@ -63,7 +63,10 @@ function testLogLevelProviderBehaviorContract() {
 }
 
 function testLogsSettingsCycleRemovalContract() {
-  const logsSource = HtmlService.createHtmlOutputFromFile("82.Service.Logs").getContent();
+  const logsSource = Object.keys(LogsService)
+    .filter((key) => typeof LogsService[key] === "function")
+    .map((key) => LogsService[key].toString())
+    .join("\n");
   const providerSource = LogLevelProvider.resolve.toString();
   const settingsSource = SettingsService.toString();
   _logsAssert(logsSource.indexOf("SettingsService") < 0, "LogsService still references SettingsService.");

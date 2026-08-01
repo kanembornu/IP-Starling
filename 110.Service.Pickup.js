@@ -638,15 +638,23 @@ function PickupService(options) {
     }
   }
 
-  function create(document) {
+  function createLocked(businessDocument, resourceId) {
+    reservedCreateHeaderId = resourceId || null;
+    try {
+      return transaction.create(businessDocument);
+    } finally {
+      reservedCreateHeaderId = null;
+    }
+  }
+
+  function createCore(document, key) {
     return withPickupMutationLock(() => {
       const shapeValidation = validateDocumentShape(document);
       if (shapeValidation) return shapeValidation;
-      const key = String(document.IdempotencyKey || "").trim();
       const businessDocument = { header: document.header, details: document.details };
 
       if (!key) {
-        const legacy = transaction.create(businessDocument);
+        const legacy = createLocked(businessDocument);
         if (legacy && legacy.meta) legacy.meta.idempotency = "LEGACY_UNPROTECTED";
         return legacy;
       }
@@ -659,11 +667,7 @@ function PickupService(options) {
         operation: "PICKUP_CREATE",
         normalizedPayload: normalized,
         generateResourceId: () => IDGenerator.generate(PICKUP_HEADER_SCHEMA),
-        execute(resourceId) {
-          reservedCreateHeaderId = resourceId;
-          try { return transaction.create(businessDocument); }
-          finally { reservedCreateHeaderId = null; }
-        },
+        execute: (resourceId) => createLocked(businessDocument, resourceId),
         recover(resourceId) {
           const found = transaction.findById(resourceId);
           if (!found.success) return null;
@@ -675,6 +679,18 @@ function PickupService(options) {
         },
       });
     });
+  }
+
+  function create(document) {
+    const key = String(document && document.IdempotencyKey || "").trim();
+    if (!key) {
+      return Response.error("IdempotencyKey wajib diisi untuk membuat Pickup.");
+    }
+    return createCore(document, key);
+  }
+
+  function createInternal(document) {
+    return createCore(document, "");
   }
 
   function updateUnlocked(id, document) {
@@ -797,6 +813,7 @@ function PickupService(options) {
     findById: transaction.findById,
     findAllDetails,
     create,
+    createInternal,
     update,
     remove,
     restore,

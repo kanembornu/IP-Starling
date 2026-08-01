@@ -200,6 +200,27 @@ function runIdempotencyContractTests() {
   runTestSuite("Idempotency contract tests", getIdempotencyContractTests(), { reportTiming: true });
 }
 
+function getPhase5B6AcceptanceTests() {
+  return Object.freeze([
+  testPickupPublicCreateRequiresIdempotencyKey,
+  testReturnPublicCreateRequiresIdempotencyKey,
+  testPickupReturnControllerCreateDelegationContract,
+  testPickupReturnInternalCreateCompatibilityContract,
+  testPickupAtomicRetryContract,
+  testPickupAtomicIdempotencyConflict,
+  testPickupAtomicIdempotencyRetryAfterRollback,
+  testReturnAtomicIdempotencyReplay,
+  testReturnAtomicIdempotencyConflict,
+  testReturnAtomicIdempotencyRetryAfterRollback,
+  testPickupAtomicCreateDetailFailure,
+  testReturnAtomicCreateRollback,
+  ]);
+}
+
+function runPhase5B6Acceptance() {
+  runTestSuite("Phase 5B.6 create invariant acceptance", getPhase5B6AcceptanceTests(), { reportTiming: true });
+}
+
 function getTransactionServiceContractTests() {
   return Object.freeze([
   testTransactionContractSuccessExecutesEachStepOnce,

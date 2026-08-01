@@ -657,13 +657,12 @@ function ReturnService(options = {}) {
     });
   }
 
-  function create(document) {
+  function createCore(document, key) {
     if (!document || typeof document !== "object" || Array.isArray(document)) {
       return Response.error("Data Return wajib diisi.");
     }
 
     return withReturnMutationLock(() => {
-      const key = String(document.IdempotencyKey || "").trim();
       const businessDocument = Object.assign({}, document);
       delete businessDocument.IdempotencyKey;
 
@@ -691,6 +690,18 @@ function ReturnService(options = {}) {
         },
       });
     });
+  }
+
+  function create(document) {
+    const key = String(document && document.IdempotencyKey || "").trim();
+    if (!key) {
+      return Response.error("IdempotencyKey wajib diisi untuk membuat Return.");
+    }
+    return createCore(document, key);
+  }
+
+  function createInternal(document) {
+    return createCore(document, "");
   }
 
   function update(id, document) {
@@ -768,6 +779,8 @@ function ReturnService(options = {}) {
     findById,
 
     create,
+
+    createInternal,
 
     update,
 

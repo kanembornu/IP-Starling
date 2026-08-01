@@ -3,6 +3,7 @@ function testPickupServicePublicApi() {
 
   const expectedKeys = [
     "create",
+    "createInternal",
     "evaluateRestoreEligibility",
     "findAll",
     "findAllDetails",
@@ -415,7 +416,7 @@ function assertPickupCreateFailure(document) {
 
   const detailCount = RepositoryReader.count(PICKUP_DETAIL_SCHEMA);
 
-  const response = PickupService().create(document);
+  const response = PickupService().createInternal(document);
 
   if (response.success) {
     throw new Error("Pickup creation should have failed.");
@@ -549,7 +550,7 @@ function testPickupDateNormalization() {
       label: "ISO one-day regression",
     },
   ].forEach((sample) => {
-    const response = PickupService().create({
+    const response = PickupService().createInternal({
       header: {
         [PICKUP_HEADER_FIELDS.DATE]: sample.input,
         [PICKUP_HEADER_FIELDS.PARTNER_ID]: partner[PARTNER_SCHEMA.PRIMARY_KEY],
@@ -905,7 +906,7 @@ function testPickupCreateValidSingleItem() {
     return;
   }
 
-  const response = PickupService().create({
+  const response = PickupService().createInternal({
     header: {
       [PICKUP_HEADER_FIELDS.DATE]: new Date(),
 
@@ -961,7 +962,7 @@ function testPickupCreateValidMultiItem() {
     return;
   }
 
-  const response = PickupService().create({
+  const response = PickupService().createInternal({
     header: {
       [PICKUP_HEADER_FIELDS.DATE]: new Date(),
 
@@ -1023,7 +1024,7 @@ function createPickupUpdateTestTransaction(detailCount) {
     return null;
   }
 
-  const response = PickupService().create({
+  const response = PickupService().createInternal({
     header: {
       [PICKUP_HEADER_FIELDS.DATE]: new Date(),
       [PICKUP_HEADER_FIELDS.PARTNER_ID]: partner[PARTNER_SCHEMA.PRIMARY_KEY],
@@ -2399,7 +2400,7 @@ function returnTestFixture() {
 }
 
 function createReturnTestRow(fixture, qty = 1) {
-  const response = ReturnService().create({
+  const response = ReturnService().createInternal({
     [RETURN_FIELDS.PICKUP_DETAIL_ID]:
       fixture.detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY],
 
@@ -2534,6 +2535,7 @@ function testReturnServicePublicApi() {
   const keys = Object.keys(ReturnService()).sort();
   const expected = [
     "create",
+    "createInternal",
     "findAll",
     "findById",
     "findDeleted",
@@ -2949,7 +2951,7 @@ function testReturnCreateMissingDocument() {
 }
 
 function testReturnCreateMissingPickupDetailId() {
-  if (ReturnService().create({ Tanggal: "2026-07-17", Qty: 1 }).success)
+  if (ReturnService().createInternal({ Tanggal: "2026-07-17", Qty: 1 }).success)
     throw new Error("Return create must require PickupDetailID.");
 }
 
@@ -2957,7 +2959,7 @@ function testReturnCreateMissingTanggal() {
   const fixture = returnTestFixture();
   if (!fixture) return;
   if (
-    ReturnService().create({ PickupDetailID: fixture.detail.ID, Qty: 1 })
+    ReturnService().createInternal({ PickupDetailID: fixture.detail.ID, Qty: 1 })
       .success
   )
     throw new Error("Return create must require Tanggal.");
@@ -2967,7 +2969,7 @@ function testReturnCreateInvalidQty() {
   const fixture = returnTestFixture();
   if (!fixture) return;
   if (
-    ReturnService().create({
+    ReturnService().createInternal({
       PickupDetailID: fixture.detail.ID,
       Tanggal: "2026-07-17",
       Qty: 0,
@@ -2978,7 +2980,7 @@ function testReturnCreateInvalidQty() {
 
 function testReturnCreateUnknownPickupDetail() {
   if (
-    ReturnService().create({
+    ReturnService().createInternal({
       PickupDetailID: "PD_UNKNOWN",
       Tanggal: "2026-07-17",
       Qty: 1,
@@ -3478,7 +3480,7 @@ function testReturnCreateDerivesPickupId() {
 function testReturnCreateRejectsOverQuantity() {
   const fixture = returnTestFixture();
   if (!fixture) return;
-  const response = ReturnService().create({
+  const response = ReturnService().createInternal({
     PickupDetailID: fixture.detail.ID,
     Tanggal: "2026-07-17",
     Qty: fixture.available + 1,
@@ -3493,7 +3495,7 @@ function testReturnCreateUsesCumulativeQuantity() {
   const first = createReturnTestRow(fixture, fixture.available);
 
   try {
-    const response = ReturnService().create({
+    const response = ReturnService().createInternal({
       PickupDetailID: fixture.detail.ID,
       Tanggal: "2026-07-17",
       Qty: 1,
@@ -5388,8 +5390,6 @@ function dashboardFixture(overrides) {
 }
 
 function testLiveDiagnosticsMaintenanceContracts() {
-  const maintenance = HtmlService.createHtmlOutputFromFile("140.Maintenance.LiveDiagnostics").getContent();
-  const tests = HtmlService.createHtmlOutputFromFile("993.Tests.Transaction").getContent();
   const publicFunctions = [
     auditExpenseLiveData,
     diagnoseExpenseNominalCleanup,
@@ -5398,10 +5398,13 @@ function testLiveDiagnosticsMaintenanceContracts() {
     auditDashboardLiveData,
     runPickupReturnIntegrityDiagnostic,
   ];
+  const maintenance = publicFunctions.map((fn) => fn.toString()).join("\n");
+  const tests = runLiveDiagnosticsFocusedTests.toString();
   publicFunctions.forEach((fn) => {
     if (typeof fn !== "function" || fn.length !== 0) throw new Error(`${fn && fn.name || "Live diagnostic"} public symbol or arity changed.`);
     const declaration = new RegExp(`function\\s+${fn.name}\\s*\\(`);
-    if (!declaration.test(maintenance)) throw new Error(`${fn.name} is missing from live diagnostics maintenance.`);
+    const declarations = maintenance.match(new RegExp(`function\\s+${fn.name}\\s*\\(`, "g")) || [];
+    if (declarations.length !== 1) throw new Error(`${fn.name} is missing or duplicated in live diagnostics maintenance.`);
     if (declaration.test(tests)) throw new Error(`${fn.name} remains implemented in the Transaction test file.`);
   });
   if (typeof analyzePickupReturnIntegrity !== "function" || analyzePickupReturnIntegrity.length !== 4) {

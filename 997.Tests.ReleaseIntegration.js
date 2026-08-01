@@ -324,8 +324,10 @@ function testReleaseCreateIdempotencyContract() {
   releaseAssert(/IdempotencyKey:state\.pickupCreateRequestKey/.test(app) && /IdempotencyKey:state\.returnCreateRequestKey/.test(app), "Create payloads do not carry retained request keys.");
   releaseAssert(/run\("createPickup", data\)/.test(api) && /run\("createReturn", data\)/.test(api), "API does not pass create payloads unchanged.");
   releaseAssert(/PickupService\(\)\.create\(data\)/.test(controller) && /ReturnService\(\)\.create\(data\)/.test(controller), "Controller does not pass create payloads unchanged.");
-  releaseAssert((controller.match(/IdempotencyKey wajib diisi/g) || []).length === 2, "Canonical create Controllers do not require request identity.");
+  releaseAssert(!/IdempotencyKey wajib diisi/.test(controller), "Controller duplicates the Service-owned create invariant.");
+  releaseAssert(/IdempotencyKey wajib diisi untuk membuat Pickup\./.test(PickupService.toString()) && /IdempotencyKey wajib diisi untuk membuat Return\./.test(ReturnService.toString()), "Canonical create Services do not require request identity.");
   releaseAssert(/IdempotencyService\.execute/.test(PickupService.toString()) && /IdempotencyService\.execute/.test(ReturnService.toString()), "Create Services do not consume durable idempotency reservations.");
+  releaseAssert(/function createInternal\(document\)/.test(PickupService.toString()) && /function createInternal\(document\)/.test(ReturnService.toString()), "Explicit internal compatibility create paths are missing.");
   releaseAssert(SHEET_NAMES.IDEMPOTENCY_REQUESTS === "IdempotencyRequests" && IDEMPOTENCY_SCHEMA.TABLE === SHEET_NAMES.IDEMPOTENCY_REQUESTS, "Dedicated idempotency store is not canonical.");
 }
 

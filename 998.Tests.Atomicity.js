@@ -54,6 +54,32 @@ function testIdempotencyKeyGeneratorFormatAndOwnership() {
   atomicAssert(IdempotencyService.validateKey("ips_123e4567-e89b-42d3-a456-426614174000") === "ips_123e4567-e89b-42d3-a456-426614174000" && IdempotencyService.validateKey("bad-key").success === false, "Server idempotency-key validation is invalid.");
 }
 
+function testPickupPublicCreateRequiresIdempotencyKey() {
+  const response = PickupService().create(null);
+  atomicAssert(!response.success && response.message === "IdempotencyKey wajib diisi untuk membuat Pickup.", "Pickup public create missing-key contract changed.");
+}
+
+function testReturnPublicCreateRequiresIdempotencyKey() {
+  const response = ReturnService().create(null);
+  atomicAssert(!response.success && response.message === "IdempotencyKey wajib diisi untuk membuat Return.", "Return public create missing-key contract changed.");
+}
+
+function testPickupReturnControllerCreateDelegationContract() {
+  const pickup = createPickup.toString();
+  const returns = createReturn.toString();
+  atomicAssert(/PickupService\(\)\.create\(data\)/.test(pickup) && !/IdempotencyKey|Response\.error/.test(pickup), "Pickup Controller duplicates the create invariant.");
+  atomicAssert(/ReturnService\(\)\.create\(data\)/.test(returns) && !/IdempotencyKey|Response\.error/.test(returns), "Return Controller duplicates the create invariant.");
+}
+
+function testPickupReturnInternalCreateCompatibilityContract() {
+  const pickup = PickupService.toString();
+  const returns = ReturnService.toString();
+  atomicAssert(/function createInternal\(document\)[\s\S]*?createCore\(document, ""\)/.test(pickup), "Pickup internal compatibility path is not explicit.");
+  atomicAssert(/function createInternal\(document\)[\s\S]*?createCore\(document, ""\)/.test(returns), "Return internal compatibility path is not explicit.");
+  atomicAssert((pickup.match(/transaction\.create\(businessDocument\)/g) || []).length === 1, "Pickup has duplicate create implementations.");
+  atomicAssert((returns.match(/createLocked\(businessDocument/g) || []).length === 2, "Return protected/internal paths do not share the canonical core.");
+}
+
 function testIdempotencyCanonicalPayloadNormalizationContracts() {
   const pickup = PickupService.toString(); const returns = ReturnService.toString();
   atomicAssert(/normalizeIdempotencyPayload/.test(pickup) && /Number\(detail\[PICKUP_DETAIL_FIELDS\.QTY\]\)/.test(pickup), "Pickup canonical normalization is missing.");
@@ -274,11 +300,11 @@ function atomicPickupFailure(stage, operation) {
   const document = atomicPickupDocument(2); if (!document) return;
   let fixture = null;
   try {
-    if (operation !== "CREATE") { const created = PickupService({ auditMutation() {} }).create(document); atomicAssert(created.success, "Pickup fixture creation failed."); fixture = created.data; }
+    if (operation !== "CREATE") { const created = PickupService({ auditMutation() {} }).createInternal(document); atomicAssert(created.success, "Pickup fixture creation failed."); fixture = created.data; }
     const before = atomicSnapshot([PICKUP_HEADER_SCHEMA, PICKUP_DETAIL_SCHEMA]);
     const service = PickupService({ auditMutation() {}, failureInjector(current) { if (current === stage) throw new Error("INJECTED"); } });
     let response;
-    if (operation === "CREATE") response = service.create(document);
+    if (operation === "CREATE") response = service.createInternal(document);
     else if (operation === "UPDATE") response = service.update(fixture.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY], document);
     else if (operation === "DELETE") response = service.remove(fixture.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]);
     else { PickupService({ auditMutation() {} }).remove(fixture.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]); const deleted = atomicSnapshot([PICKUP_HEADER_SCHEMA, PICKUP_DETAIL_SCHEMA]); response = service.restore(fixture.header[PICKUP_HEADER_SCHEMA.PRIMARY_KEY]); atomicAssert(deleted === atomicSnapshot([PICKUP_HEADER_SCHEMA, PICKUP_DETAIL_SCHEMA]), "Failed Pickup restore changed persisted state."); return; }
@@ -286,7 +312,7 @@ function atomicPickupFailure(stage, operation) {
   } finally { atomicCleanupPickup(fixture); }
 }
 
-function testPickupAtomicCreateSuccess() { const document = atomicPickupDocument(2); if (!document) return; let data; try { const response = PickupService({ auditMutation() {} }).create(document); atomicAssert(response.success, "Pickup create failed."); data = response.data; } finally { atomicCleanupPickup(data); } }
+function testPickupAtomicCreateSuccess() { const document = atomicPickupDocument(2); if (!document) return; let data; try { const response = PickupService({ auditMutation() {} }).createInternal(document); atomicAssert(response.success, "Pickup create failed."); data = response.data; } finally { atomicCleanupPickup(data); } }
 function testPickupAtomicCreateAfterHeaderFailure() { atomicPickupFailure("afterHeaderWrite", "CREATE"); }
 function testPickupAtomicCreateDetailFailure() { atomicPickupFailure("afterFirstDetailWrite", "CREATE"); }
 function testPickupAtomicUpdateRollback() { atomicPickupFailure("beforeAudit", "UPDATE"); }
@@ -320,51 +346,51 @@ function testPickupAtomicIdempotencyRetryAfterRollback() {
     atomicAssert(retried.success, "Pickup could not retry with the same key after rollback.");
   } finally { atomicCleanupPickup(data); IdempotencyRepository.remove(key); }
 }
-function testPickupAtomicSingleSuccessAudit() { const document = atomicPickupDocument(1); if (!document) return; const audits = []; let data; try { const response = PickupService({ auditMutation(schema, action) { audits.push(action); } }).create(document); data = response.data; atomicAssert(response.success && audits.length === 1, "Pickup success audit count is not one."); } finally { atomicCleanupPickup(data); } }
-function testPickupAtomicZeroAuditOnRollback() { const document = atomicPickupDocument(1); if (!document) return; const before = atomicSnapshot([PICKUP_HEADER_SCHEMA, PICKUP_DETAIL_SCHEMA]); const audits = []; const response = PickupService({ auditMutation() { audits.push("audit"); }, failureInjector(stage) { if (stage === "beforeAudit") throw new Error("FAIL"); } }).create(document); atomicAssert(!response.success && audits.length === 0 && before === atomicSnapshot([PICKUP_HEADER_SCHEMA, PICKUP_DETAIL_SCHEMA]), "Pickup rollback emitted a success audit or changed state."); }
+function testPickupAtomicSingleSuccessAudit() { const document = atomicPickupDocument(1); if (!document) return; const audits = []; let data; try { const response = PickupService({ auditMutation(schema, action) { audits.push(action); } }).createInternal(document); data = response.data; atomicAssert(response.success && audits.length === 1, "Pickup success audit count is not one."); } finally { atomicCleanupPickup(data); } }
+function testPickupAtomicZeroAuditOnRollback() { const document = atomicPickupDocument(1); if (!document) return; const before = atomicSnapshot([PICKUP_HEADER_SCHEMA, PICKUP_DETAIL_SCHEMA]); const audits = []; const response = PickupService({ auditMutation() { audits.push("audit"); }, failureInjector(stage) { if (stage === "beforeAudit") throw new Error("FAIL"); } }).createInternal(document); atomicAssert(!response.success && audits.length === 0 && before === atomicSnapshot([PICKUP_HEADER_SCHEMA, PICKUP_DETAIL_SCHEMA]), "Pickup rollback emitted a success audit or changed state."); }
 
 function atomicReturnDocument(fixture, qty) { return { [RETURN_FIELDS.PICKUP_DETAIL_ID]: fixture.detail[PICKUP_DETAIL_SCHEMA.PRIMARY_KEY], [RETURN_FIELDS.DATE]: "2026-07-25", [RETURN_FIELDS.QTY]: qty, [RETURN_FIELDS.NOTE]: "[ATOMICITY TEST]" }; }
 function atomicCleanupReturn(row) { if (!row) return; const lock = LockService.getScriptLock(); lock.waitLock(10000); try { RepositoryWriter.rollbackInsert(RETURN_SCHEMA, row[RETURN_SCHEMA.PRIMARY_KEY]); } finally { lock.releaseLock(); } }
 function atomicReturnFailure(operation) {
   const fixture = returnTestFixture(); if (!fixture) return; let row = null;
   try {
-    if (operation !== "CREATE") { const created = ReturnService({ auditMutation() {} }).create(atomicReturnDocument(fixture, 1)); atomicAssert(created.success, "Return fixture creation failed."); row = created.data; }
+    if (operation !== "CREATE") { const created = ReturnService({ auditMutation() {} }).createInternal(atomicReturnDocument(fixture, 1)); atomicAssert(created.success, "Return fixture creation failed."); row = created.data; }
     if (operation === "RESTORE") { atomicAssert(ReturnService({ auditMutation() {} }).remove(row[RETURN_SCHEMA.PRIMARY_KEY]).success, "Return fixture delete failed."); }
     const before = atomicSnapshot([RETURN_SCHEMA]);
     const service = ReturnService({ auditMutation() {}, failureInjector(stage) { if (stage === (operation === "CREATE" ? "afterReturnWrite" : "beforeAudit")) throw new Error("INJECTED"); } });
-    const response = operation === "CREATE" ? service.create(atomicReturnDocument(fixture, 1)) : operation === "UPDATE" ? service.update(row[RETURN_SCHEMA.PRIMARY_KEY], { [RETURN_FIELDS.QTY]: 1 }) : operation === "DELETE" ? service.remove(row[RETURN_SCHEMA.PRIMARY_KEY]) : service.restore(row[RETURN_SCHEMA.PRIMARY_KEY]);
+    const response = operation === "CREATE" ? service.createInternal(atomicReturnDocument(fixture, 1)) : operation === "UPDATE" ? service.update(row[RETURN_SCHEMA.PRIMARY_KEY], { [RETURN_FIELDS.QTY]: 1 }) : operation === "DELETE" ? service.remove(row[RETURN_SCHEMA.PRIMARY_KEY]) : service.restore(row[RETURN_SCHEMA.PRIMARY_KEY]);
     atomicAssert(!response.success && before === atomicSnapshot([RETURN_SCHEMA]), `Failed Return ${operation} changed persisted state.`);
   } finally { atomicCleanupReturn(row); }
 }
 
-function testReturnAtomicCreateSuccess() { const fixture = returnTestFixture(); if (!fixture) return; let row; try { const response = ReturnService({ auditMutation() {} }).create(atomicReturnDocument(fixture, 1)); row = response.data; atomicAssert(response.success, "Return create failed."); } finally { atomicCleanupReturn(row); } }
+function testReturnAtomicCreateSuccess() { const fixture = returnTestFixture(); if (!fixture) return; let row; try { const response = ReturnService({ auditMutation() {} }).createInternal(atomicReturnDocument(fixture, 1)); row = response.data; atomicAssert(response.success, "Return create failed."); } finally { atomicCleanupReturn(row); } }
 function testReturnAtomicCreateRollback() { atomicReturnFailure("CREATE"); }
 function testReturnAtomicUpdateRollback() { atomicReturnFailure("UPDATE"); }
 function testReturnAtomicDeleteRollback() { atomicReturnFailure("DELETE"); }
 function testReturnAtomicRestoreRollback() { atomicReturnFailure("RESTORE"); }
-function testReturnAtomicExactRemainingQty() { const fixture = returnTestFixture(); if (!fixture) return; let row; try { const response = ReturnService({ auditMutation() {} }).create(atomicReturnDocument(fixture, fixture.available)); row = response.data; atomicAssert(response.success, "Exact remaining Return quantity failed."); } finally { atomicCleanupReturn(row); } }
-function testReturnAtomicOverLimitWriteFree() { const fixture = returnTestFixture(); if (!fixture) return; const before = atomicSnapshot([RETURN_SCHEMA]); const response = ReturnService({ auditMutation() {} }).create(atomicReturnDocument(fixture, fixture.available + 1)); atomicAssert(!response.success && before === atomicSnapshot([RETURN_SCHEMA]), "Over-limit Return wrote data."); }
+function testReturnAtomicExactRemainingQty() { const fixture = returnTestFixture(); if (!fixture) return; let row; try { const response = ReturnService({ auditMutation() {} }).createInternal(atomicReturnDocument(fixture, fixture.available)); row = response.data; atomicAssert(response.success, "Exact remaining Return quantity failed."); } finally { atomicCleanupReturn(row); } }
+function testReturnAtomicOverLimitWriteFree() { const fixture = returnTestFixture(); if (!fixture) return; const before = atomicSnapshot([RETURN_SCHEMA]); const response = ReturnService({ auditMutation() {} }).createInternal(atomicReturnDocument(fixture, fixture.available + 1)); atomicAssert(!response.success && before === atomicSnapshot([RETURN_SCHEMA]), "Over-limit Return wrote data."); }
 function testReturnAtomicStaleEligibilityRevalidated() {
   const fixture = returnTestFixture(); if (!fixture) return; let first = null;
   try {
     const staleQty = fixture.available;
-    const created = ReturnService({ auditMutation() {} }).create(atomicReturnDocument(fixture, 1));
+    const created = ReturnService({ auditMutation() {} }).createInternal(atomicReturnDocument(fixture, 1));
     atomicAssert(created.success, "Stale-data fixture creation failed."); first = created.data;
-    const retry = ReturnService({ auditMutation() {} }).create(atomicReturnDocument(fixture, staleQty));
+    const retry = ReturnService({ auditMutation() {} }).createInternal(atomicReturnDocument(fixture, staleQty));
     atomicAssert(!retry.success, "Stale Return eligibility was not revalidated server-side.");
   } finally { atomicCleanupReturn(first); }
 }
 function testReturnAtomicConcurrentLikeAllocation() {
   const fixture = returnTestFixture(); if (!fixture) return; let first = null;
   try {
-    const created = ReturnService({ auditMutation() {} }).create(atomicReturnDocument(fixture, fixture.available));
+    const created = ReturnService({ auditMutation() {} }).createInternal(atomicReturnDocument(fixture, fixture.available));
     atomicAssert(created.success, "First allocation failed."); first = created.data;
-    const second = ReturnService({ auditMutation() {} }).create(atomicReturnDocument(fixture, fixture.available));
+    const second = ReturnService({ auditMutation() {} }).createInternal(atomicReturnDocument(fixture, fixture.available));
     atomicAssert(!second.success, "Concurrent-like Return allocation exceeded available quantity.");
   } finally { atomicCleanupReturn(first); }
 }
-function testReturnAtomicSingleSuccessAudit() { const fixture = returnTestFixture(); if (!fixture) return; const audits = []; let row; try { const response = ReturnService({ auditMutation(schema, action) { audits.push(action); } }).create(atomicReturnDocument(fixture, 1)); row = response.data; atomicAssert(response.success && audits.length === 1, "Return success audit count is not one."); } finally { atomicCleanupReturn(row); } }
-function testReturnAtomicZeroAuditOnRollback() { const fixture = returnTestFixture(); if (!fixture) return; const before = atomicSnapshot([RETURN_SCHEMA]); const audits = []; const response = ReturnService({ auditMutation() { audits.push("audit"); }, failureInjector(stage) { if (stage === "beforeAudit") throw new Error("FAIL"); } }).create(atomicReturnDocument(fixture, 1)); atomicAssert(!response.success && audits.length === 0 && before === atomicSnapshot([RETURN_SCHEMA]), "Return rollback emitted a success audit or changed state."); }
+function testReturnAtomicSingleSuccessAudit() { const fixture = returnTestFixture(); if (!fixture) return; const audits = []; let row; try { const response = ReturnService({ auditMutation(schema, action) { audits.push(action); } }).createInternal(atomicReturnDocument(fixture, 1)); row = response.data; atomicAssert(response.success && audits.length === 1, "Return success audit count is not one."); } finally { atomicCleanupReturn(row); } }
+function testReturnAtomicZeroAuditOnRollback() { const fixture = returnTestFixture(); if (!fixture) return; const before = atomicSnapshot([RETURN_SCHEMA]); const audits = []; const response = ReturnService({ auditMutation() { audits.push("audit"); }, failureInjector(stage) { if (stage === "beforeAudit") throw new Error("FAIL"); } }).createInternal(atomicReturnDocument(fixture, 1)); atomicAssert(!response.success && audits.length === 0 && before === atomicSnapshot([RETURN_SCHEMA]), "Return rollback emitted a success audit or changed state."); }
 function testReturnAtomicIdempotencyReplay() {
   const fixture = returnTestFixture(); if (!fixture) return; const key = atomicRequestKey(); const audits = []; let row = null;
   try {

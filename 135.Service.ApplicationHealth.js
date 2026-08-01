@@ -1606,6 +1606,10 @@ const ApplicationHealth = (() => {
         typeof runReturnAtomicityTests === "function"
           ? runReturnAtomicityTests
           : null,
+      runLiveDiagnosticsFocusedTests:
+        typeof runLiveDiagnosticsFocusedTests === "function"
+          ? runLiveDiagnosticsFocusedTests
+          : null,
       runReleaseFrontendIntegrationTests:
         typeof runReleaseFrontendIntegrationTests === "function"
           ? runReleaseFrontendIntegrationTests
