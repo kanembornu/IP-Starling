@@ -59,7 +59,7 @@
  * 10.Config.gs
  * 15.Schema.gs
  * 20.Database.gs
- * 25.Utils.gs
+ * 72.Framework.Utils.gs
  * 30.Router.gs
  * 35.Code.gs
  *
@@ -70,7 +70,7 @@
  * 50.Repository.Cache.gs
  * 55.Repository.Reader.gs
  * 60.Repository.Writer.gs
- * 65.Repository.Query.gs
+ * 66.Repository.Query.gs
  *
  * Framework
  * ----------
