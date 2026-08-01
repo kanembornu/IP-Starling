@@ -1,71 +1,45 @@
-# Review Checklist
+# Review Template
+
+Read [`AGENTS.md`](../AGENTS.md) before reviewing.
 
 ## Scope
 
-Did the implementation modify only requested files?
+Requested scope and reviewed files:
 
-PASS / FAIL
+## Files Changed
 
----
+-
 
-## Architecture
+## Contracts Preserved
 
-Follow existing architecture?
+-
 
-PASS / FAIL
+## Static Tests
 
----
+- Result:
+- Evidence:
 
-## Regression
+## Apps Script Runtime Tests
 
-Any existing feature broken?
+- Result: PASS / FAIL / NOT RUN
+- Evidence:
 
-PASS / FAIL
+## Browser Checks
 
----
+- Result: PASS / FAIL / NOT RUN
+- Evidence:
 
-## Readability
+## Application Health
 
-Consistent naming?
+- Result: PASS / FAIL / NOT RUN
+- Evidence:
 
-PASS / FAIL
+## Risks
 
----
-
-## Performance
-
-Any unnecessary loop?
-
-PASS / FAIL
-
----
-
-## Reusability
-
-Can helper move to Shared Presenter?
-
-PASS / FAIL
-
----
-
-## Security
-
-Escape HTML.
-
-Avoid inline event.
-
-No dangerous code.
-
-PASS / FAIL
-
----
+-
 
 ## Result
 
-APPROVED
-
-or
-
-REJECTED
+PASS / BLOCKED
 
 Reason:

@@ -1,125 +1,27 @@
 # Module Template
 
-## Presenter Structure
+Read [`AGENTS.md`](../AGENTS.md) before using this template.
 
-Header
+## Purpose
 
-↓
+Describe the module's user-facing and domain purpose.
 
-Constants
+## Ownership and Layer
 
-↓
+Identify the owning layer and the existing reference module or pattern being followed.
 
-Public Render
+## Public Contract
 
-↓
+List public functions, inputs, outputs, errors, and behavior that must remain compatible.
 
-Row Render
+## Dependencies
 
-↓
+List direct dependencies and confirm that they follow the documented architecture.
 
-Empty State
+## Tests
 
-↓
+List focused static checks, source-contract tests, and Apps Script runtime runners that cover the module.
 
-Info
+## Acceptance Impact
 
-↓
-
-Status
-
-↓
-
-Actions
-
-↓
-
-Helper
-
-↓
-
-Public API
-
----
-
-## Naming
-
-DashboardPresenter
-
-ProductsPresenter
-
-PartnersPresenter
-
-ExpensesPresenter
-
-PurchasingPresenter
-
-PickupsPresenter
-
-ReturnsPresenter
-
----
-
-## Public API
-
-render()
-
-Only expose public functions.
-
-Everything else private.
-
----
-
-## Table
-
-Render using Components.
-
-Never build HTML differently between modules.
-
----
-
-## Status
-
-Always use:
-
-Components.badge()
-
----
-
-## Currency
-
-Always use:
-
-Format.currency()
-
----
-
-## Number
-
-Always use:
-
-Format.number()
-
----
-
-## Empty State
-
-Always use:
-
-Components.empty()
-
----
-
-## Escape
-
-Always use:
-
-Utils.escapeHTML()
-
----
-
-## State
-
-Always read from App state.
-
-Never duplicate state.
+List affected browser workflows, Application Health checks, and acceptance wrappers. Record checks that require manual execution separately.
