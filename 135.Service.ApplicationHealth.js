@@ -1950,8 +1950,8 @@ const ApplicationHealth = (() => {
       ),
     );
     const metadataReady =
-      APP_CONFIG.VERSION === "1.0.0" &&
-      APP_CONFIG.BUILD === "Release";
+      APP_CONFIG.VERSION === "1.1.0-dev" &&
+      APP_CONFIG.BUILD === "Development";
     result.Release.push(
       check(
         "Release metadata",
@@ -1959,7 +1959,7 @@ const ApplicationHealth = (() => {
         2,
         metadataReady
           ? "Release version and build metadata are synchronized."
-          : `Current metadata is ${APP_CONFIG.VERSION} / ${APP_CONFIG.BUILD}; synchronize it with VERSION and the Release build label.`,
+          : `Current metadata is ${APP_CONFIG.VERSION} / ${APP_CONFIG.BUILD}; synchronize it with VERSION and the Development build label.`,
         [],
         startedAt,
       ),

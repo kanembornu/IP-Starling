@@ -11,16 +11,19 @@
 - Phase 5C repository, source-numbering, frontend-bootstrap, and documentation cleanup.
 - Final strict repository validation.
 - Release metadata finalization and v1.0.0 preparation.
+- v1.0.0 release and GitHub Release publication.
+- Immutable Apps Script version 233 and production deployment verification.
 
 ## Current work
 
-- Complete final Apps Script runtime and browser release acceptance.
-- Create and verify the immutable Apps Script release version.
-- Publish the approved Git tag and GitHub Release.
+- Post-v1.0 development planning.
+- Next feature and UI/UX prioritization based on production evidence.
+- Backlog definition for 1.1.0.
 
-## Release path
+## Future work
 
-- Publish `v1.0.0` only after every release gate passes and release actions are explicitly approved.
+- Develop 1.1.0 after its backlog is approved.
+- Prepare patch releases if critical v1.0.0 defects are found.
 
 ## Post-v1.0 roadmap
 

@@ -4,7 +4,7 @@ IP-Starling is an inventory, purchasing, and operational management application 
 
 ## Current status
 
-The current stable release is **1.0.0**.
+The current development version is **1.1.0-dev**. The latest stable release is **1.0.0**, and the production deployment remains on v1.0.0. Development source may be ahead of production and does not imply that 1.1.0 has been released.
 
 ## Core features
 

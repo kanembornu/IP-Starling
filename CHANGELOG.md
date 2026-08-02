@@ -6,7 +6,9 @@ This changelog is the canonical release history. Its format follows Keep a Chang
 
 ## [Unreleased]
 
-No unreleased changes yet.
+### Changed
+
+- Began post-v1.0.0 development for version 1.1.0-dev.
 
 ## [1.0.0] - 2026-08-02
 

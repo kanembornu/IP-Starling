@@ -11,6 +11,8 @@ IP-Starling follows Semantic Versioning:
 
 `VERSION` is the canonical repository version. Runtime `APP_CONFIG.VERSION` must match it; `APP_CONFIG.BUILD` is the descriptive build label.
 
+The latest stable release is v1.0.0. Its production deployment remains pinned to immutable Apps Script version 233. Post-release development starts at 1.1.0-dev / Development; development source may advance without changing the pinned production deployment.
+
 ## Release gates
 
 Before release preparation:
