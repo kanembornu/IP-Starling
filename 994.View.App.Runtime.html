@@ -536,6 +536,24 @@
       return { preset, dateFrom: preset === "CUSTOM" ? DOM.$("logs-date-from")?.value || "" : "", dateTo: preset === "CUSTOM" ? DOM.$("logs-date-to")?.value || "" : "", level: DOM.$("logs-level")?.value || "", category: DOM.$("logs-category")?.value || "", module: DOM.$("logs-module")?.value || "", action: DOM.$("logs-action")?.value || "", status: DOM.$("logs-status")?.value || "", search: DOM.$("logs-search")?.value || "" };
     }
 
+    function renderFilterState(module, options = {}) {
+      const toolbar = document.querySelector(`[data-filter-toolbar="${module}"]`);
+      if (!toolbar) return;
+      const active = Boolean(options.active);
+      const loading = Boolean(options.loading);
+      toolbar.setAttribute("aria-busy", String(loading));
+      toolbar.querySelectorAll("input, select, button").forEach((control) => {
+        control.disabled = loading || (control.dataset.filterClear !== undefined && !active);
+      });
+      const feedback = toolbar.querySelector(`[data-filter-feedback="${module}"]`);
+      if (feedback) {
+        DOM.text(feedback, loading ? "Updating filters..." : active ? "Filters active" : "No filters active");
+        feedback.classList.toggle("font-medium", active && !loading);
+        feedback.classList.toggle("text-blue-700", active && !loading);
+        feedback.classList.toggle("text-slate-500", !active || loading);
+      }
+    }
+
     function syncFilterToolbar(module) {
       const settings = {
         products: { active: state.productMode !== "active" || Boolean(state.productSearch), loading: state.productLoading },
@@ -546,7 +564,7 @@
         expenses: { active: state.expenseMode !== "active" || Boolean(state.expenseSearch[state.expenseMode]), loading: state.expenseLoading },
         logs: { active: state.logsFilters.preset !== "CURRENT_MONTH" || ["dateFrom", "dateTo", "level", "category", "module", "action", "status", "search"].some((key) => Boolean(state.logsFilters[key])), loading: false },
       };
-      SharedPresenter.renderFilterState(module, settings[module] || {});
+      renderFilterState(module, settings[module] || {});
     }
 
     function validPageSize(value) { const size = Number(value); return [10, 15, 25, 50, 100].indexOf(size) >= 0 ? size : 15; }
@@ -630,7 +648,7 @@
     }
 
     async function loadLogs() {
-      applyLogsFilterControls(); const request = ++logsRequest; LogsPresenter.renderLoading(); SharedPresenter.renderFilterState("logs", { active: true, loading: true });
+      applyLogsFilterControls(); const request = ++logsRequest; LogsPresenter.renderLoading(); renderFilterState("logs", { active: true, loading: true });
       const filters = resolvedLogsFilters(Utils.deepClone(state.logsFilters));
       try {
         const response = await Api.Logs.page(filters, { page: state.logsPage, pageSize: state.logsPageSize });

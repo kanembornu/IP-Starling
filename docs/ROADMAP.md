@@ -8,16 +8,14 @@
 - Production stabilization and focused regression coverage.
 - Architecture cleanup, including repository/service ownership boundaries.
 - Targeted source renumbering and documented compatibility exceptions.
+- Phase 5C repository, source-numbering, frontend-bootstrap, and documentation cleanup.
 
 ## Current work
 
-- Consolidate detailed technical documentation under `docs/` and remove duplicate or obsolete documents.
-- Reconcile the legacy `.ai/` guidance with canonical root documentation in a separate phase.
+- Complete the final strict repository validation before Phase 6.
 
 ## Release path
 
-- Complete documentation consolidation and validation.
-- Complete `.ai/` reconciliation without reintroducing competing authority.
 - Perform final release preparation: version metadata, changelog, full acceptance, Application Health, and browser smoke gates.
 - Publish `v1.0.0` only after every release gate passes and release actions are explicitly approved.
 

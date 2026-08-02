@@ -29,22 +29,10 @@
  * HTML View
  * │
  * ▼
- * Code.gs
+ * App → Presenter → Shared Presenter / Render / Components
  * │
  * ▼
- * Router
- * │
- * ▼
- * Service Layer
- * │
- * ▼
- * Framework Layer
- * │
- * ▼
- * Repository Layer
- * │
- * ▼
- * Database Layer
+ * API → Controller → Service → Repository → Database
  * │
  * ▼
  * Google Spreadsheet
@@ -55,45 +43,51 @@
  *
  * Foundation
  * ----------
- * 00.Project.Spec.gs
- * 10.Config.gs
- * 15.Schema.gs
- * 20.Database.gs
- * 72.Framework.Utils.gs
- * 30.Router.gs
- * 35.Code.gs
+ * 00.Project.Spec.js
+ * 10.Config.js
+ * 15.Schema.js
+ * 20.Database.js
+ * 72.Framework.Utils.js
+ * 30.Router.js
+ * 35.Code.js
  *
  * Repository
  * ----------
- * 40.Repository.Base.gs
- * 45.Repository.Core.gs
- * 50.Repository.Cache.gs
- * 55.Repository.Reader.gs
- * 60.Repository.Writer.gs
- * 66.Repository.Query.gs
+ * 40.Repository.Base.js
+ * 50.Repository.Cache.js
+ * 55.Repository.Reader.js
+ * 60.Repository.Writer.js
+ * 65.Repository.Idempotency.js
+ * 66.Repository.Query.js
+ * 67.Repository.Logs.js
  *
  * Framework
  * ----------
- * 70.Framework.Response.gs
- * 75.Framework.Validator.gs
- * 80.Framework.Logger.gs
- * 85.Framework.IDGenerator.gs
- * 90.Framework.BaseService.gs
+ * 70.Framework.Response.js
+ * 75.Framework.Validator.js
+ * 80.Framework.Logger.js
+ * 85.Framework.IDGenerator.js
+ * 90.Framework.BaseService.js
  *
  * Services
  * --------
- * 100.Service.Product.gs
- * 105.Service.Partner.gs
- * 110.Service.Pickup.gs
- * 115.Service.Return.gs
- * 120.Service.Purchasing.gs
- * 125.Service.Expense.gs
- * 130.Service.Dashboard.gs
+ * 100.Service.Product.js
+ * 105.Service.Partner.js
+ * 110.Service.Pickup.js
+ * 115.Service.Return.js
+ * 120.Service.Purchasing.js
+ * 125.Service.Expense.js
+ * 127.Service.Idempotency.js
+ * 128.Service.Settings.js
+ * 129.Service.Logs.js
+ * 130.Service.Dashboard.js
+ * 135.Service.ApplicationHealth.js
  *
  * Views
  * -----
  * 900.View.Index.html
- * 905.View.Dashboard.html
+ * 905.View.Layout.html
+ * 915.View.Dashboard.html
  *
  * =============================================================================
  * CODING STANDARD
