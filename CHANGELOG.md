@@ -6,45 +6,44 @@ This changelog is the canonical release history. Its format follows Keep a Chang
 
 ## [Unreleased]
 
+No unreleased changes yet.
+
+## [1.0.0] - 2026-08-02
+
 ### Added
 
-- Centralized application metadata for the server bootstrap, browser state, and sidebar version display.
-- Read-only Application Health framework with focused summaries and failure diagnostics.
-- Controlled, idempotent Return `PickupID` maintenance repair with preview and revalidation safeguards.
-- Focused release-readiness verification for health, metadata, smoke-runner availability, production entries, and sidebar version sourcing.
-- Development seed utility with deterministic test data, backup protection, and integrity validation.
-- Runtime ID sequence inspection and repair utility.
-- Application Health checks for schema, IDs, relationships, audit coverage, and release readiness.
-- Dark and light application themes with persisted user preference.
-- Responsive dashboard charts and adaptive trend aggregation.
-- Shared Indonesian monetary input formatting.
+- Dashboard and operational analytics with filters, KPIs, charts, and recent activity.
+- Product and Partner master-data management.
+- Pickup and Return operational workflows.
+- Purchasing and Expense workflows.
+- Settings, audit Logs, and read-only Application Health diagnostics.
+- Dark and light themes with persisted user preference.
+- Development seed and guarded maintenance tools with preview, backup, and validation safeguards.
 
 ### Changed
 
-- Modernized and standardized the application interface.
-- Improved dashboard KPI, chart, filter, and recent-activity presentation.
-- Standardized modal forms, loading states, empty states, pagination, and accessibility behavior.
-- Reorganized Theme configuration under UI Settings.
-- Standardized Settings page header with other application menus.
-- Pickup header totals now follow the sum of active detail quantities.
-- Pickup historical pricing is stored on detail records for consistent value reporting.
-- Canonical ID generation now uses synchronized ScriptProperties sequences.
+- Modernized the application interface with responsive layouts, consistent forms, tables, states, pagination, and accessibility behavior.
+- Separated spreadsheet access, business rules, server endpoints, and browser presentation through repository/service architecture boundaries.
+- Strengthened idempotency and transaction boundaries for operational mutations.
+- Centralized error handling with sanitized, browser-safe responses.
+- Standardized unique source numbering and repository structure.
+- Consolidated project documentation and bounded release-acceptance workflows.
 
 ### Fixed
 
-- Pickup Add modal remaining open after successful save.
-- Pickup Edit modal remaining open after successful save.
-- Pickup quantity totals not updating when detail items changed.
-- Duplicate PickupHeader and PickupDetail ID risks caused by stale sequences.
-- Purchase dates shifting one day backward when reopened for editing.
-- Logs pagination and presenter-boundary regressions.
-- Monetary fields displaying unformatted raw values.
-- Dashboard and chart behavior across dark and light themes.
+- Pickup and Return quantity, historical-value, and restore consistency.
+- Purchasing restore atomicity and transaction integrity.
+- ID sequence collision protection across generated records.
+- Date and nominal formatting consistency in forms and reports.
+- Pagination, modal lifecycle, and dashboard rendering issues.
+- Runtime initialization and test-registry ordering defects.
+- Logs layout, pagination, and detail modal behavior.
 
 ### Security
 
-- Development reset remains blocked in production environments.
-- Destructive seed operations require explicit confirmation and create backups first.
+- Sanitized unexpected server errors before returning browser responses.
+- Sanitized spreadsheet-bound values to reduce formula-injection risk.
+- Required explicit confirmation and backups for destructive maintenance, with development reset blocked in production.
 
 ## [0.1.0] - 2026-07-09
 

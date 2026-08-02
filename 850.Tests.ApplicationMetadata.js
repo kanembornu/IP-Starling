@@ -7,8 +7,8 @@ function applicationMetadataSource(fileName) {
 }
 
 function testApplicationMetadataCanonicalRelease() {
-  applicationMetadataAssert(APP_CONFIG.VERSION === "1.0.0-dev", "APP_CONFIG.VERSION is not the canonical development version.");
-  applicationMetadataAssert(APP_CONFIG.BUILD === "Development", "APP_CONFIG.BUILD is not the canonical development build.");
+  applicationMetadataAssert(APP_CONFIG.VERSION === "1.0.0", "APP_CONFIG.VERSION is not the canonical release version.");
+  applicationMetadataAssert(APP_CONFIG.BUILD === "Release", "APP_CONFIG.BUILD is not the canonical release build.");
 }
 
 function testApplicationMetadataBootstrapResponse() {

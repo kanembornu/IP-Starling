@@ -16,8 +16,8 @@ function releaseReadinessHealth() {
 }
 
 function testReleaseReadinessCanonicalMetadata() {
-  releaseReadinessAssert(APP_CONFIG.VERSION === "1.0.0-dev", "APP_CONFIG.VERSION must be 1.0.0-dev.");
-  releaseReadinessAssert(APP_CONFIG.BUILD === "Development", "APP_CONFIG.BUILD must be Development.");
+  releaseReadinessAssert(APP_CONFIG.VERSION === "1.0.0", "APP_CONFIG.VERSION must be 1.0.0.");
+  releaseReadinessAssert(APP_CONFIG.BUILD === "Release", "APP_CONFIG.BUILD must be Release.");
 }
 
 function testReleaseReadinessApplicationHealthHasNoFailures() {
